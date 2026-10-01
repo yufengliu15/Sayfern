@@ -1,0 +1,152 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Corrections.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "7 · Review: corrections + Anki export",
+      "w": 1440,
+      "x": 0,
+      "y": 2520
+    },
+    "Customize.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "9 · Customize (feature builder)",
+      "w": 1440,
+      "x": 3040,
+      "y": 2520
+    },
+    "Grammar.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "5 · Grammar page",
+      "w": 1440,
+      "x": 1520,
+      "y": 1260
+    },
+    "Main.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "3 · Session",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Progress.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "6 · Progress",
+      "w": 1440,
+      "x": 3040,
+      "y": 1260
+    },
+    "Quiz.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "8 · Review: quizzes",
+      "w": 1440,
+      "x": 1520,
+      "y": 2520
+    },
+    "Reader.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "4 · Library reader (Japanese workspace)",
+      "w": 1440,
+      "x": 0,
+      "y": 1260
+    },
+    "Today.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "2 · Today (Sessions home)",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Voice.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "10 · Voice session",
+      "w": 1440,
+      "x": 0,
+      "y": 3780
+    },
+    "Welcome.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "radius": 14,
+      "title": "1 · Welcome and setup",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-30T03:41:19Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "row1": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Stage 1 · Start and practise",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Stage 1 · Read, learn, see progress",
+      "w": 240,
+      "x": 0,
+      "y": 960
+    },
+    "row3": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Stage 2 · Review and customise",
+      "w": 240,
+      "x": 0,
+      "y": 2220
+    },
+    "row4": {
+      "kind": "title1",
+      "maxW": 1440,
+      "text": "Stage 3 · Voice",
+      "w": 240,
+      "x": 0,
+      "y": 3480
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Welcome.dc.html",
+    "Today.dc.html",
+    "Reader.dc.html",
+    "Grammar.dc.html",
+    "Progress.dc.html",
+    "Corrections.dc.html",
+    "Quiz.dc.html",
+    "Customize.dc.html",
+    "Voice.dc.html"
+  ],
+  "pages": [],
+  "title": "Sayfern Wireframes"
+}

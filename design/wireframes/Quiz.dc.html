@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sayfern · Quizzes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;family=Noto+Serif+SC:wght@400;600&amp;family=Noto+Serif+JP:wght@400;600&amp;display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#E7E1D4;font-family:'Geist',ui-sans-serif,-apple-system,system-ui,sans-serif;color:#1C1E1B;-webkit-font-smoothing:antialiased}
+a{color:#2E5B45;text-decoration:none}a:hover{color:#1F4232}
+p{margin:0}
+button{font-family:inherit;cursor:pointer}
+.serif{font-family:'Instrument Serif',Georgia,serif;font-weight:400}
+.cjk{font-family:'Noto Serif SC','Songti SC',serif}
+.jp{font-family:'Noto Serif JP','Hiragino Mincho ProN',serif}
+.mono{font-family:'Geist Mono',ui-monospace,Menlo,monospace}
+.eyebrow{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:#6B6D64;font-weight:500}
+.muted{color:#6B6D64}
+.win{width:1440px;height:900px;display:flex;background:#F4F0E7;overflow:hidden;position:relative;background-image:radial-gradient(rgba(28,30,27,.035) 1px,transparent 1px);background-size:4px 4px}
+.side{width:248px;flex-shrink:0;background:#EAE4D6;border-right:1px solid #DCD4C2;padding:16px 14px 18px;display:flex;flex-direction:column;gap:22px}
+.lights{display:flex;gap:8px;padding:2px 4px}
+.lights span{width:12px;height:12px;border-radius:50%;display:block}
+.brand{display:flex;align-items:center;gap:9px;padding:0 6px}
+.brand b{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:28px;letter-spacing:-.01em;color:#1C1E1B}
+.ldd{position:relative}
+.ldd summary{list-style:none;display:flex;align-items:center;gap:11px;height:56px;padding:0 12px 0 10px;border-radius:14px;background:#1C1E1B;color:#F4F0E7;cursor:pointer;box-shadow:0 8px 18px -10px rgba(28,30,27,.6)}
+.ldd summary::-webkit-details-marker{display:none}
+.ldd summary:hover{background:#2A2D29}
+.ldd summary:focus-visible{outline:2px solid #2E5B45;outline-offset:2px}
+.ldd .g{width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.ldd summary .g{background:rgba(244,240,231,.1)}
+.ldd .t{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.2}
+.ldd .t b{font-weight:600;font-size:14.5px}
+.ldd .t small{font-size:11.5px;opacity:.72}
+.ldd summary svg{transition:transform .18s;opacity:.8}
+.ldd[open] summary svg{transform:rotate(180deg)}
+.ldd .menu{position:absolute;top:62px;left:0;right:0;z-index:50;background:#FFFEFB;border:1px solid #DCD4C2;border-radius:14px;padding:6px;box-shadow:0 24px 48px -18px rgba(28,30,27,.35),0 2px 6px rgba(28,30,27,.06);display:flex;flex-direction:column;gap:2px}
+.ldd .mh{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6B6D64;font-weight:500;padding:8px 10px 4px}
+.ldd .mi{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;color:#1C1E1B}
+.ldd .mi:hover{background:#F0EBE0;color:#1C1E1B}
+.ldd .mi .g{background:#EAE4D6;color:#1C1E1B}
+.ldd .mi.on .g{background:#2E5B45;color:#F4F0E7}
+.ldd .mi .t small{color:#6B6D64;opacity:1}
+.ldd .mi .mck{color:#2E5B45}
+.ldd .sep{height:1px;background:#EEE8DC;margin:4px 6px}
+.ldd .add{color:#2E5B45;font-size:13.5px;font-weight:500;height:40px;padding:0 10px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;height:38px;padding:0 10px;border-radius:9px;color:#3D403A;font-size:14.5px;font-weight:500;border:1px solid transparent}
+.nav a:hover{background:rgba(28,30,27,.05);color:#1C1E1B}
+.nav a.on{background:#FBF9F4;border-color:#DCD4C2;color:#1C1E1B;box-shadow:0 1px 0 rgba(28,30,27,.04)}
+.nav a.on svg{color:#2E5B45}
+.nav .k{margin-left:auto;font-family:'Geist Mono',monospace;font-size:11px;color:#6B6D64}
+.sect{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6B6D64;font-weight:500;padding:0 10px 6px}
+.recent a{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:8px;color:#4A4D46;font-size:14px}
+.recent a:hover{background:rgba(28,30,27,.05)}
+.recent i{width:6px;height:6px;border-radius:50%;background:#B9B19F;flex-shrink:0}
+.recent a.cur i{background:#2E5B45}
+.foot{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+.status{display:flex;align-items:center;gap:9px;font-size:12.5px;color:#4A4D46;padding:5px 10px}
+.status i{width:7px;height:7px;border-radius:50%;background:#3F8A63;box-shadow:0 0 0 3px rgba(63,138,99,.15)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:500;border:1px solid #D5CDBB;background:#FBF9F4;color:#1C1E1B;white-space:nowrap}
+.btn:hover{background:#FFFFFF;color:#1C1E1B;border-color:#C8BFAA}
+.btn-p{background:#1C1E1B;color:#F7F4EC;border-color:#1C1E1B}
+.btn-p:hover{background:#2E5B45;border-color:#2E5B45;color:#F7F4EC}
+.btn-f{background:#2E5B45;color:#F7F4EC;border-color:#2E5B45}
+.btn-f:hover{background:#1F4232;border-color:#1F4232;color:#F7F4EC}
+.btn-s{height:34px;padding:0 12px;font-size:13px;border-radius:9px}
+.btn-l{height:52px;padding:0 24px;font-size:15.5px;border-radius:13px}
+.linkb{background:none;border:0;padding:0;font-size:13px;color:#4A4D46;text-decoration:underline;text-decoration-color:#C8BFAA;text-underline-offset:3px}
+.linkb:hover{color:#1C1E1B}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;border:1px solid #D9D2C3;background:#FBF9F4;font-size:12.5px;color:#4A4D46;white-space:nowrap}
+button.chip:hover{border-color:#B9B19F;color:#1C1E1B}
+.card{background:#FBF9F4;border:1px solid #E0D9CA;border-radius:18px;box-shadow:0 1px 0 rgba(28,30,27,.03),0 12px 32px -24px rgba(28,30,27,.25)}
+.seg{display:inline-flex;padding:3px;background:#E6E0D2;border-radius:11px;gap:2px}
+.seg button,.seg a{height:32px;padding:0 13px;border-radius:8px;border:0;background:transparent;font-size:13px;font-weight:500;color:#4A4D46;display:inline-flex;align-items:center}
+.seg button:hover,.seg a:hover{color:#1C1E1B}
+.seg .on{background:#FBF9F4;color:#1C1E1B;box-shadow:0 1px 2px rgba(28,30,27,.12)}
+.st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.st-ind{background:#2E5B45;color:#F4F0E7}
+.st-help{background:#D3E0D5;color:#1F4232}
+.st-intro{border:1px dashed #9AA394;color:#4A4D46}
+.ok{color:#2E5B45}.bad{color:#A63D22}.unc{color:#6B6D64}
+.dots{display:inline-flex;gap:3px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#D6CEBC;display:block}
+.dots i.f{background:#2E5B45}
+.w{cursor:pointer;border-bottom:1.5px dotted rgba(28,30,27,.35);padding-bottom:1px;border-radius:2px}
+.w:hover{background:rgba(46,91,69,.1)}
+.w.anki{border-bottom:2px solid #93B39C}
+.w.sel{background:rgba(46,91,69,.14);border-bottom-color:#2E5B45}
+.sw{width:40px;height:24px;border-radius:999px;border:0;background:#CFC7B5;position:relative;padding:0;flex-shrink:0}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#FBF9F4;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .18s}
+.sw.on{background:#2E5B45}
+.sw.on::after{left:19px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:13px;font-weight:500;color:#3D403A}
+.input{height:44px;border-radius:11px;border:1px solid #D5CDBB;background:#FFFFFF;padding:0 14px;font-size:14px;font-family:inherit;color:#1C1E1B}
+.input:focus{outline:2px solid rgba(46,91,69,.35);outline-offset:1px;border-color:#2E5B45}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.iconb{width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;color:#4A4D46;display:inline-flex;align-items:center;justify-content:center}
+.iconb:hover{background:rgba(28,30,27,.06);color:#1C1E1B}
+
+.mad{font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:1.45;letter-spacing:-.01em;color:#1C1E1B;max-width:900px}
+.pk{font-family:'Instrument Serif',Georgia,serif;font-size:50px;font-style:italic;color:#2E5B45;background:transparent;border:0;padding:0 4px;border-bottom:2px solid #93B39C;line-height:1.1;cursor:pointer}
+.pk:hover{color:#1F4232;border-bottom-color:#2E5B45;background:rgba(46,91,69,.07)}
+.qopt{display:flex;align-items:center;gap:12px;height:54px;padding:0 16px;border-radius:12px;border:1px solid #DCD4C2;background:#FFFEFB;font-size:22px;cursor:pointer}
+.qopt:hover{border-color:#B9B19F}
+.qopt input{accent-color:#2E5B45;width:18px;height:18px}
+.rq{display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:10px;padding:12px 0;border-bottom:1px solid #E6DFD1;font-size:13.5px;color:#3D403A;align-items:center}
+.rq:last-child{border-bottom:0}
+</style>
+</helmet>
+<div class="win">
+<nav class="side" aria-label="Sayfern">
+<div class="lights" aria-hidden="true"><span style="background:#E4675A"></span><span style="background:#E6B64A"></span><span style="background:#5FB257"></span></div>
+<div class="brand"><svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="#2E5B45" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M7 29C11 20 16 12 25 3"></path><path d="M10.5 22.5c-3-.6-5.2-2.6-6.2-5.6 M10.5 22.5c3 .2 5.8-.8 8-2.8 M13.6 16.6c-2.2-1-3.8-3-4.2-5.8 M13.6 16.6c2.8 0 5.2-1 7-2.8 M17.4 10.6c-1.2-1.2-1.8-3-1.6-5 M17.4 10.6c2 0 3.8-.8 5.2-2"></path></svg><b>Sayfern</b></div>
+<details class="ldd">
+<summary aria-label="Language workspace: Chinese"><span class="g cjk">中</span><span class="t"><b>Chinese</b><small>Practised today</small></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></summary>
+<div class="menu" role="menu" aria-label="Your languages">
+<div class="mh">Your languages</div>
+<a href="Today.dc.html" role="menuitem" class="mi on"><span class="g cjk">中</span><span class="t"><b>Chinese</b><small>Practised today</small></span><span class="mck"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></a>
+<a href="Reader.dc.html" role="menuitem" class="mi"><span class="g jp">日</span><span class="t"><b>Japanese</b><small>Practised 2 days ago</small></span></a>
+<div class="sep"></div>
+<a href="Welcome.dc.html" role="menuitem" class="mi add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14 M5 12h14"></path></svg>Add a language</a>
+</div>
+</details>
+<div class="nav">
+<a href="Today.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16v10.5H10l-6 4z"></path></svg><span>Sessions</span></a>
+<a href="Reader.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h5.5A2.5 2.5 0 0 1 12 7v13a2 2 0 0 0-2-2H4z M20 4.5h-5.5A2.5 2.5 0 0 0 12 7v13a2 2 0 0 1 2-2h6z"></path></svg><span>Library</span></a>
+<a href="Grammar.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5z M3 13l9 5 9-5"></path></svg><span>Grammar</span></a>
+<a href="Corrections.dc.html" class="on" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6 M20 4v4.5h-4.5 M8.5 12l2.5 2.5 4.5-5"></path></svg><span>Review</span></a>
+<a href="Progress.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20v-8 M12 20V5 M19 20v-5"></path></svg><span>Progress</span></a>
+</div>
+<div class="recent">
+<div class="sect">Recent</div>
+<a href="Main.dc.html" class="cur"><i></i><span class="cjk">周末计划</span></a>
+<a href="Today.dc.html" class=""><i></i><span class="cjk">我的大学生活</span></a>
+<a href="Today.dc.html" class=""><i></i><span class="cjk">在饭馆点菜</span></a>
+</div>
+<div class="foot">
+<div class="nav">
+<a href="Customize.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 14 10 M15 3l1.2 2.8L19 7l-2.8 1.2L15 11l-1.2-2.8L11 7l2.8-1.2z"></path></svg><span>Customize</span></a>
+<a href="Welcome.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 5v4 M9 15v4"></path></svg><span>Settings</span></a>
+</div>
+<div style="height:1px;background:#DCD4C2;margin:8px 10px"></div>
+<div class="status"><i></i><span>Claude · Anthropic API</span></div>
+<div class="status"><i></i><span>Anki · synced 2 min ago</span></div>
+</div>
+</nav>
+<main style="flex:1;padding:38px 44px 30px 48px;display:flex;flex-direction:column;gap:22px;min-width:0">
+<div style="display:flex;align-items:flex-end;gap:18px">
+<div style="flex:1"><div class="eyebrow">Chinese · Review</div><h1 class="serif" style="font-size:54px;line-height:1;font-weight:400;margin:6px 0 0;letter-spacing:-.015em">Quick quiz</h1></div>
+<div class="seg" role="tablist" aria-label="Review">
+<a href="Corrections.dc.html" role="tab" class="" aria-selected="false">Corrections</a>
+<a href="Quiz.dc.html" role="tab" class="on" aria-selected="true">Quizzes</a>
+</div>
+</div>
+<div style="display:flex;gap:40px;flex:1;min-height:0">
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div class="eyebrow" style="margin-top:14px">Tap the green words to change them</div>
+<p class="mad" style="margin-top:8px">Quiz me on <button class="pk" onClick="{{nx.focus}}">{{v.focus}}</button> from <button class="pk" onClick="{{nx.source}}">{{v.source}}</button>, at <button class="pk" onClick="{{nx.level}}">{{v.level}}</button>, as <button class="pk" onClick="{{nx.format}}">{{v.format}}</button>, for <button class="pk" onClick="{{nx.length}}">{{v.length}}</button>.</p>
+<div style="display:flex;align-items:center;gap:16px;margin-top:26px">
+<button class="btn btn-f btn-l" style="height:58px;padding:0 30px;font-size:16.5px">Start quiz <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14 M13 6l6 6-6 6"></path></svg></button>
+<span style="font-size:13.5px;color:#6B6D64">About {{mins}} minutes</span>
+</div>
+<sc-if value="{{exam}}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:#7A3A15;background:#F6E6D8;border-radius:10px;padding:10px 14px;align-self:flex-start"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4 M5 4h11l-2 4 2 4H5"></path></svg><span>Generated in {{v.level}} style. Not official exam material.</span></div>
+</sc-if>
+</div>
+<div style="width:360px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+<div class="card" style="padding:22px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between"><span class="eyebrow">Question 1 preview</span><span class="eyebrow">Fill the gap</span></div>
+<div class="cjk" style="font-size:24px;line-height:1.6">除了中文课，我<span style="display:inline-block;width:46px;border-bottom:2px solid #1C1E1B"></span>有三门课。</div>
+<fieldset style="border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><legend class="sr">Choose one</legend>
+<label class="qopt cjk"><input type="radio" name="q1">还</label><label class="qopt cjk"><input type="radio" name="q1">也</label><label class="qopt cjk"><input type="radio" name="q1">都</label><label class="qopt cjk"><input type="radio" name="q1">就</label>
+</fieldset>
+<div style="font-size:12px;color:#6B6D64">Graded on this Mac. Written answers go to the model.</div>
+</div>
+<div>
+<div class="eyebrow" style="margin-bottom:4px">Recent quizzes</div>
+<div class="rq"><span>Grammar · my mistakes</span><span class="mono" style="text-align:right">9/10</span></div>
+<div class="rq"><span>Vocabulary · this week's Anki</span><span class="mono" style="text-align:right">14/20</span></div>
+<div class="rq"><span>HSK 3 style · mixed</span><span class="mono" style="text-align:right">17/20</span></div>
+<div style="font-size:12px;color:#6B6D64;margin-top:8px;line-height:1.5">Quiz results feed your grammar pages as prompted practice, kept apart from conversation.</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+class Component extends DCLogic {
+  state = { focus: 0, source: 0, level: 0, format: 0, length: 0 };
+  renderVals() {
+    const s = this.state;
+    const opts = {
+      focus: ['grammar', 'vocabulary', 'real-life scenes', 'exam prep', 'a bit of everything'],
+      source: ['my mistakes', "this week's Anki", 'textbook Lesson 12', 'my goals'],
+      level: ['my level', 'HSK 3', 'HSK 4'],
+      format: ['mixed formats', 'multiple choice', 'fill the gap', 'sentence order', 'written answers', 'role-play'],
+      length: ['10 questions', '20 questions', '5 minutes']
+    };
+    const v = {}, nx = {};
+    Object.keys(opts).forEach((k) => {
+      v[k] = opts[k][s[k]];
+      nx[k] = () => this.setState({ [k]: (s[k] + 1) % opts[k].length });
+    });
+    const mins = { '10 questions': 8, '20 questions': 15, '5 minutes': 5 }[v.length];
+    return { v, nx, mins, exam: v.level !== 'my level' };
+  }
+}
+</script>
+</body>
+</html>

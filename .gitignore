@@ -1,0 +1,12 @@
+node_modules/
+out/
+dist/
+.DS_Store
+*.log
+# local dev credentials written by `npm run smoke`
+.sayfern-dev/
+
+# benchmark: raw captures, personal fixtures and overrides
+bench/results/
+bench/fixtures/private/
+bench/bench.config.local.json

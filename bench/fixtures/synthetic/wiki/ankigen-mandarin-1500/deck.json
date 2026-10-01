@@ -1,0 +1,290 @@
+{
+ "deck": "Mandarin Top-1500 Frequency",
+ "notes": [
+  {
+   "word": "朋友",
+   "pinyin": "péngyou",
+   "definition": "friend"
+  },
+  {
+   "word": "学校",
+   "pinyin": "xuéxiào",
+   "definition": "school"
+  },
+  {
+   "word": "喜欢",
+   "pinyin": "xǐhuan",
+   "definition": "to like"
+  },
+  {
+   "word": "工作",
+   "pinyin": "gōngzuò",
+   "definition": "work; to work"
+  },
+  {
+   "word": "时间",
+   "pinyin": "shíjiān",
+   "definition": "time"
+  },
+  {
+   "word": "今天",
+   "pinyin": "jīntiān",
+   "definition": "today"
+  },
+  {
+   "word": "觉得",
+   "pinyin": "juéde",
+   "definition": "to feel; to think"
+  },
+  {
+   "word": "东西",
+   "pinyin": "dōngxi",
+   "definition": "thing"
+  },
+  {
+   "word": "电脑",
+   "pinyin": "diànnǎo",
+   "definition": "computer"
+  },
+  {
+   "word": "周末",
+   "pinyin": "zhōumò",
+   "definition": "weekend"
+  },
+  {
+   "word": "爸爸",
+   "pinyin": "bàba",
+   "definition": "dad"
+  },
+  {
+   "word": "妈妈",
+   "pinyin": "māma",
+   "definition": "mom"
+  },
+  {
+   "word": "做饭",
+   "pinyin": "zuò fàn",
+   "definition": "to cook"
+  },
+  {
+   "word": "好吃",
+   "pinyin": "hǎochī",
+   "definition": "tasty"
+  },
+  {
+   "word": "手机",
+   "pinyin": "shǒujī",
+   "definition": "mobile phone"
+  },
+  {
+   "word": "游戏",
+   "pinyin": "yóuxì",
+   "definition": "game"
+  },
+  {
+   "word": "学习",
+   "pinyin": "xuéxí",
+   "definition": "to study"
+  },
+  {
+   "word": "容易",
+   "pinyin": "róngyì",
+   "definition": "easy"
+  },
+  {
+   "word": "已经",
+   "pinyin": "yǐjīng",
+   "definition": "already"
+  },
+  {
+   "word": "一起",
+   "pinyin": "yìqǐ",
+   "definition": "together"
+  },
+  {
+   "word": "因为",
+   "pinyin": "yīnwèi",
+   "definition": "because"
+  },
+  {
+   "word": "所以",
+   "pinyin": "suǒyǐ",
+   "definition": "so; therefore"
+  },
+  {
+   "word": "然后",
+   "pinyin": "ránhòu",
+   "definition": "then; after that"
+  },
+  {
+   "word": "比较",
+   "pinyin": "bǐjiào",
+   "definition": "relatively; to compare"
+  },
+  {
+   "word": "天气",
+   "pinyin": "tiānqì",
+   "definition": "weather"
+  },
+  {
+   "word": "晚上",
+   "pinyin": "wǎnshang",
+   "definition": "evening"
+  },
+  {
+   "word": "每天",
+   "pinyin": "měitiān",
+   "definition": "every day"
+  },
+  {
+   "word": "需要",
+   "pinyin": "xūyào",
+   "definition": "to need"
+  },
+  {
+   "word": "有意思",
+   "pinyin": "yǒu yìsi",
+   "definition": "interesting"
+  },
+  {
+   "word": "差不多",
+   "pinyin": "chàbuduō",
+   "definition": "about the same; almost"
+  },
+  {
+   "word": "帮助",
+   "pinyin": "bāngzhù",
+   "definition": "to help"
+  },
+  {
+   "word": "问题",
+   "pinyin": "wèntí",
+   "definition": "question; problem"
+  },
+  {
+   "word": "图书馆",
+   "pinyin": "túshūguǎn",
+   "definition": "library"
+  },
+  {
+   "word": "运动",
+   "pinyin": "yùndòng",
+   "definition": "sports; to exercise"
+  },
+  {
+   "word": "牛肉",
+   "pinyin": "niúròu",
+   "definition": "beef"
+  },
+  {
+   "word": "汤",
+   "pinyin": "tāng",
+   "definition": "soup"
+  },
+  {
+   "word": "选择",
+   "pinyin": "xuǎnzé",
+   "definition": "to choose; choice"
+  },
+  {
+   "word": "设计",
+   "pinyin": "shèjì",
+   "definition": "to design; design"
+  },
+  {
+   "word": "印象",
+   "pinyin": "yìnxiàng",
+   "definition": "impression"
+  },
+  {
+   "word": "经验",
+   "pinyin": "jīngyàn",
+   "definition": "experience"
+  },
+  {
+   "word": "打算",
+   "pinyin": "dǎsuan",
+   "definition": "to plan; plan"
+  },
+  {
+   "word": "环境",
+   "pinyin": "huánjìng",
+   "definition": "environment"
+  },
+  {
+   "word": "解决",
+   "pinyin": "jiějué",
+   "definition": "to solve"
+  },
+  {
+   "word": "习惯",
+   "pinyin": "xíguàn",
+   "definition": "habit; to be used to"
+  },
+  {
+   "word": "机会",
+   "pinyin": "jīhuì",
+   "definition": "opportunity"
+  },
+  {
+   "word": "完成",
+   "pinyin": "wánchéng",
+   "definition": "to complete"
+  },
+  {
+   "word": "讨论",
+   "pinyin": "tǎolùn",
+   "definition": "to discuss"
+  },
+  {
+   "word": "影响",
+   "pinyin": "yǐngxiǎng",
+   "definition": "influence; to affect"
+  },
+  {
+   "word": "参加",
+   "pinyin": "cānjiā",
+   "definition": "to take part in"
+  },
+  {
+   "word": "准备",
+   "pinyin": "zhǔnbèi",
+   "definition": "to prepare"
+  },
+  {
+   "word": "研究",
+   "pinyin": "yánjiū",
+   "definition": "research; to study"
+  },
+  {
+   "word": "发展",
+   "pinyin": "fāzhǎn",
+   "definition": "to develop"
+  },
+  {
+   "word": "感兴趣",
+   "pinyin": "gǎn xìngqù",
+   "definition": "to be interested"
+  },
+  {
+   "word": "效果",
+   "pinyin": "xiàoguǒ",
+   "definition": "effect"
+  },
+  {
+   "word": "方法",
+   "pinyin": "fāngfǎ",
+   "definition": "method"
+  },
+  {
+   "word": "提高",
+   "pinyin": "tígāo",
+   "definition": "to raise; to improve"
+  },
+  {
+   "word": "洗手间",
+   "pinyin": "xǐshǒujiān",
+   "definition": "restroom"
+  }
+ ]
+}

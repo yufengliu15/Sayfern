@@ -1,0 +1,26 @@
+{
+  "id": "zh-long-chat",
+  "title": "Long conversation (context growth)",
+  "description": "Twelve learner messages in one session. Shows how the context sent per request grows with conversation length in each harness.",
+  "language": "zh",
+  "sessions": [
+    {
+      "mode": "chat",
+      "turns": [
+        { "text": "你好！我今天想聊聊我的大学生活。" },
+        { "text": "我是计算机专业的学生，今年是最后一年。" },
+        { "text": "我最喜欢的课是机器人课，因为我们可以自己做机器人。" },
+        { "text": "我在做一个机器狗，它有四条腿，可以走路。", "gold": { "clean": true } },
+        { "text": "最难的是让它走得很稳，我用了强化学习。" },
+        { "text": "我每天晚上在实验室工作到十点。" },
+        { "text": "我觉得很累，但是也很有意思。" },
+        { "text": "周末我喜欢跟室友一起做饭。" },
+        { "text": "我们上个星期做了红烧肉，味道很好。" },
+        { "text": "我的室友也很努力，他想去一家大公司工作。" },
+        { "text": "我还没决定毕业以后做什么。" },
+        { "text": "可能我会去读研究生，或者去一家机器人公司。" }
+      ],
+      "end": true
+    }
+  ]
+}

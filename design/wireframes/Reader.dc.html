@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sayfern · Reader</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;family=Noto+Serif+SC:wght@400;600&amp;family=Noto+Serif+JP:wght@400;600&amp;display=swap">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#E7E1D4;font-family:'Geist',ui-sans-serif,-apple-system,system-ui,sans-serif;color:#1C1E1B;-webkit-font-smoothing:antialiased}
+a{color:#2E5B45;text-decoration:none}a:hover{color:#1F4232}
+p{margin:0}
+button{font-family:inherit;cursor:pointer}
+.serif{font-family:'Instrument Serif',Georgia,serif;font-weight:400}
+.cjk{font-family:'Noto Serif SC','Songti SC',serif}
+.jp{font-family:'Noto Serif JP','Hiragino Mincho ProN',serif}
+.mono{font-family:'Geist Mono',ui-monospace,Menlo,monospace}
+.eyebrow{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:#6B6D64;font-weight:500}
+.muted{color:#6B6D64}
+.win{width:1440px;height:900px;display:flex;background:#F4F0E7;overflow:hidden;position:relative;background-image:radial-gradient(rgba(28,30,27,.035) 1px,transparent 1px);background-size:4px 4px}
+.side{width:248px;flex-shrink:0;background:#EAE4D6;border-right:1px solid #DCD4C2;padding:16px 14px 18px;display:flex;flex-direction:column;gap:22px}
+.lights{display:flex;gap:8px;padding:2px 4px}
+.lights span{width:12px;height:12px;border-radius:50%;display:block}
+.brand{display:flex;align-items:center;gap:9px;padding:0 6px}
+.brand b{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:28px;letter-spacing:-.01em;color:#1C1E1B}
+.ldd{position:relative}
+.ldd summary{list-style:none;display:flex;align-items:center;gap:11px;height:56px;padding:0 12px 0 10px;border-radius:14px;background:#1C1E1B;color:#F4F0E7;cursor:pointer;box-shadow:0 8px 18px -10px rgba(28,30,27,.6)}
+.ldd summary::-webkit-details-marker{display:none}
+.ldd summary:hover{background:#2A2D29}
+.ldd summary:focus-visible{outline:2px solid #2E5B45;outline-offset:2px}
+.ldd .g{width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.ldd summary .g{background:rgba(244,240,231,.1)}
+.ldd .t{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.2}
+.ldd .t b{font-weight:600;font-size:14.5px}
+.ldd .t small{font-size:11.5px;opacity:.72}
+.ldd summary svg{transition:transform .18s;opacity:.8}
+.ldd[open] summary svg{transform:rotate(180deg)}
+.ldd .menu{position:absolute;top:62px;left:0;right:0;z-index:50;background:#FFFEFB;border:1px solid #DCD4C2;border-radius:14px;padding:6px;box-shadow:0 24px 48px -18px rgba(28,30,27,.35),0 2px 6px rgba(28,30,27,.06);display:flex;flex-direction:column;gap:2px}
+.ldd .mh{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6B6D64;font-weight:500;padding:8px 10px 4px}
+.ldd .mi{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;color:#1C1E1B}
+.ldd .mi:hover{background:#F0EBE0;color:#1C1E1B}
+.ldd .mi .g{background:#EAE4D6;color:#1C1E1B}
+.ldd .mi.on .g{background:#2E5B45;color:#F4F0E7}
+.ldd .mi .t small{color:#6B6D64;opacity:1}
+.ldd .mi .mck{color:#2E5B45}
+.ldd .sep{height:1px;background:#EEE8DC;margin:4px 6px}
+.ldd .add{color:#2E5B45;font-size:13.5px;font-weight:500;height:40px;padding:0 10px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:11px;height:38px;padding:0 10px;border-radius:9px;color:#3D403A;font-size:14.5px;font-weight:500;border:1px solid transparent}
+.nav a:hover{background:rgba(28,30,27,.05);color:#1C1E1B}
+.nav a.on{background:#FBF9F4;border-color:#DCD4C2;color:#1C1E1B;box-shadow:0 1px 0 rgba(28,30,27,.04)}
+.nav a.on svg{color:#2E5B45}
+.nav .k{margin-left:auto;font-family:'Geist Mono',monospace;font-size:11px;color:#6B6D64}
+.sect{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6B6D64;font-weight:500;padding:0 10px 6px}
+.recent a{display:flex;align-items:center;gap:9px;height:32px;padding:0 10px;border-radius:8px;color:#4A4D46;font-size:14px}
+.recent a:hover{background:rgba(28,30,27,.05)}
+.recent i{width:6px;height:6px;border-radius:50%;background:#B9B19F;flex-shrink:0}
+.recent a.cur i{background:#2E5B45}
+.foot{margin-top:auto;display:flex;flex-direction:column;gap:2px}
+.status{display:flex;align-items:center;gap:9px;font-size:12.5px;color:#4A4D46;padding:5px 10px}
+.status i{width:7px;height:7px;border-radius:50%;background:#3F8A63;box-shadow:0 0 0 3px rgba(63,138,99,.15)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:500;border:1px solid #D5CDBB;background:#FBF9F4;color:#1C1E1B;white-space:nowrap}
+.btn:hover{background:#FFFFFF;color:#1C1E1B;border-color:#C8BFAA}
+.btn-p{background:#1C1E1B;color:#F7F4EC;border-color:#1C1E1B}
+.btn-p:hover{background:#2E5B45;border-color:#2E5B45;color:#F7F4EC}
+.btn-f{background:#2E5B45;color:#F7F4EC;border-color:#2E5B45}
+.btn-f:hover{background:#1F4232;border-color:#1F4232;color:#F7F4EC}
+.btn-s{height:34px;padding:0 12px;font-size:13px;border-radius:9px}
+.btn-l{height:52px;padding:0 24px;font-size:15.5px;border-radius:13px}
+.linkb{background:none;border:0;padding:0;font-size:13px;color:#4A4D46;text-decoration:underline;text-decoration-color:#C8BFAA;text-underline-offset:3px}
+.linkb:hover{color:#1C1E1B}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;border:1px solid #D9D2C3;background:#FBF9F4;font-size:12.5px;color:#4A4D46;white-space:nowrap}
+button.chip:hover{border-color:#B9B19F;color:#1C1E1B}
+.card{background:#FBF9F4;border:1px solid #E0D9CA;border-radius:18px;box-shadow:0 1px 0 rgba(28,30,27,.03),0 12px 32px -24px rgba(28,30,27,.25)}
+.seg{display:inline-flex;padding:3px;background:#E6E0D2;border-radius:11px;gap:2px}
+.seg button,.seg a{height:32px;padding:0 13px;border-radius:8px;border:0;background:transparent;font-size:13px;font-weight:500;color:#4A4D46;display:inline-flex;align-items:center}
+.seg button:hover,.seg a:hover{color:#1C1E1B}
+.seg .on{background:#FBF9F4;color:#1C1E1B;box-shadow:0 1px 2px rgba(28,30,27,.12)}
+.st{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.st-ind{background:#2E5B45;color:#F4F0E7}
+.st-help{background:#D3E0D5;color:#1F4232}
+.st-intro{border:1px dashed #9AA394;color:#4A4D46}
+.ok{color:#2E5B45}.bad{color:#A63D22}.unc{color:#6B6D64}
+.dots{display:inline-flex;gap:3px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#D6CEBC;display:block}
+.dots i.f{background:#2E5B45}
+.w{cursor:pointer;border-bottom:1.5px dotted rgba(28,30,27,.35);padding-bottom:1px;border-radius:2px}
+.w:hover{background:rgba(46,91,69,.1)}
+.w.anki{border-bottom:2px solid #93B39C}
+.w.sel{background:rgba(46,91,69,.14);border-bottom-color:#2E5B45}
+.sw{width:40px;height:24px;border-radius:999px;border:0;background:#CFC7B5;position:relative;padding:0;flex-shrink:0}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#FBF9F4;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .18s}
+.sw.on{background:#2E5B45}
+.sw.on::after{left:19px}
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:13px;font-weight:500;color:#3D403A}
+.input{height:44px;border-radius:11px;border:1px solid #D5CDBB;background:#FFFFFF;padding:0 14px;font-size:14px;font-family:inherit;color:#1C1E1B}
+.input:focus{outline:2px solid rgba(46,91,69,.35);outline-offset:1px;border-color:#2E5B45}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.iconb{width:38px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;color:#4A4D46;display:inline-flex;align-items:center;justify-content:center}
+.iconb:hover{background:rgba(28,30,27,.06);color:#1C1E1B}
+
+.rbar{height:64px;padding:0 28px;display:flex;align-items:center;gap:14px;border-bottom:1px solid #E0D9CA}
+.shelf{display:flex;gap:10px;padding:14px 28px;border-bottom:1px solid #E0D9CA;background:rgba(234,228,214,.45)}
+.bk{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px 0 8px;border-radius:12px;border:1px solid #E0D9CA;background:#FBF9F4;font-size:13px;color:#1C1E1B}
+.bk:hover{border-color:#B9B19F;color:#1C1E1B}
+.bk.on{border-color:#1C1E1B;box-shadow:0 0 0 1px #1C1E1B inset}
+.bk .cv{width:26px;height:34px;border-radius:3px 5px 5px 3px;flex-shrink:0}
+.bk small{display:block;font-size:11.5px;color:#6B6D64}
+.pagep{width:640px;background:#FFFEFA;border:1px solid #E6DFD1;border-radius:6px;box-shadow:0 1px 0 rgba(28,30,27,.04),0 30px 60px -40px rgba(28,30,27,.35);padding:44px 60px 40px;position:relative}
+.pagep .para{font-size:22px;line-height:2.3;color:#1C1E1B;margin:0 0 6px;text-indent:1em}
+.pagep .read{color:#6B6D64}
+.pagep rt{font-size:11px;color:#2E5B45;letter-spacing:.02em}
+.nofuri rt{visibility:hidden}
+.hl{background:rgba(147,179,156,.35);border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.ck{display:flex;align-items:center;gap:10px;margin:14px -60px 20px;color:#2E5B45;font-size:12px;font-weight:500;letter-spacing:.04em}
+.ck::after{content:'';flex:1;height:1px;background:repeating-linear-gradient(90deg,#93B39C 0 6px,transparent 6px 11px)}
+.ck span{background:#2E5B45;color:#F4F0E7;padding:4px 10px 4px 60px;border-radius:0 999px 999px 0}
+.float{position:absolute;display:flex;gap:2px;padding:4px;background:#1C1E1B;border-radius:12px;box-shadow:0 14px 30px -12px rgba(28,30,27,.6)}
+.float button{height:32px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#EDE8DC;font-size:13px;font-weight:500}
+.float button:hover{background:rgba(237,232,220,.12)}
+.tp{width:380px;flex-shrink:0;border-left:1px solid #E0D9CA;background:#EFEADF;display:flex;flex-direction:column}
+.tm{font-size:15px;line-height:1.6;color:#1C1E1B}
+.tm .j{font-family:'Noto Serif JP',serif;font-size:17px}
+.um{align-self:flex-end;background:#E4ECE3;border:1px solid #D0DDD2;border-radius:16px 16px 5px 16px;padding:10px 14px;font-family:'Noto Serif JP',serif;font-size:17px}
+.src{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#FBF9F4;border:1px solid #E0D9CA;font-size:13px;color:#1C1E1B;margin-top:10px}
+</style>
+</helmet>
+<div class="win">
+<nav class="side" aria-label="Sayfern">
+<div class="lights" aria-hidden="true"><span style="background:#E4675A"></span><span style="background:#E6B64A"></span><span style="background:#5FB257"></span></div>
+<div class="brand"><svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="#2E5B45" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M7 29C11 20 16 12 25 3"></path><path d="M10.5 22.5c-3-.6-5.2-2.6-6.2-5.6 M10.5 22.5c3 .2 5.8-.8 8-2.8 M13.6 16.6c-2.2-1-3.8-3-4.2-5.8 M13.6 16.6c2.8 0 5.2-1 7-2.8 M17.4 10.6c-1.2-1.2-1.8-3-1.6-5 M17.4 10.6c2 0 3.8-.8 5.2-2"></path></svg><b>Sayfern</b></div>
+<details class="ldd">
+<summary aria-label="Language workspace: Japanese"><span class="g jp">日</span><span class="t"><b>Japanese</b><small>Practised 2 days ago</small></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></summary>
+<div class="menu" role="menu" aria-label="Your languages">
+<div class="mh">Your languages</div>
+<a href="Today.dc.html" role="menuitem" class="mi"><span class="g cjk">中</span><span class="t"><b>Chinese</b><small>Practised today</small></span></a>
+<a href="Reader.dc.html" role="menuitem" class="mi on"><span class="g jp">日</span><span class="t"><b>Japanese</b><small>Practised 2 days ago</small></span><span class="mck"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></a>
+<div class="sep"></div>
+<a href="Welcome.dc.html" role="menuitem" class="mi add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14 M5 12h14"></path></svg>Add a language</a>
+</div>
+</details>
+<div class="nav">
+<a href="Today.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16v10.5H10l-6 4z"></path></svg><span>Sessions</span></a>
+<a href="Reader.dc.html" class="on" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h5.5A2.5 2.5 0 0 1 12 7v13a2 2 0 0 0-2-2H4z M20 4.5h-5.5A2.5 2.5 0 0 0 12 7v13a2 2 0 0 1 2-2h6z"></path></svg><span>Library</span></a>
+<a href="Grammar.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5z M3 13l9 5 9-5"></path></svg><span>Grammar</span></a>
+<a href="Corrections.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6 M20 4v4.5h-4.5 M8.5 12l2.5 2.5 4.5-5"></path></svg><span>Review</span></a>
+<a href="Progress.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20v-8 M12 20V5 M19 20v-5"></path></svg><span>Progress</span></a>
+</div>
+<div class="recent">
+<div class="sect">Recent</div>
+<a href="Reader.dc.html" class="cur"><i></i><span class="jp">ももたろうを読む</span></a>
+<a href="Reader.dc.html" class=""><i></i><span class="jp">自己紹介</span></a>
+<a href="Reader.dc.html" class=""><i></i><span class="jp">週末の予定</span></a>
+</div>
+<div class="foot">
+<div class="nav">
+<a href="Customize.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 14 10 M15 3l1.2 2.8L19 7l-2.8 1.2L15 11l-1.2-2.8L11 7l2.8-1.2z"></path></svg><span>Customize</span></a>
+<a href="Welcome.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9 M17 7h3 M4 17h3 M11 17h9 M15 5v4 M9 15v4"></path></svg><span>Settings</span></a>
+</div>
+<div style="height:1px;background:#DCD4C2;margin:8px 10px"></div>
+<div class="status"><i></i><span>Claude · Anthropic API</span></div>
+<div class="status"><i></i><span>Anki · synced 2 min ago</span></div>
+</div>
+</nav>
+<main style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div class="rbar">
+<div style="flex:1;display:flex;align-items:baseline;gap:10px"><span class="eyebrow">Library</span><span class="muted">/</span><span class="jp" style="font-size:20px;font-weight:600">ももたろう</span><span class="muted" style="font-size:13px">Graded reader · Level 2</span></div>
+<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#4A4D46"><span id="furi-l">Furigana</span><button class="sw {{furiSw}}" role="switch" aria-checked="{{furiOn}}" aria-labelledby="furi-l" onClick="{{toggleFuri}}"></button></div>
+<button class="chip" style="height:34px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg>Page 3 · ¶3</button>
+</div>
+<div class="shelf" aria-label="Your materials">
+<a class="bk on" href="Reader.dc.html"><span class="cv" style="background:#C8754F"></span><span><span class="jp">ももたろう</span><small>Reader · 38%</small></span></a>
+<a class="bk" href="Reader.dc.html"><span class="cv" style="background:#2E5B45"></span><span>Genki I<small>Textbook</small></span></a>
+<a class="bk" href="Reader.dc.html"><span class="cv" style="background:#D9D2C3"></span><span>About me<small>Personal note</small></span></a>
+<button class="bk" style="border-style:dashed;color:#4A4D46"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14 M5 12h14"></path></svg>Add material</button>
+</div>
+<div style="flex:1;display:flex;justify-content:center;padding:34px 0 0;overflow:hidden">
+<div class="pagep {{furiCls}}">
+<div class="eyebrow" style="text-align:center;margin-bottom:22px">第一話 · 3</div>
+<p class="jp para read">むかしむかし、ある<ruby>村<rt>むら</rt></ruby>に、おじいさんとおばあさんが<ruby>住<rt>す</rt></ruby>んでいました。</p>
+<p class="jp para read">おじいさんは<ruby>山<rt>やま</rt></ruby>へしばかりに、おばあさんは<ruby>川<rt>かわ</rt></ruby>へせんたくに<ruby>行<rt>い</rt></ruby>きました。</p>
+<div style="position:relative">
+<div class="float" style="top:-44px;left:170px" role="toolbar" aria-label="Selection"><button>Ask tutor</button><button>Translate</button><button>Save phrase</button></div>
+<p class="jp para"><span class="hl">おばあさんが<ruby>川<rt>かわ</rt></ruby>でせんたくをしていると</span>、<ruby>大<rt>おお</rt></ruby>きな<ruby>桃<rt>もも</rt></ruby>が、どんぶらこ、どんぶらこと<ruby>流<rt>なが</rt></ruby>れてきました。</p>
+</div>
+<div class="ck"><span>You stopped here</span></div>
+<p class="jp para">「まあ、なんて<ruby>大<rt>おお</rt></ruby>きな<ruby>桃<rt>もも</rt></ruby>でしょう。」おばあさんは<ruby>桃<rt>もも</rt></ruby>を<ruby>家<rt>いえ</rt></ruby>に<ruby>持<rt>も</rt></ruby>って<ruby>帰<rt>かえ</rt></ruby>りました。</p>
+</div>
+</div>
+</main>
+<aside class="tp" aria-label="Tutor">
+<div style="padding:20px 22px 14px;border-bottom:1px solid #E0D9CA;display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:50%;background:#E1EAE2;display:inline-flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 32 32" fill="none" stroke="#2E5B45" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M7 29C11 20 16 12 25 3"></path><path d="M10.5 22.5c-3-.6-5.2-2.6-6.2-5.6 M10.5 22.5c3 .2 5.8-.8 8-2.8 M13.6 16.6c-2.2-1-3.8-3-4.2-5.8 M13.6 16.6c2.8 0 5.2-1 7-2.8 M17.4 10.6c-1.2-1.2-1.8-3-1.6-5 M17.4 10.6c2 0 3.8-.8 5.2-2"></path></svg></span><span style="font-size:14px;font-weight:600">Reading with your tutor</span></div>
+<div style="flex:1;padding:22px;display:flex;flex-direction:column;gap:18px;overflow:hidden">
+<div class="tm"><span class="j">「〜していると」</span>, what do you think it adds here?</div>
+<div class="um">「〜しているとき」みたいな意味ですか？</div>
+<div class="tm">Close! It's <em>while she was washing</em>, with a hint that something unexpected happened next: the peach.
+<div class="src"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h5.5A2.5 2.5 0 0 1 12 7v13a2 2 0 0 0-2-2H4z M20 4.5h-5.5A2.5 2.5 0 0 0 12 7v13a2 2 0 0 1 2-2h6z"></path></svg><span style="flex:1">Genki · <span class="jp">〜と</span> (when…)</span><button class="linkb">Open</button></div>
+</div>
+<div class="tm"><span class="j">ところで、<ruby>子<rt>こ</rt></ruby>どものころ、どんな<ruby>昔話<rt>むかしばなし</rt></ruby>が<ruby>好<rt>す</rt></ruby>きでしたか？</span></div>
+</div>
+<div style="padding:14px 18px 20px">
+<div style="display:flex;align-items:center;gap:8px;background:#FFFEFB;border:1px solid #D9D2C3;border-radius:14px;padding:6px 6px 6px 14px">
+<label for="rr" class="sr">Reply in Japanese</label><input id="rr" class="jp" style="flex:1;border:0;background:transparent;font-size:15px;outline:none;height:36px" placeholder="日本語で答える…">
+<button style="width:36px;height:36px;border-radius:10px;border:0;background:#1C1E1B;color:#F4F0E7;display:inline-flex;align-items:center;justify-content:center" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14 M13 6l6 6-6 6"></path></svg></button>
+</div>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}}'>
+class Component extends DCLogic {
+  state = { furi: true };
+  renderVals() {
+    const f = this.state.furi;
+    return {
+      furiCls: f ? '' : 'nofuri', furiSw: f ? 'on' : '', furiOn: f ? 'true' : 'false',
+      toggleFuri: () => this.setState({ furi: !f })
+    };
+  }
+}
+</script>
+</body>
+</html>

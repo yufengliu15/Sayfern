@@ -1,0 +1,138 @@
+{
+  "$comment": "Defaults. Put personal overrides in bench.config.local.json (gitignored); arms merge by id. Prices are USD per million tokens and only set how token kinds are weighted. Claude Code's background/subagent models are pinned to `model` via env, so every request uses one model; the report warns if any other model shows up on the wire.",
+  "model": "claude-sonnet-5-5",
+  "upstream": "https://api.anthropic.com",
+  "fixtures": "synthetic",
+  "reps": 2,
+  "saveBodies": true,
+  "probeOverhead": true,
+  "resultsDir": "results",
+  "prices": {
+    "claude-sonnet-5": {
+      "input": 2,
+      "output": 10,
+      "cacheRead": 0.2,
+      "cacheWrite": 2.5,
+      "cacheWrite1h": 4
+    },
+    "claude-sonnet-4": {
+      "input": 3,
+      "output": 15,
+      "cacheRead": 0.3,
+      "cacheWrite": 3.75,
+      "cacheWrite1h": 6
+    },
+    "claude-opus-5-5": {
+      "input": 4,
+      "output": 20,
+      "cacheRead": 0.2,
+      "cacheWrite": 5,
+      "cacheWrite1h": 8
+    },
+    "claude-opus-5": {
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10
+    },
+    "claude-opus-4": {
+      "input": 5,
+      "output": 25,
+      "cacheRead": 0.5,
+      "cacheWrite": 6.25,
+      "cacheWrite1h": 10
+    },
+    "claude-haiku-4": {
+      "input": 1,
+      "output": 5,
+      "cacheRead": 0.1,
+      "cacheWrite": 1.25,
+      "cacheWrite1h": 2
+    },
+    "claude-fable-5": {
+      "input": 10,
+      "output": 50,
+      "cacheRead": 1,
+      "cacheWrite": 12.5,
+      "cacheWrite1h": 20
+    },
+    "default": {
+      "input": 2,
+      "output": 10,
+      "cacheRead": 0.2,
+      "cacheWrite": 2.5,
+      "cacheWrite1h": 4
+    }
+  },
+  "arms": [
+    {
+      "id": "sayfern",
+      "kind": "sayfern",
+      "label": "Sayfern",
+      "credentials": "../.sayfern-dev/credentials.json",
+      "provider": "anthropic"
+    },
+    {
+      "id": "claude-code",
+      "kind": "claude-code",
+      "label": "Claude Code + skill",
+      "command": "claude",
+      "skill": "~/.codex/skills/mandarin-thinking-practice",
+      "isolation": "auto",
+      "permissionMode": "acceptEdits",
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash(python3:*)",
+        "Bash(ls:*)",
+        "Bash(cat:*)",
+        "Bash(head:*)",
+        "Bash(sed:*)",
+        "Bash(grep:*)",
+        "Bash(wc:*)",
+        "Bash(pdftotext:*)",
+        "Bash(date:*)"
+      ],
+      "extraArgs": [],
+      "env": {
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "{{MODEL}}",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "{{MODEL}}",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "{{MODEL}}",
+        "ANTHROPIC_SMALL_FAST_MODEL": "{{MODEL}}",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "{{MODEL}}"
+      },
+      "languages": [
+        "zh"
+      ],
+      "turnTimeoutSec": 600,
+      "rewrites": [
+        {
+          "from": "/Users/yufeng/Obsidian/Imagineer/_wiki",
+          "to": "{{ROOT}}/wiki"
+        },
+        {
+          "from": "python3 scripts/anki_snapshot.py",
+          "to": "python3 scripts/anki_snapshot.py --collection \"{{ROOT}}/anki/collection.anki2\""
+        }
+      ],
+      "prompts": {
+        "open": {
+          "chat": "Start my Mandarin practice session. Just conversation today, no reading.",
+          "practice": "Start my Mandarin practice session. Just conversation today, no reading.",
+          "reading": "Start my Mandarin practice session. Let's continue the reader today."
+        },
+        "end": "That's all for today, let's wrap up."
+      }
+    }
+  ],
+  "judge": {
+    "enabled": false,
+    "command": "claude",
+    "model": "claude-sonnet-5-5",
+    "timeoutSec": 300
+  }
+}

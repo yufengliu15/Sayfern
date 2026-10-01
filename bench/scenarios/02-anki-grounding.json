@@ -1,0 +1,72 @@
+{
+  "id": "zh-anki-grounding",
+  "title": "Questions that need the learner's Anki data",
+  "description": "The learner asks about their own Anki deck. Answers must come from the deck (tool calls or pre-loaded context), not guesses. Measures tool-calling cost and grounding accuracy. Pinned to the synthetic fixtures because the gold answers depend on that deck.",
+  "language": "zh",
+  "fixtures": "synthetic",
+  "sessions": [
+    {
+      "mode": "chat",
+      "turns": [
+        {
+          "text": "我最近用Anki复习单词。你能看看我最近哪些词总是记不住吗？",
+          "gold": {
+            "anki": {
+              "expect": [
+                "选择",
+                "设计",
+                "印象",
+                "经验",
+                "打算"
+              ],
+              "min": 3,
+              "forbid": [
+                "朋友",
+                "学校",
+                "喜欢",
+                "工作",
+                "电脑",
+                "周末"
+              ]
+            }
+          }
+        },
+        {
+          "text": "我学过“讨论”这个词吗？",
+          "gold": {
+            "anki": {
+              "fact": "讨论 is in the learner's deck but not studied yet (a new card)."
+            }
+          }
+        },
+        {
+          "text": "那“火箭”呢？",
+          "gold": {
+            "anki": {
+              "fact": "火箭 is not in the learner's Anki deck at all."
+            }
+          }
+        },
+        {
+          "text": "好的，那我们用这些难的词聊天吧。",
+          "gold": {
+            "anki": {
+              "expect": [
+                "选择",
+                "设计",
+                "印象",
+                "经验",
+                "打算"
+              ],
+              "min": 1
+            },
+            "checks": [
+              "The tutor starts a conversation that naturally uses one or two of the learner's hard words (选择, 设计, 印象, 经验, 打算) instead of drilling or listing them."
+            ]
+          }
+        }
+      ],
+      "end": true
+    }
+  ]
+}

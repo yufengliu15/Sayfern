@@ -1,0 +1,56 @@
+{
+  "$comment": "Synthetic, public fixture set. All content is original and fictional. Paths in text files use {{ROOT}}, replaced with the run's sandbox root.",
+  "language": "zh",
+  "tree": ["wiki", "reader"],
+  "anki": {
+    "deckJson": "anki-deck.json",
+    "wordField": "Simplified",
+    "readingField": "Pinyin",
+    "meaningField": "Meaning"
+  },
+  "reader": {
+    "path": "reader/hou-zhua-bench.txt",
+    "kind": "reader",
+    "resumeAt": "那天晚上，风越来越大。"
+  },
+  "profile": {
+    "about": "Heritage speaker: heard Chinese at home as a child, stopped formal study in elementary school, and can still hold basic conversations with family. Likes robots, cooking and games.",
+    "goals": { "zh": "Think and answer directly in Mandarin; read graded readers." }
+  },
+  "selfLevel": "HSK 3",
+  "sayfernSeed": [
+    {
+      "kind": "chat",
+      "learner": "我去了超市昨天。我先煮牛肉，然后做汤。因为下雨，所以我在家做饭。",
+      "reply": "听起来很好吃！你常常做饭吗？",
+      "evidence": {
+        "corrections": [
+          { "original": "我去了超市昨天", "corrected": "我昨天去了超市", "explanation": "Time words come before the verb.", "kind": "grammar", "grammar_id": "zh:time-before-verb" }
+        ],
+        "observations": [
+          { "grammar_id": "zh:time-before-verb", "pattern": "Subj + time + V", "name": "time word before the verb", "span": "我去了超市昨天", "verdict": "incorrect", "assistance": "independent" },
+          { "grammar_id": "zh:xian-ranhou", "pattern": "先…然后…", "name": "first … then …", "span": "我先煮牛肉，然后做汤", "verdict": "correct", "assistance": "independent" },
+          { "grammar_id": "zh:yinwei-suoyi", "pattern": "因为…所以…", "name": "because … so …", "span": "因为下雨，所以我在家做饭", "verdict": "correct", "assistance": "independent" }
+        ]
+      }
+    },
+    {
+      "kind": "chat",
+      "learner": "除了画机器人，我还想用平板玩游戏。",
+      "reply": "说得很好！除了游戏，你周末还做什么？",
+      "evidence": {
+        "taught": [
+          { "grammar_id": "zh:chule-hai", "pattern": "除了 A（以外），还 B", "name": "besides A, also B", "level": "HSK 3", "explanation": "除了 A，还 B adds B to A.", "examples": [ { "text": "除了中文，我还会说一点儿日语。", "translation": "Besides Chinese, I can also speak a little Japanese." } ] }
+        ],
+        "observations": [
+          { "grammar_id": "zh:chule-hai", "pattern": "除了 A（以外），还 B", "name": "besides A, also B", "span": "除了画机器人，我还想用平板玩游戏", "verdict": "correct", "assistance": "prompted" }
+        ]
+      }
+    }
+  ],
+  "gold": {
+    "struggling": ["选择", "设计", "印象", "经验", "打算"],
+    "knownMature": ["朋友", "学校", "喜欢", "工作", "时间", "电脑", "周末", "手机", "游戏", "学习"],
+    "wordStatus": { "讨论": "new (in the deck, not studied yet)", "印象": "struggling (many recent Again answers)", "朋友": "known (mature)", "火箭": "not in the deck" }
+  }
+}

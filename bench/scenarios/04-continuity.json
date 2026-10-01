@@ -1,0 +1,36 @@
+{
+  "id": "zh-continuity",
+  "title": "Two sessions: remember and revisit",
+  "description": "Session 1 has errors; session 2 starts fresh. Checks that the tutor carries learner history forward (the 除了…还… pattern from before, today's mistakes) and measures the cost of doing so.",
+  "language": "zh",
+  "sessions": [
+    {
+      "mode": "chat",
+      "turns": [
+        {
+          "text": "我周末去了商店星期六，买了一个新的键盘。",
+          "gold": { "errors": [ { "id": "time-order-2", "original": "我周末去了商店星期六", "accept": ["我星期六去了商店", "星期六我去了商店"], "key": ["星期六去了商店"], "pattern": "time word before the verb" } ] }
+        },
+        {
+          "text": "这个键盘比我以前的键盘非常好。",
+          "gold": { "errors": [ { "id": "bi-feichang", "original": "比我以前的键盘非常好", "accept": ["比我以前的键盘好", "比我以前的好", "比我以前的键盘好多了", "比我以前的键盘好得多", "比我以前的键盘更好"], "pattern": "no 非常 in 比 comparisons" } ] }
+        },
+        { "text": "我用它写代码，也用它玩游戏。", "gold": { "clean": true } }
+      ],
+      "end": true
+    },
+    {
+      "mode": "chat",
+      "turns": [
+        { "text": "你好！今天我有一点儿累，但是想练习中文。" },
+        { "text": "除了写代码，我还喜欢做饭和跑步。", "gold": { "clean": true } },
+        { "text": "上个星期我做了牛肉汤，我的朋友说很好吃。", "gold": { "clean": true } }
+      ],
+      "end": true,
+      "checks": [
+        "Before the learner's message containing 除了…还…, the tutor asked a natural question that invites the 除了…还… pattern without naming it or showing its formula.",
+        "Across this session, the tutor creates a natural chance to reuse a pattern the learner got wrong in the previous session (time words before the verb, or 比 comparisons), or refers back to the previous session."
+      ]
+    }
+  ]
+}
