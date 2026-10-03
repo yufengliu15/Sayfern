@@ -4,6 +4,7 @@ import type { DocKind } from "../../../shared/records";
 import { cls } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
 import { Icon, type IconName } from "./icons";
+import { msg } from "../i18n";
 
 export function Switch({ checked, onChange, label, disabled, id }: { checked: boolean; onChange(v: boolean): void; label: string; disabled?: boolean; id?: string }) {
   return (
@@ -85,18 +86,20 @@ export function PopMenu({
   );
 }
 
+/** Translate with t() where they render. */
 export const KIND_NAME: Record<DocKind, string> = {
-  textbook: "Textbook",
-  reader: "Graded reader",
-  personal: "About me",
-  other: "Other",
+  textbook: msg("Textbook"),
+  reader: msg("Graded reader"),
+  personal: msg("About me"),
+  other: msg("Other"),
 };
 
+/** Translate with t() where they render. */
 export const KIND_HINT: Record<DocKind, string> = {
-  textbook: "Lessons, dialogues and grammar notes",
-  reader: "Stories written for learners",
-  personal: "Notes about your life the tutor can use",
-  other: "Articles, subtitles, anything else",
+  textbook: msg("Lessons, dialogues and grammar notes"),
+  reader: msg("Stories written for learners"),
+  personal: msg("Notes about your life the tutor can use"),
+  other: msg("Articles, subtitles, anything else"),
 };
 
 export const KIND_ICON: Record<DocKind, IconName> = {

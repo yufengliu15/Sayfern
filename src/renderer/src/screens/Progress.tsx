@@ -7,6 +7,7 @@ import { Icon } from "../components/icons";
 import { useApp } from "../context";
 import { cls, fmtDuration, fmtNumber } from "../lib/format";
 import { sessionRoute, type Navigate } from "../router";
+import { intlLocale, langName, msg, t, tn } from "../i18n";
 
 export interface ProgressScreenProps {
   language: Language;
@@ -14,26 +15,27 @@ export interface ProgressScreenProps {
 }
 
 const RANGES: { id: ProgressRange; label: string }[] = [
-  { id: "week", label: "Week" },
-  { id: "month", label: "Month" },
-  { id: "all", label: "All time" },
+  { id: "week", label: msg("Week") },
+  { id: "month", label: msg("Month") },
+  { id: "all", label: msg("All time") },
 ];
 const KINDS: { id: CorrectionKind; label: string }[] = [
-  { id: "grammar", label: "Grammar" },
-  { id: "vocabulary", label: "Vocabulary" },
-  { id: "phrasing", label: "Phrasing" },
-  { id: "style", label: "Style, not errors" },
+  { id: "grammar", label: msg("Grammar") },
+  { id: "vocabulary", label: msg("Vocabulary") },
+  { id: "phrasing", label: msg("Phrasing") },
+  { id: "style", label: msg("Style, not errors") },
 ];
 const MIN = 60_000;
 const day = (iso: string) => new Date(`${iso}T12:00:00`);
 
 function titleFor(s: ProgressStats): string {
-  if (s.range === "week") return "This week";
-  if (s.range === "all") return "Everything so far";
+  if (s.range === "week") return t("This week");
+  if (s.range === "all") return t("Everything so far");
   const first = s.daily[0] ? day(s.daily[0].date) : null;
   const now = new Date();
-  if (first && first.getDate() === 1 && first.getMonth() === now.getMonth()) return `${now.toLocaleDateString("en-US", { month: "long" })}, so far`;
-  return "The last 30 days";
+  if (first && first.getDate() === 1 && first.getMonth() === now.getMonth())
+    return t("{month}, so far", { month: now.toLocaleDateString(intlLocale(), { month: "long" }) });
+  return t("The last 30 days");
 }
 
 function longestStreak(daily: ProgressStats["daily"]): number {
@@ -81,7 +83,7 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
   const g = s?.grammar;
   const gTotal = g ? g.independent + g.with_help + g.introduced : 0;
   const cMax = s ? Math.max(1, ...KINDS.map((k) => s.corrections.byKind[k.id])) : 1;
-  const rangeWord = range === "week" ? "this week" : range === "month" ? "this month" : "so far";
+
 
   return (
     <main className="main page">
@@ -89,18 +91,18 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
       <div className="page-in">
         <header className="page-head">
           <div>
-            <div className="eyebrow">{app.lang.name}</div>
+            <div className="eyebrow">{langName(language)}</div>
             <h1 className="display">{s ? titleFor(s) : " "}</h1>
           </div>
           <div className="page-actions">
-            <span className="chip local-chip" title="Every number here is counted from your records on this Mac">
+            <span className="chip local-chip" title={t("Every number here is counted from your records on this Mac")}>
               <Icon name="lock" size={14} />
-              Counted on this Mac. No model calls.
+              {t("Counted on this Mac. No model calls.")}
             </span>
-            <div className="seg" role="radiogroup" aria-label="Time range">
+            <div className="seg" role="radiogroup" aria-label={t("Time range")}>
               {RANGES.map((r) => (
                 <button key={r.id} role="radio" aria-checked={range === r.id} className={range === r.id ? "on" : ""} onClick={() => setRange(r.id)}>
-                  {r.label}
+                  {t(r.label)}
                 </button>
               ))}
             </div>
@@ -109,7 +111,7 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
 
         {error && (
           <p className="err" role="alert">
-            <Icon name="alert" size={15} /> {error}
+            <Icon name="alert" size={15} /> {t(error)}
           </p>
         )}
 
@@ -117,41 +119,41 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
           <>
             <div className="ptiles">
               <div className="ptile">
-                <span className="ptile-l">Active practice</span>
+                <span className="ptile-l">{t("Active practice")}</span>
                 <b>{fmtDuration(s.activeMs)}</b>
-                <span>Idle time left out</span>
+                <span>{s.voiceMs > 0 ? t("Plus {time} speaking and listening", { time: fmtDuration(s.voiceMs) }) : t("Idle time left out")}</span>
               </div>
               <div className="ptile">
-                <span className="ptile-l">Words you wrote</span>
+                <span className="ptile-l">{t("Words you wrote")}</span>
                 <b>{fmtNumber(s.wordsWritten)}</b>
-                <span>Tutor text and pastes left out</span>
+                <span>{t("Tutor text and pastes left out")}</span>
               </div>
               <div className="ptile">
-                <span className="ptile-l">Different words</span>
+                <span className="ptile-l">{t("Different words")}</span>
                 <b>{fmtNumber(s.distinctWords)}</b>
-                <span>{newCount} used for the first time</span>
+                <span>{t("{n} used for the first time", { n: newCount })}</span>
               </div>
               <div className="ptile">
-                <span className="ptile-l">Sessions</span>
+                <span className="ptile-l">{t("Sessions")}</span>
                 <b>{fmtNumber(s.sessions)}</b>
-                <span>{s.sessions ? `Longest streak: ${longestStreak(s.daily)} ${longestStreak(s.daily) === 1 ? "day" : "days"}` : "Start one from Today"}</span>
+                <span>{s.sessions ? tn(longestStreak(s.daily), "Longest streak: {count} day", "Longest streak: {count} days") : t("Start one from Today")}</span>
               </div>
             </div>
 
             <div className="pgrid">
               <section className="card pc" aria-labelledby="chart-h">
                 <div className="pc-h">
-                  <h2 id="chart-h">Active minutes per day</h2>
-                  {s.activeMs > 0 && <span className="muted small">{s.range === "all" ? "Last 90 days · hover a bar" : "Hover a bar"}</span>}
+                  <h2 id="chart-h">{t("Active minutes per day")}</h2>
+                  {s.activeMs > 0 && <span className="muted small">{s.range === "all" ? t("Last 90 days · hover a bar") : t("Hover a bar")}</span>}
                 </div>
                 <DailyChart daily={s.daily} />
 
                 {s.anki && (
                   <div className="anki-cmp">
-                    <h2>Anki vs. what you actually write</h2>
-                    <HBar label="Mature cards in Anki" value={s.anki.matureCount} max={Math.max(s.anki.matureCount, s.anki.usedInWriting)} tone="soft" />
-                    <HBar label="Used by you in writing" value={s.anki.usedInWriting} max={Math.max(s.anki.matureCount, s.anki.usedInWriting)} />
-                    <p className="muted small">Recognising a card isn't the same as producing the word. The tutor works on the gap.</p>
+                    <h2>{t("Anki vs. what you actually write")}</h2>
+                    <HBar label={t("Mature cards in Anki")} value={s.anki.matureCount} max={Math.max(s.anki.matureCount, s.anki.usedInWriting)} tone="soft" />
+                    <HBar label={t("Used by you in writing")} value={s.anki.usedInWriting} max={Math.max(s.anki.matureCount, s.anki.usedInWriting)} />
+                    <p className="muted small">{t("Recognising a card isn't the same as producing the word. The tutor works on the gap.")}</p>
                   </div>
                 )}
               </section>
@@ -159,50 +161,52 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
               <div className="pcol">
                 <section className="card pc" aria-labelledby="gm-h">
                   <div className="pc-h">
-                    <h2 id="gm-h">Grammar you've met</h2>
-                    <span className="muted small">
-                      {gTotal} {gTotal === 1 ? "pattern" : "patterns"}
-                    </span>
+                    <h2 id="gm-h">{t("Grammar you've met")}</h2>
+                    <span className="muted small">{tn(gTotal, "{count} pattern", "{count} patterns")}</span>
                   </div>
                   {g && gTotal > 0 ? (
                     <>
-                      <div className="stackbar" role="img" aria-label={`On your own ${g.independent}, with help ${g.with_help}, introduced ${g.introduced}`}>
-                        {g.independent > 0 && <i className="s-own" style={{ flexGrow: g.independent }} title={`On your own: ${g.independent}`} />}
-                        {g.with_help > 0 && <i className="s-help" style={{ flexGrow: g.with_help }} title={`With help: ${g.with_help}`} />}
-                        {g.introduced > 0 && <i className="s-intro" style={{ flexGrow: g.introduced }} title={`Introduced: ${g.introduced}`} />}
+                      <div
+                        className="stackbar"
+                        role="img"
+                        aria-label={`${t("On your own")} ${g.independent}, ${t("With help")} ${g.with_help}, ${t("Introduced")} ${g.introduced}`}
+                      >
+                        {g.independent > 0 && <i className="s-own" style={{ flexGrow: g.independent }} title={`${t("On your own")}: ${g.independent}`} />}
+                        {g.with_help > 0 && <i className="s-help" style={{ flexGrow: g.with_help }} title={`${t("With help")}: ${g.with_help}`} />}
+                        {g.introduced > 0 && <i className="s-intro" style={{ flexGrow: g.introduced }} title={`${t("Introduced")}: ${g.introduced}`} />}
                       </div>
                       <div className="legend">
                         <span>
                           <i className="s-own" />
-                          On your own · {g.independent}
+                          {t("On your own")} · {g.independent}
                         </span>
                         <span>
                           <i className="s-help" />
-                          With help · {g.with_help}
+                          {t("With help")} · {g.with_help}
                         </span>
                         <span>
                           <i className="s-intro" />
-                          Introduced · {g.introduced}
+                          {t("Introduced")} · {g.introduced}
                         </span>
                       </div>
-                      <p className="muted small">On your own means correct with no prompt and no retry.</p>
+                      <p className="muted small">{t("On your own means correct with no prompt and no retry.")}</p>
                     </>
                   ) : (
-                    <p className="muted small">Patterns show up once the tutor sees you try them.</p>
+                    <p className="muted small">{t("Patterns show up once the tutor sees you try them.")}</p>
                   )}
                 </section>
 
                 <section className="card pc" aria-labelledby="ck-h">
                   <div className="pc-h">
-                    <h2 id="ck-h">Corrections by kind</h2>
-                    <span className="muted small">{s.corrections.total} total</span>
+                    <h2 id="ck-h">{t("Corrections by kind")}</h2>
+                    <span className="muted small">{t("{n} total", { n: s.corrections.total })}</span>
                   </div>
                   {s.corrections.total === 0 ? (
-                    <p className="muted small">No corrections {rangeWord}.</p>
+                    <p className="muted small">{range === "week" ? t("No corrections this week.") : range === "month" ? t("No corrections this month.") : t("No corrections so far.")}</p>
                   ) : (
                     <div className="kbars">
                       {KINDS.map((k) => (
-                        <HBar key={k.id} label={k.label} value={s.corrections.byKind[k.id]} max={cMax} tone={k.id === "style" ? "soft" : undefined} />
+                        <HBar key={k.id} label={t(k.label)} value={s.corrections.byKind[k.id]} max={cMax} tone={k.id === "style" ? "soft" : undefined} />
                       ))}
                     </div>
                   )}
@@ -210,26 +214,26 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
 
                 <section className="card pc fu" aria-labelledby="fu-h">
                   <div className="pc-h">
-                    <h2 id="fu-h">First used {rangeWord}</h2>
-                    <span className="muted small">Not proof you've learned it</span>
+                    <h2 id="fu-h">{range === "week" ? t("First used this week") : range === "month" ? t("First used this month") : t("First used so far")}</h2>
+                    <span className="muted small">{t("Not proof you've learned it")}</span>
                   </div>
                   {newCount === 0 ? (
-                    <p className="muted small">Words you write for the first time show up here with the sentence you used them in.</p>
+                    <p className="muted small">{t("Words you write for the first time show up here with the sentence you used them in.")}</p>
                   ) : (
                     <ul className="fu-list">
                       {s.firstUsed.slice(0, 8).map((w) => (
                         <li key={w.word}>
-                          <button className={cls("fu-w", L)} onClick={() => navigate(sessionRoute(w.firstSessionId))} title="Open the session where you first used it">
+                          <button className={cls("fu-w", L)} onClick={() => navigate(sessionRoute(w.firstSessionId))} title={t("Open the session where you first used it")}>
                             {w.word}
                           </button>
                           {w.firstSentence ? (
                             <AnnotatedText language={language} text={w.firstSentence} className="fu-s" />
                           ) : (
-                            <span className="fu-s muted">Used {w.count} times</span>
+                            <span className="fu-s muted">{tn(w.count, "Used {count} time", "Used {count} times")}</span>
                           )}
                         </li>
                       ))}
-                      {newCount > 8 && <li className="fu-more muted small">and {newCount - 8} more</li>}
+                      {newCount > 8 && <li className="fu-more muted small">{t("and {n} more", { n: newCount - 8 })}</li>}
                     </ul>
                   )}
                 </section>
@@ -262,13 +266,17 @@ function DailyChart({ daily }: { daily: ProgressStats["daily"] }) {
   const labelled = (i: number) => n <= 7 || i === 0 || i === n - 1 || (i % every === 0 && n - 1 - i > every / 2);
   const empty = mins.every((m) => m === 0);
   const fmtDate = (iso: string, long = false) =>
-    day(iso).toLocaleDateString("en-US", long ? { weekday: "short", month: "short", day: "numeric" } : n <= 7 ? { weekday: "short" } : { month: "short", day: "numeric" });
+    day(iso).toLocaleDateString(intlLocale(), long ? { weekday: "short", month: "short", day: "numeric" } : n <= 7 ? { weekday: "short" } : { month: "short", day: "numeric" });
 
   return (
     <div className={cls("bchart", n > 40 && "dense", n <= 7 && "few")}>
-      <div className="bplot" role="img" aria-label={`Active minutes per day, ${n} days. Total ${Math.round(mins.reduce((a, b) => a + b, 0))} minutes.`}>
+      <div
+        className="bplot"
+        role="img"
+        aria-label={t("Active minutes per day, {n} days. Total {total} minutes.", { n, total: Math.round(mins.reduce((a, b) => a + b, 0)) })}
+      >
         <div className="bgrid" style={{ bottom: `${(30 / max) * 100}%` }}>
-          <span>30 min</span>
+          <span>{t("{n} min", { n: 30 })}</span>
         </div>
         {daily.map((d, i) => {
           const m = Math.round(mins[i]);
@@ -277,14 +285,14 @@ function DailyChart({ daily }: { daily: ProgressStats["daily"] }) {
             <div key={d.date} className="bcol">
               <i className={m === 0 ? "zero" : undefined} style={{ height: m === 0 ? undefined : `${(mins[i] / max) * 100}%` }}>
                 <span className={cls("btip", pos)} role="tooltip">
-                  <b>{m} min</b>
+                  <b>{t("{n} min", { n: m })}</b>
                   {fmtDate(d.date, true)}
                 </span>
               </i>
             </div>
           );
         })}
-        {empty && <div className="bempty">Practice time shows up here after your first session.</div>}
+        {empty && <div className="bempty">{t("Practice time shows up here after your first session.")}</div>}
       </div>
       <div className="baxis" aria-hidden="true">
         {daily.map((d, i) => (
@@ -294,12 +302,12 @@ function DailyChart({ daily }: { daily: ProgressStats["daily"] }) {
         ))}
       </div>
       <table className="sr">
-        <caption>Active minutes per day</caption>
+        <caption>{t("Active minutes per day")}</caption>
         <tbody>
           {daily.map((d) => (
             <tr key={d.date}>
               <th scope="row">{d.date}</th>
-              <td>{Math.round(d.activeMs / MIN)} min</td>
+              <td>{t("{n} min", { n: Math.round(d.activeMs / MIN) })}</td>
             </tr>
           ))}
         </tbody>

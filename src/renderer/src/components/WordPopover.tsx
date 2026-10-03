@@ -6,8 +6,10 @@ import type { Language, SourceRef } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { useApp } from "../context";
 import { clearLookups, lookupCached } from "../lib/cache";
-import { cls, fmtDay } from "../lib/format";
+import { cls, fmtShortDate } from "../lib/format";
 import { Icon } from "./icons";
+import { SpeakButtons } from "./Speak";
+import { t, tn } from "../i18n";
 
 export interface WordPopoverRequest {
   /** Unique per rendered token, used to mark the selected word. */
@@ -186,28 +188,30 @@ function WordPopover({ req }: { req: WordPopoverRequest }) {
           <span className={cls("hw", info.fontClass)}>{headword}</span>
           {reading && <span className="pin">{reading}</span>}
         </div>
-        <button className="iconb" disabled aria-label="Play pronunciation" title="Audio arrives in Stage 3">
-          <Icon name="speaker" />
-        </button>
+        <SpeakButtons id={`w:${req.language}:${headword}`} text={headword} language={req.language} kind="word" sessionId={req.source?.kind === "session" ? req.source.sessionId : undefined} />
       </div>
 
       {req.token.lemma && req.token.lemma !== req.token.text && (
         <div className="pop-note">
-          Dictionary form of <span className={info.fontClass}>{req.token.text}</span>
+          {t("Dictionary form of")} <span className={info.fontClass}>{req.token.text}</span>
         </div>
       )}
 
       {!result && !error && (
-        <div className="pop-skel" aria-label="Looking up">
+        <div className="pop-skel" aria-label={t("Looking up")}>
           <i style={{ width: "72%" }} />
           <i style={{ width: "48%" }} />
         </div>
       )}
 
-      {result?.needsDictionary && <InstallDictionary language={req.language} onInstalled={() => setReloads((n) => n + 1)} />}
+      {result?.needsDictionary && <InstallDictionary language={req.language} hasFallback={result.entries.length > 0} onInstalled={() => setReloads((n) => n + 1)} />}
 
       {result && !result.needsDictionary && result.entries.length === 0 && (
-        <div className="pop-note">Not in the dictionary. The tutor can explain it if you ask.</div>
+        <div className="pop-note">
+          {result.noDictionary
+            ? t("No dictionary for this language in your interface language yet. The tutor can explain it if you ask.")
+            : t("Not in the dictionary. The tutor can explain it if you ask.")}
+        </div>
       )}
 
       {result && result.entries.length > 0 && (
@@ -239,15 +243,16 @@ function WordPopover({ req }: { req: WordPopoverRequest }) {
         </div>
       )}
 
-      {error && <div className="pop-err">{error}</div>}
+      {error && <div className="pop-err">{t(error)}</div>}
 
       {result?.anki && (
         <div className="meta">
           <Icon name="cards" size={14} />
           <span>
-            In your Anki · {result.anki.reps} review{result.anki.reps === 1 ? "" : "s"}
-            {result.anki.interval > 0 ? ` · every ${result.anki.interval} day${result.anki.interval === 1 ? "" : "s"}` : " · new"}
-            {result.anki.lapses > 2 ? " · tricky" : ""}
+            {tn(result.anki.reps, "In your Anki · {count} review", "In your Anki · {count} reviews")}
+            {" · "}
+            {result.anki.interval > 0 ? tn(result.anki.interval, "every {count} day", "every {count} days") : t("new")}
+            {result.anki.lapses > 2 ? ` · ${t("tricky")}` : ""}
           </span>
         </div>
       )}
@@ -257,34 +262,39 @@ function WordPopover({ req }: { req: WordPopoverRequest }) {
           className={cls("btn btn-s", saved === "saved" ? "btn-saved" : "btn-f")}
           onClick={save}
           disabled={!req.source || saved !== "idle"}
-          title={req.source ? "Keep this word with the sentence it came from" : undefined}
+          title={req.source ? t("Keep this word with the sentence it came from") : undefined}
         >
           {saved === "saved" ? (
             <>
-              <Icon name="check" size={14} stroke={2.4} /> Saved
+              <Icon name="check" size={14} stroke={2.4} /> {t("Saved")}
             </>
           ) : saved === "saving" ? (
-            "Saving…"
+            t("Saving…")
           ) : (
-            "Save with sentence"
+            t("Save with sentence")
           )}
         </button>
         <button className="btn btn-s" onClick={closeWordPopover}>
-          Close
+          {t("Close")}
         </button>
       </div>
     </div>
   );
 }
 
-function firstUsedLine(t: number): string {
-  const d = fmtDay(t);
-  if (d === "Today") return "You used it today for the first time.";
-  if (d === "Yesterday") return "You first used it yesterday.";
-  return d.endsWith("ago") ? `You first used it ${d}.` : `You first used it on ${d}.`;
+function firstUsedLine(at: number): string {
+  const days = Math.round((startOfToday() - new Date(at).setHours(0, 0, 0, 0)) / 86_400_000);
+  if (days <= 0) return t("You used it today for the first time.");
+  if (days === 1) return t("You first used it yesterday.");
+  if (days < 7) return tn(days, "You first used it {count} day ago.", "You first used it {count} days ago.");
+  return t("You first used it on {date}.", { date: fmtShortDate(at) });
 }
 
-function InstallDictionary({ language, onInstalled }: { language: Language; onInstalled(): void }) {
+function startOfToday(): number {
+  return new Date().setHours(0, 0, 0, 0);
+}
+
+function InstallDictionary({ language, hasFallback, onInstalled }: { language: Language; hasFallback?: boolean; onInstalled(): void }) {
   const [status, setStatus] = useState<DictionaryStatus | null>(null);
   const [progress, setProgress] = useState<DictionaryProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -294,7 +304,7 @@ function InstallDictionary({ language, onInstalled }: { language: Language; onIn
     return api.onDictionaryProgress((p) => {
       if (p.language !== language) return;
       setProgress(p);
-      if (p.phase === "error") setError(p.message ?? "Install failed");
+      if (p.phase === "error") setError(p.message ?? t("Install failed"));
     });
   }, [language]);
 
@@ -316,18 +326,18 @@ function InstallDictionary({ language, onInstalled }: { language: Language; onIn
 
   const busy = !!progress && progress.phase !== "done" && progress.phase !== "error";
   const phaseLabel: Record<DictionaryProgress["phase"], string> = {
-    download: "Downloading",
-    parse: "Reading entries",
-    index: "Building the index",
-    done: "Installed",
-    error: "Failed",
+    download: t("Downloading"),
+    parse: t("Reading entries"),
+    index: t("Building the index"),
+    done: t("Installed"),
+    error: t("Failed"),
   };
 
   return (
     <div className="dict">
-      <div className="dict-t">Meanings need a dictionary</div>
+      <div className="dict-t">{hasFallback ? t("Meanings in your language need another dictionary") : t("Meanings need a dictionary")}</div>
       <div className="dict-s">
-        {status ? `${status.name} · ${status.license}. Installed once, works offline.` : "Installed once, works offline."}
+        {status ? t("{name} · {license}. Installed once, works offline.", { name: status.name, license: status.license }) : t("Installed once, works offline.")}
       </div>
       {busy ? (
         <div className="dict-prog" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((progress?.fraction ?? 0) * 100)}>
@@ -342,11 +352,10 @@ function InstallDictionary({ language, onInstalled }: { language: Language; onIn
       ) : (
         <button className="btn btn-s btn-p" onClick={install}>
           <Icon name="download" size={15} stroke={2} />
-          Install {status?.name ?? "dictionary"}
-          {status ? ` (${status.downloadMb} MB)` : ""}
+          {status ? t("Install {name} ({mb} MB)", { name: status.name, mb: status.downloadMb }) : t("Install the dictionary")}
         </button>
       )}
-      {error && <div className="pop-err">{error}</div>}
+      {error && <div className="pop-err">{t(error)}</div>}
     </div>
   );
 }

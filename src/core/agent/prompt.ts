@@ -2,6 +2,7 @@
 import type { LanguageInfo } from "../../shared/lang";
 import type {
   AnkiOverview,
+  GrammarObservation,
   GrammarPoint,
   GrammarSummary,
   LearnerProfile,
@@ -11,9 +12,11 @@ import type {
   PracticeTarget,
   SessionMeta,
   Skill,
+  Difficulty,
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
-import type { TutorDeps } from "./deps";
+import { isQuizObservation } from "../records/grammar";
+import { explainIn, type TutorDeps } from "./deps";
 
 export const MAX_FOLLOW_UPS = 3;
 export const MAX_CATALOGUE = 60;
@@ -30,6 +33,10 @@ export interface PromptData {
   profile: LearnerProfile;
   personalContext: string;
   followUps: GrammarSummary[];
+  /** Latest conversation miss per grammar point (the learner's own words), for the revisit block. */
+  lastMisses: Map<string, GrammarObservation>;
+  /** Clock at gather time, for "how long ago" labels. */
+  now: number;
   targets: PracticeTarget[];
   catalogue: GrammarPoint[];
   focus?: GrammarPoint | null;
@@ -37,24 +44,75 @@ export interface PromptData {
   additions: string[];
   /** Anki vocabulary summary, when Anki is on and the language has a snapshot. */
   anki?: { overview: AnkiOverview; now: number } | null;
+  /** The language the tutor explains in (interface language): "German". Default English. */
+  explain?: string;
 }
 
-/** Grammar to bring back naturally: still being learned, or recently missed. Skips the session's focus. */
+/**
+ * Grammar to bring back naturally: still being learned, or recently missed. Skips the session's focus.
+ * Recent misses come first, most recent first, so the tutor's priority is the mistake the learner
+ * just made (often in the previous session); the rest keep their catalogue order.
+ */
 export function pickFollowUps(
   grammar: GrammarSummary[],
   lastAssessed: Map<string, { verdict: string; at: number }>,
   now: number,
   skipId?: string,
 ): GrammarSummary[] {
-  const out: GrammarSummary[] = [];
+  const misses: { g: GrammarSummary; at: number }[] = [];
+  const rest: GrammarSummary[] = [];
   for (const g of grammar) {
-    if (out.length >= MAX_FOLLOW_UPS) break;
     if (g.point.id === skipId) continue;
     const last = lastAssessed.get(g.point.id);
     const recentMiss = !!last && last.verdict === "incorrect" && now - last.at <= RECENT_MISS_MS;
-    if (g.state === "introduced" || g.state === "with_help" || recentMiss) out.push(g);
+    if (recentMiss) misses.push({ g, at: last.at });
+    else if (g.state === "introduced" || g.state === "with_help") rest.push(g);
+  }
+  misses.sort((a, b) => b.at - a.at);
+  return [...misses.map((m) => m.g), ...rest].slice(0, MAX_FOLLOW_UPS);
+}
+
+/** Keep only misses that are still the latest verdict and recent, so a later success hides them. */
+function currentMisses(
+  misses: Map<string, GrammarObservation>,
+  lastAssessed: Map<string, { verdict: string; at: number }>,
+  now: number,
+): Map<string, GrammarObservation> {
+  const out = new Map<string, GrammarObservation>();
+  for (const [id, o] of misses) {
+    const last = lastAssessed.get(id);
+    if (last && last.verdict === "incorrect" && last.at === o.at && now - o.at <= RECENT_MISS_MS) out.set(id, o);
   }
   return out;
+}
+
+/** Latest incorrect conversation observation per grammar point (quiz answers excluded, S2-09). */
+export function lastConversationMisses(observations: readonly GrammarObservation[]): Map<string, GrammarObservation> {
+  const out = new Map<string, GrammarObservation>();
+  for (const o of observations) {
+    if (o.verdict !== "incorrect" || isQuizObservation(o)) continue;
+    const prev = out.get(o.grammarId);
+    if (!prev || o.at >= prev.at) out.set(o.grammarId, o);
+  }
+  return out;
+}
+
+/**
+ * Latest correct/incorrect verdict per grammar point from conversation evidence only.
+ * Quiz answers are prompted practice (S2-09): they never hide a recent miss in conversation
+ * or steer which patterns the tutor brings back.
+ */
+export function lastConversationVerdicts(
+  observations: readonly GrammarObservation[],
+): Map<string, { verdict: string; at: number }> {
+  const last = new Map<string, { verdict: string; at: number }>();
+  for (const o of observations) {
+    if (o.verdict !== "correct" && o.verdict !== "incorrect") continue;
+    if (isQuizObservation(o)) continue;
+    const prev = last.get(o.grammarId);
+    if (!prev || o.at >= prev.at) last.set(o.grammarId, { verdict: o.verdict, at: o.at });
+  }
+  return last;
 }
 
 export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): Promise<PromptData> {
@@ -70,12 +128,7 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     records.getTargets(session.id),
   ]);
 
-  const lastAssessed = new Map<string, { verdict: string; at: number }>();
-  for (const o of observations) {
-    if (o.verdict !== "correct" && o.verdict !== "incorrect") continue;
-    const prev = lastAssessed.get(o.grammarId);
-    if (!prev || o.at >= prev.at) lastAssessed.set(o.grammarId, { verdict: o.verdict, at: o.at });
-  }
+  const lastAssessed = lastConversationVerdicts(observations);
 
   const data: PromptData = {
     session,
@@ -85,9 +138,12 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     profile,
     personalContext,
     followUps: pickFollowUps(grammar, lastAssessed, deps.now(), session.focusGrammarId),
+    lastMisses: currentMisses(lastConversationMisses(observations), lastAssessed, deps.now()),
+    now: deps.now(),
     targets: targets.filter((t) => t.status === "pending" || t.status === "asked"),
     catalogue: grammar.slice(0, MAX_CATALOGUE).map((g) => g.point),
     additions: deps.extensions?.promptAdditions(language) ?? [],
+    explain: await explainIn(deps),
   };
 
   if (await deps.ankiEnabled().catch(() => false)) {
@@ -140,10 +196,22 @@ function learnerBlock(d: PromptData): string {
 
 function followUpBlock(d: PromptData): string {
   if (d.followUps.length === 0) return "";
-  const lines = d.followUps.map((g) => `- ${g.point.pattern || g.point.id} (${g.point.name || g.point.id}), ${g.state.replace("_", " ")}`);
+  let earlierSession = false;
+  const lines = d.followUps.map((g, i) => {
+    const head = `${i + 1}. ${g.point.pattern || g.point.id} (${g.point.name || g.point.id}), ${g.state.replace("_", " ")}`;
+    const miss = d.lastMisses.get(g.point.id);
+    if (!miss) return head;
+    const where = miss.sessionId === d.session.id ? "earlier in this session" : "in an earlier session";
+    if (miss.sessionId !== d.session.id) earlierSession = true;
+    return `${head}. Last missed ${where} (${ago(Math.max(0, d.now - miss.at))}): "${miss.span}"`;
+  });
   return [
     "# Grammar to revisit",
     "Create natural chances for the learner to use these in their answers. Never name the pattern, show the formula or ask them to use it; let the situation invite it.",
+    "Item 1 is the priority: within your first two replies, ask a question whose most natural answer uses it. Then work in the others when the conversation allows.",
+    ...(earlierSession
+      ? ["You may refer back to the earlier session once, briefly and warmly (what they talked about, not the mistake). Never repeat an old correction."]
+      : []),
     ...lines,
   ].join("\n");
 }
@@ -189,13 +257,45 @@ function ankiBlock(d: PromptData): string {
   return lines.join("\n");
 }
 
+const GRAMMAR_ID_EXAMPLE: Partial<Record<string, string>> = {
+  zh: "zh:chule-hai",
+  ja: "ja:te-iru",
+  ko: "ko:go-sipda",
+  es: "es:subjunctive-ojala",
+  fr: "fr:passe-compose-etre",
+  de: "de:dative-prepositions",
+  it: "it:passato-prossimo",
+  pt: "pt:personal-infinitive",
+  ru: "ru:verbs-of-motion",
+  vi: "vi:da-past",
+  en: "en:present-perfect",
+};
+
 function catalogueBlock(d: PromptData): string {
   const head = [
     "# Grammar ids",
-    `When you record grammar, reuse an id below if it fits. Otherwise invent one as "${d.session.language}:<ascii-slug>" (lowercase letters, digits, hyphens), e.g. "${d.session.language === "ja" ? "ja:te-iru" : "zh:chule-hai"}".`,
+    `When you record grammar, reuse an id below if it fits. Otherwise invent one as "${d.session.language}:<ascii-slug>" (lowercase letters, digits, hyphens), e.g. "${GRAMMAR_ID_EXAMPLE[d.session.language] ?? `${d.session.language}:past-tense`}".`,
   ];
   if (d.catalogue.length === 0) return [...head, "(none yet)"].join("\n");
   return [...head, "id | pattern | name", ...d.catalogue.map((p) => `${p.id} | ${p.pattern} | ${p.name}`)].join("\n");
+}
+
+const DIFFICULTY_LINES: Record<Exclude<Difficulty, 0>, string> = {
+  [-2]: "Much easier. Stay at or a little below their level: high-frequency words, short simple sentences (one clause), concrete everyday topics. This replaces \"slightly above the learner's level\". Keep it natural, never baby talk.",
+  [-1]: "Easier. Stay at their level rather than above it: common words, short sentences, familiar topics. This replaces \"slightly above the learner's level\".",
+  1: "Harder. Stretch a bit more than usual: some less common vocabulary, a linked or subordinate clause in most replies, grammar from the next level up, and topics that ask for opinions, plans or comparisons.",
+  2: "Much harder. Stretch further: roughly one level above their estimate, richer vocabulary and connectors, more complex grammar (conditionals, passives, nuance), and thought-provoking topics (hypotheticals, current issues, abstract ideas).",
+};
+
+/** "Go easier / go harder" slider (session setting). Empty at the default. */
+export function difficultyBlock(d: Pick<PromptData, "session">): string {
+  const level = d.session.difficulty ?? 0;
+  if (!level) return "";
+  return [
+    "# Difficulty (the learner's choice)",
+    DIFFICULTY_LINES[level],
+    "Stay within reason: never more than about one level above their estimate, and keep each reply understandable from context. If they clearly struggle (several mistakes in a row, switching to another language, saying they don't understand), ease off a little within this setting.",
+  ].join("\n");
 }
 
 function sessionBlock(d: PromptData): string {
@@ -246,6 +346,9 @@ function sessionBlock(d: PromptData): string {
   }
 }
 
+/** Prefix on learner messages that were spoken and transcribed (Stage 3). The display text has no prefix. */
+export const SPOKEN_MARKER = "[spoken]";
+
 const FEEDBACK_RULES = [
   "# Feedback",
   "- Never put corrections in your reply text. The app shows them from your record_evidence call.",
@@ -254,29 +357,49 @@ const FEEDBACK_RULES = [
   "- Judge each grammar point in a sentence separately: one observation per pattern attempt, with its own verdict.",
   "- A corrected retry, or a sentence written right after you modeled the pattern, is not independent use (use assistance \"corrected_retry\" or \"prompted\").",
   "- When you teach or explain a pattern, include it under `taught`.",
+  `- Messages starting with ${SPOKEN_MARKER} were spoken and transcribed by speech recognition: ignore punctuation and spacing, treat a wrong character with the right sound as a likely transcription slip (not an error), and never judge pronunciation from the text. Leave ${SPOKEN_MARKER} out of \`original\`.`,
 ].join("\n");
 
 const TOOL_PROTOCOL = [
   "# Tool protocol",
   "Write your reply text FIRST. Then, at the very end, call record_evidence ONCE with everything for this turn (corrections, observations, taught, level).",
-  "Never call record_evidence before writing the reply, and never call it twice in a turn. Skip it if there is nothing to record.",
+  "Never call record_evidence before writing the reply, and never call it twice in a turn.",
+  "Call it on every turn that answers a learner message, even when there is nothing to correct (then pass empty lists). The learner only sees corrections that come through this call.",
   "Other tools (search_library, and the anki_* tools when offered) may be called before you reply when you need their results.",
+  "Call tools only through the tool interface. Never write a tool call, a tool name or tool arguments (JSON) in your reply text: the learner sees everything you write.",
 ].join("\n");
+
+/** Which language explanations, corrections and grammar names are written in. */
+export function explanationBlock(d: Pick<PromptData, "info" | "explain">): string {
+  const explain = d.explain || "English";
+  const same = explain.toLowerCase().startsWith(d.info.name.toLowerCase());
+  return [
+    "# Explanation language",
+    same
+      ? `The learner's interface language is ${explain}, the language they are learning. Explain in simple ${explain} at their level.`
+      : `The learner's interface language is ${explain}. Whenever you explain (grammar, a word's meaning, why something is wrong), do it in ${explain}, briefly, then return to ${d.info.name}.`,
+    `In record_evidence, write correction explanations and grammar names in ${explain}.`,
+  ].join("\n");
+}
 
 export function renderSystemPrompt(d: PromptData): string {
   const lang = `${d.info.name} (${d.info.nativeName})`;
+  const explain = d.explain || "English";
+  const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
   const persona = [
     `You are Sayfern, a warm, curious tutor helping someone practise ${lang} through conversation.`,
     `- Reply mostly in ${d.info.nativeName}, slightly above the learner's level.`,
-    "- Keep replies to 1 to 3 short sentences and end with one natural question.",
-    "- No translations, pinyin, furigana or romaji unless the learner asks.",
-    `- If the learner writes in English, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
+    "- Keep replies to 1 to 3 short sentences and end with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.",
+    "- No translations or romanization unless the learner asks.",
+    `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
   ].join("\n");
 
   const blocks = [
     persona,
     d.promptNotes,
+    explanationBlock(d),
     levelLines(d),
+    difficultyBlock(d),
     learnerBlock(d),
     sessionBlock(d),
     followUpBlock(d),

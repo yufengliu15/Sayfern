@@ -2,21 +2,26 @@
 // translation, model choice, streaming and the inspector.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EndSummary } from "../../../shared/api";
-import type { Correction, FeedbackMode, Language, SourceRef } from "../../../shared/records";
+import type { Correction, Difficulty, FeedbackMode, Language, SourceRef } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { Composer, type ComposerHandle } from "../components/Composer";
 import { EndSessionSheet } from "../components/EndSessionSheet";
 import { Icon } from "../components/icons";
 import { Inspector } from "../components/Inspector";
 import { MessageList, type TranslationState } from "../components/MessageList";
+import { SessionTools } from "../components/SessionTools";
 import { ModelPicker } from "../components/ModelPicker";
 import { useApp } from "../context";
 import { translateCached } from "../lib/cache";
 import { stopStream } from "../lib/chatStream";
-import { cls, fmtUsage, KIND_LABEL } from "../lib/format";
+import { cls, fmtUsage, KIND_LABEL, fontOf } from "../lib/format";
+import { STARTERS } from "../lib/samples";
+import { uiLocaleInfo } from "../../../shared/locales";
 import { useActivityTracker, useStoredFlag } from "../lib/hooks";
 import { useChat } from "../lib/useChat";
+import { useAutoSpeak } from "../lib/voice";
 import { grammarRoute, readerRoute, sessionRoute, type Navigate } from "../router";
+import { langName, t, tj } from "../i18n";
 
 export interface SessionScreenProps {
   id: string;
@@ -24,18 +29,6 @@ export interface SessionScreenProps {
   navigate: Navigate;
 }
 
-const STARTERS: Record<Language, { t: string; e: string }[]> = {
-  zh: [
-    { t: "我这个周末想……", e: "Talk about your weekend plans" },
-    { t: "今天我学了……", e: "Tell the tutor what you did today" },
-    { t: "你推荐什么电影？", e: "Ask for a recommendation" },
-  ],
-  ja: [
-    { t: "週末は……", e: "Talk about your weekend" },
-    { t: "今日は……しました。", e: "Tell the tutor about your day" },
-    { t: "おすすめの本はありますか？", e: "Ask for a recommendation" },
-  ],
-};
 
 export function SessionScreen({ id, language: appLanguage, navigate }: SessionScreenProps) {
   const app = useApp();
@@ -52,6 +45,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
   const stick = useRef(true);
   const composer = useRef<ComposerHandle>(null);
   const tracked = useActivityTracker(id, !!view);
+  useAutoSpeak(id, messages, view?.meta.language ?? appLanguage, !!view);
 
   useEffect(() => {
     stick.current = true;
@@ -76,7 +70,8 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
     for (const m of view.messages) {
       if (m.role !== "tutor" || !m.text || requested.current.has(m.id)) continue;
       requested.current.add(m.id);
-      if (m.translation) {
+      // A cached translation counts only when it is in the current interface language.
+      if (m.translation && (m.translationLang ?? "English") === uiLocaleInfo(app.locale).promptName) {
         next[m.id] = { text: m.translation };
       } else if (app.model) {
         next[m.id] = { loading: true };
@@ -84,15 +79,15 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           .then((text) => setTranslations((s) => ({ ...s, [m.id]: { text } })))
           .catch((e) => {
             requested.current.delete(m.id);
-            setTranslations((s) => ({ ...s, [m.id]: { error: `Couldn't translate: ${errorText(e)}` } }));
+            setTranslations((s) => ({ ...s, [m.id]: { error: t("Couldn't translate: {error}", { error: errorText(e) }) } }));
           });
       } else {
         requested.current.delete(m.id);
-        next[m.id] = { error: "Connect a model to translate." };
+        next[m.id] = { error: t("Connect a model to translate.") };
       }
     }
     if (Object.keys(next).length) setTranslations((s) => ({ ...s, ...next }));
-  }, [translateOn, view, app.model]);
+  }, [translateOn, view, app.model, app.locale]);
 
   // Stick to the bottom while the learner is at the bottom.
   useLayoutEffect(() => {
@@ -126,11 +121,11 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
       <div className="main">
         <header className="hdr drag" />
         <div className="placeholder">
-          <div className="eyebrow">Session</div>
-          <h1>This session isn't here anymore.</h1>
-          <p className="muted">It may have been deleted.</p>
+          <div className="eyebrow">{t("Session")}</div>
+          <h1>{t("This session isn't here anymore.")}</h1>
+          <p className="muted">{t("It may have been deleted.")}</p>
           <button className="btn btn-p" onClick={() => navigate("today")}>
-            Back to Today
+            {t("Back to Today")}
           </button>
         </div>
       </div>
@@ -144,7 +139,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
   const sameLang = app.sessionsByLang[L] ?? [];
   const number = [...sameLang].sort((a, b) => a.createdAt - b.createdAt).findIndex((s) => s.id === meta.id) + 1;
   const focus = meta.focusGrammarId ? grammarById[meta.focusGrammarId] : undefined;
-  const send = (input: { text: string; pastedSpans?: string[] }) => {
+  const send = (input: { text: string; pastedSpans?: string[]; spoken?: boolean }) => {
     stick.current = true;
     chat.send(input);
   };
@@ -163,6 +158,22 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
     } catch (e) {
       setNotice(errorText(e));
     }
+  };
+
+  const setDifficulty = async (difficulty: Difficulty) => {
+    if (difficulty === (meta.difficulty ?? 0)) return;
+    setView((v) => (v ? { ...v, meta: { ...v.meta, difficulty } } : v));
+    try {
+      const m = await api.setDifficulty(id, difficulty);
+      setView((v) => (v ? { ...v, meta: m } : v));
+    } catch (e) {
+      setNotice(errorText(e));
+    }
+  };
+
+  const newTopic = () => {
+    stick.current = true;
+    if (!chat.newTopic()) setNotice(t("Connect a model in Settings to start"));
   };
 
   const rename = async (title: string) => {
@@ -194,21 +205,21 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
 
   const eyebrow =
     meta.kind === "reading" && view.doc
-      ? `Reading · ${view.doc.title}`
+      ? t("Reading · {title}", { title: view.doc.title })
       : meta.kind === "practice" && focus
-        ? `Practice · ${focus.point.name}`
-        : `${info.name} · ${number > 0 ? `Session ${number}` : KIND_LABEL[meta.kind]}${meta.kind !== "chat" && number > 0 ? ` · ${KIND_LABEL[meta.kind]}` : ""}`;
+        ? t("Practice · {name}", { name: focus.point.name })
+        : `${langName(L)} · ${number > 0 ? t("Session {n}", { n: number }) : t(KIND_LABEL[meta.kind])}${meta.kind !== "chat" && number > 0 ? ` · ${t(KIND_LABEL[meta.kind])}` : ""}`;
 
   const empty = (
     <div className="empty">
-      <div className="eyebrow">{info.nativeName} · practise by talking</div>
-      <h1>What's on your mind today?</h1>
-      <p className="muted lead">Write a line or two. The tutor answers at your level and remembers what you practise.</p>
+      <div className="eyebrow">{t("{language} · practise by talking", { language: info.nativeName })}</div>
+      <h1>{t("What's on your mind today?")}</h1>
+      <p className="muted lead">{t("Write a line or two. The tutor answers at your level and remembers what you practise.")}</p>
       <div className="starters">
         {STARTERS[L].map((s) => (
           <button key={s.t} className="starter" onClick={() => composer.current?.setText(s.t.replace(/…+$/, ""))}>
-            <span className={cls("s-t", L)}>{s.t}</span>
-            <span className="s-e">{s.e}</span>
+            <span className={cls("s-t", fontOf(L))}>{s.t}</span>
+            <span className="s-e">{t(s.e)}</span>
           </button>
         ))}
       </div>
@@ -223,11 +234,11 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
             <div className="eyebrow">{eyebrow}</div>
             <div className="title-row">
               <SessionTitle title={meta.title} language={L} onRename={rename} />
-              {meta.endedAt && <span className="st st-intro">Ended</span>}
+              {meta.endedAt && <span className="st st-intro">{t("Ended")}</span>}
             </div>
           </div>
 
-          <div className="seg" role="radiogroup" aria-label="Feedback timing">
+          <div className="seg" role="radiogroup" aria-label={t("Feedback timing")}>
             {(["inline", "end"] as const).map((m) => (
               <button
                 key={m}
@@ -235,9 +246,9 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
                 aria-checked={meta.feedbackMode === m}
                 className={meta.feedbackMode === m ? "on" : ""}
                 onClick={() => void setMode(m)}
-                title={m === "inline" ? "Show corrections as you go" : "Save corrections for the end"}
+                title={m === "inline" ? t("Show corrections as you go") : t("Save corrections for the end")}
               >
-                {m === "inline" ? "Inline" : "After session"}
+                {m === "inline" ? t("Inline") : t("After session")}
               </button>
             ))}
           </div>
@@ -246,25 +257,25 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
             className={cls("chip chip-toggle", translateOn && "on")}
             aria-pressed={translateOn}
             onClick={() => setTranslateOn(!translateOn)}
-            title="Translate the tutor's messages"
+            title={t("Translate the tutor's messages")}
           >
             <Icon name="translate" size={16} />
-            <span>Translate</span>
+            <span>{t("Translate")}</span>
           </button>
 
           {meta.usage.input + meta.usage.output > 0 && (
-            <span className="chip mono tok" title="Tokens and estimated cost for this session at list price">
+            <span className="chip mono tok" title={t("Tokens and estimated cost for this session at list price")}>
               {fmtUsage(meta.usage)}
             </span>
           )}
 
           <button className="btn btn-s end-btn" onClick={() => void end()} disabled={ending || messages.length === 0 || busy}>
             <Icon name="flag" size={15} />
-            {ending ? "Wrapping up…" : meta.endedAt ? "Summary" : "End session"}
+            {ending ? t("Wrapping up…") : meta.endedAt ? t("Summary") : t("End session")}
           </button>
 
           {!inspectorOpen && (
-            <button className="iconb" onClick={() => setInspectorOpen(true)} aria-label="Show inspector" title="Show inspector (⌘I)">
+            <button className="iconb" onClick={() => setInspectorOpen(true)} aria-label={t("Show inspector")} title={t("Show inspector ({shortcut})", { shortcut: "⌘I" })}>
               <Icon name="panel" />
             </button>
           )}
@@ -274,11 +285,11 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           <div className="reading-bar">
             <Icon name="library" size={15} />
             <span>
-              Reading <b>{view.doc.title}</b>
-              {view.doc.checkpoint ? ` · paragraph ${view.doc.checkpoint.paragraph + 1}` : ""}
+              {tj("Reading {title}", { title: <b>{view.doc.title}</b> })}
+              {view.doc.checkpoint ? ` · ${t("paragraph {n}", { n: view.doc.checkpoint.paragraph + 1 })}` : ""}
             </span>
             <button className="linkb" onClick={() => navigate(readerRoute(view.doc!.id))}>
-              Open reader
+              {t("Open reader")}
             </button>
           </div>
         )}
@@ -316,11 +327,20 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           {notice && (
             <div className="notice" role="status">
               <Icon name="alert" size={15} />
-              <span>{notice}</span>
-              <button className="iconb sm" aria-label="Dismiss" onClick={() => setNotice(null)}>
+              <span>{t(notice)}</span>
+              <button className="iconb sm" aria-label={t("Dismiss")} onClick={() => setNotice(null)}>
                 <Icon name="x" size={14} />
               </button>
             </div>
+          )}
+          {!meta.endedAt && meta.kind !== "placement" && (
+            <SessionTools
+              difficulty={meta.difficulty ?? 0}
+              onDifficulty={(d) => void setDifficulty(d)}
+              onNewTopic={meta.kind === "chat" || meta.kind === "practice" ? newTopic : undefined}
+              busy={busy}
+              disabled={!app.model}
+            />
           )}
           <Composer
             ref={composer}
@@ -328,8 +348,9 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
             language={L}
             busy={busy}
             disabled={!app.model}
-            disabledReason="Connect a model in Settings to start"
+            disabledReason={t("Connect a model in Settings to start")}
             onSend={send}
+            sessionId={id}
             onStop={() => stopStream(id)}
             left={<ModelPicker />}
           />
@@ -377,11 +398,11 @@ function SessionTitle({ title, language, onRename }: { title: string; language: 
         }}
       >
         <label htmlFor="session-title" className="sr">
-          Session title
+          {t("Session title")}
         </label>
         <input
           id="session-title"
-          className={cls("name-input", language)}
+          className={cls("name-input", fontOf(language))}
           value={draft}
           autoFocus
           maxLength={80}
@@ -405,8 +426,8 @@ function SessionTitle({ title, language, onRename }: { title: string; language: 
   }
   return (
     <h1
-      className={cls("name", language)}
-      title="Double-click to rename"
+      className={cls("name", fontOf(language))}
+      title={t("Double-click to rename")}
       tabIndex={0}
       onDoubleClick={() => {
         setDraft(title);

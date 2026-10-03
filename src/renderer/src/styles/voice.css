@@ -1,0 +1,29 @@
+/* Stage 3 · voice: listen buttons, the recording mic, Settings > Voice. */
+
+.spk-row { display: inline-flex; align-items: center; gap: 2px; }
+.spk.on { color: var(--fern); background: var(--fern-soft); }
+.spk.loading { animation: spk-pulse 1s ease-in-out infinite; }
+.spk-x { font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: -0.02em; }
+.spk-err { font-size: 11.5px; color: var(--seal); margin-left: 6px; max-width: 280px; }
+@keyframes spk-pulse { 50% { opacity: 0.45; } }
+
+.msg-voice { display: flex; gap: 4px; margin-top: 2px; margin-left: -6px; opacity: 0.55; transition: opacity 0.15s; }
+.tmsg:hover .msg-voice, .msg-voice:focus-within, .msg-voice:has(.on) { opacity: 1; }
+
+.composer .mic.rec { color: #fff; background: var(--seal); }
+.composer .mic.rec:hover:not(:disabled) { color: #fff; background: var(--seal-2); }
+.composer .mic.loading { animation: spk-pulse 1s ease-in-out infinite; }
+.composer .mic.off { color: var(--muted); }
+.rec-time { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px; color: var(--seal); }
+.rec-time i { width: 8px; height: 8px; border-radius: 50%; background: var(--seal); animation: spk-pulse 1.2s ease-in-out infinite; }
+.rec-time .muted { font-family: var(--sans); }
+.composer-note { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--seal); padding: 0 6px 4px; }
+.composer-note span { flex: 1; }
+
+.vc-acct .srow-l { display: inline-flex; align-items: center; gap: 8px; }
+.vc-acct .anki-st { margin: 0; }
+.vc-acct-c { display: flex; gap: 2px; }
+.vc-add .srow-t { width: 100%; }
+.vc-add-f { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.vc-add-f .input:first-child { width: 160px; }
+.vc-add-f .input[type="password"] { flex: 1; min-width: 220px; }

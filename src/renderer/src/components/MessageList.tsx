@@ -3,10 +3,12 @@
 import { Fragment, type ReactNode } from "react";
 import type { ChatMessage, Correction, FeedbackMode, GrammarSummary, Language, SourceRef, ToolActivity } from "../../../shared/records";
 import type { ModelRef } from "../../../shared/types";
-import { cls, fmtDay } from "../lib/format";
+import { activityText, cls, fmtDay, fontOf } from "../lib/format";
 import { AnnotatedText } from "./AnnotatedText";
 import { CorrectionCard } from "./CorrectionCard";
 import { Fern, Icon } from "./icons";
+import { SpeakButtons } from "./Speak";
+import { t, tn } from "../i18n";
 
 export interface TranslationState {
   text?: string;
@@ -83,7 +85,7 @@ export function MessageList(p: MessageListProps) {
               <div className="endnote">
                 <Icon name="pen" size={14} />
                 <span>
-                  {corr.length} note{corr.length === 1 ? "" : "s"} saved for the end of this session
+                  {tn(corr.length, "{count} note saved for the end of this session", "{count} notes saved for the end of this session")}
                 </span>
               </div>
             )}
@@ -98,7 +100,7 @@ export function MessageList(p: MessageListProps) {
               {!p.streaming.error && <span className="caret" aria-hidden="true" />}
             </AnnotatedText>
           ) : !p.streaming.error ? (
-            <div className="thinking" aria-label="Tutor is replying">
+            <div className="thinking" aria-label={t("Tutor is replying")}>
               <i />
               <i />
               <i />
@@ -106,10 +108,10 @@ export function MessageList(p: MessageListProps) {
           ) : null}
           {p.streaming.tools.length > 0 && (
             <div className="activity">
-              {p.streaming.tools.map((t, i) => (
-                <span key={i} className={cls("act", !t.ok && "bad")}>
-                  <Icon name={t.ok ? "check" : "alert"} size={13} stroke={2.2} />
-                  {t.summary}
+              {p.streaming.tools.map((tool, i) => (
+                <span key={i} className={cls("act", !tool.ok && "bad")}>
+                  <Icon name={tool.ok ? "check" : "alert"} size={13} stroke={2.2} />
+                  {activityText(tool.summary)}
                 </span>
               ))}
             </div>
@@ -127,7 +129,7 @@ function Who({ model }: { model?: string }) {
       <span className="av">
         <Fern size={15} />
       </span>
-      Tutor
+      {t("Tutor")}
       {model && <span className="model">{model.split("/").pop()}</span>}
     </div>
   );
@@ -137,11 +139,11 @@ function ErrorLine({ text, onRetry, quiet }: { text: string; onRetry?: () => voi
   return (
     <div className={cls("err", quiet && "quiet")} role={quiet ? undefined : "alert"}>
       <Icon name={quiet ? "stop" : "alert"} size={quiet ? 12 : 15} />
-      <span>{text}</span>
+      <span>{t(text)}</span>
       {onRetry && (
         <button className="btn btn-s" onClick={onRetry}>
           <Icon name="refresh" size={14} />
-          Retry
+          {t("Retry")}
         </button>
       )}
     </div>
@@ -176,9 +178,14 @@ function TutorMessage({
           source={{ kind: "session", sessionId: m.sessionId, messageId: m.id }}
         />
       )}
+      {m.text && !m.error && (
+        <div className="msg-voice">
+          <SpeakButtons id={m.id} text={m.text} language={language} kind="message" sessionId={m.sessionId} small />
+        </div>
+      )}
       {translation && (
         <p className={cls("tr", translation.loading && "loading")}>
-          {translation.loading ? "Translating…" : (translation.text ?? translation.error)}
+          {translation.loading ? t("Translating…") : (translation.text ?? (translation.error ? t(translation.error) : undefined))}
         </p>
       )}
       {library.length > 0 && (
@@ -186,12 +193,12 @@ function TutorMessage({
           {library.slice(0, 2).map((s, i) => (
             <button key={i} className="chip chip-s" onClick={() => onOpenSource(s)} title={s.quote}>
               <Icon name="library" size={14} />
-              {s.title ?? "Library"} · ¶{s.paragraph + 1}
+              {s.title ?? t("Library")} · ¶{s.paragraph + 1}
             </button>
           ))}
         </div>
       )}
-      {m.error && (m.error === "Stopped" ? <ErrorLine text="You stopped this reply." quiet /> : <ErrorLine text={m.error} onRetry={onRetry} />)}
+      {m.error && (m.error === "Stopped" ? <ErrorLine text={t("You stopped this reply.")} quiet /> : <ErrorLine text={m.error} onRetry={onRetry} />)}
     </div>
   );
 }
@@ -217,7 +224,7 @@ function LearnerMessage({ m, language, corrections }: { m: ChatMessage; language
   const pending = m.id.startsWith("pending-");
   return (
     <div className={cls("umsg", pending && "pending")}>
-      <p className={cls("msg-text", language)}>
+      <p className={cls("msg-text", fontOf(language))}>
         {segs.map((s, i) =>
           s.c ? (
             <mark
@@ -231,9 +238,14 @@ function LearnerMessage({ m, language, corrections }: { m: ChatMessage; language
           ),
         )}
       </p>
+      {m.spoken && (
+        <div className="pasted-note" title={t("Transcribed from your voice. Pronunciation isn't judged from the text.")}>
+          <Icon name="mic" size={12} /> {t("Spoken")}
+        </div>
+      )}
       {m.pastedSpans && m.pastedSpans.length > 0 && (
-        <div className="pasted-note" title="Pasted text doesn't count toward your own words">
-          <Icon name="quote" size={12} /> Includes pasted text
+        <div className="pasted-note" title={t("Pasted text doesn't count toward your own words")}>
+          <Icon name="quote" size={12} /> {t("Includes pasted text")}
         </div>
       )}
     </div>

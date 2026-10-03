@@ -2,14 +2,17 @@ import { useRef, useState } from "react";
 import { useApp } from "../context";
 import { cjkClass, fmtAgo, practisedLabel } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
+import { langName, msg, t } from "../i18n";
 import { navigate, sessionRoute, settingsRoute, type ParsedRoute, type Route } from "../router";
+import { FeatureNav } from "./FeatureNav";
 import { Fern, Icon, type IconName } from "./icons";
 
 const NAV: { route: Route; name: ParsedRoute["name"]; label: string; icon: IconName; key: string }[] = [
-  { route: "today", name: "today", label: "Today", icon: "today", key: "1" },
-  { route: "library", name: "library", label: "Library", icon: "library", key: "2" },
-  { route: "grammar", name: "grammar", label: "Grammar", icon: "grammar", key: "3" },
-  { route: "progress", name: "progress", label: "Progress", icon: "progress", key: "4" },
+  { route: "today", name: "today", label: msg("Today"), icon: "today", key: "1" },
+  { route: "library", name: "library", label: msg("Library"), icon: "library", key: "2" },
+  { route: "grammar", name: "grammar", label: msg("Grammar"), icon: "grammar", key: "3" },
+  { route: "review", name: "review", label: msg("Review"), icon: "review", key: "4" },
+  { route: "progress", name: "progress", label: msg("Progress"), icon: "progress", key: "5" },
 ];
 
 /** ⌘ on Mac, Ctrl elsewhere (the mock dev server runs in any browser). */
@@ -38,19 +41,19 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
           className="ldd-btn"
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={`Language workspace: ${app.lang.name}`}
+          aria-label={t("Language workspace: {language}", { language: langName(app.language) })}
           onClick={() => setOpen(!open)}
         >
           <span className={`g ${app.lang.fontClass}`}>{app.lang.glyph}</span>
           <span className="t">
-            <b>{app.lang.name}</b>
+            <b>{langName(app.language)}</b>
             <small>{practisedLabel(lastAt(app.language))}</small>
           </span>
           <Icon name="chev" size={16} stroke={2} />
         </button>
         {open && (
-          <div className="menu" role="menu" aria-label="Your languages">
-            <div className="mh">Your languages</div>
+          <div className="menu" role="menu" aria-label={t("Your languages")}>
+            <div className="mh">{t("Your languages")}</div>
             {app.languages.map((l) => (
               <button
                 key={l.id}
@@ -64,7 +67,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
               >
                 <span className={`g ${l.fontClass}`}>{l.glyph}</span>
                 <span className="t">
-                  <b>{l.name}</b>
+                  <b>{langName(l.id)}</b>
                   <small>{practisedLabel(lastAt(l.id))}</small>
                 </span>
                 {l.id === app.language && (
@@ -83,7 +86,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
               }}
             >
               <Icon name="plus" size={16} stroke={2} />
-              Add a language
+              {t("Add a language")}
             </button>
           </div>
         )}
@@ -91,11 +94,11 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
 
       <div className="nav">
         {NAV.map((n) => {
-          const on = route.name === n.name || (n.name === "library" && route.name === "reader");
+          const on = route.name === n.name || (n.name === "library" && route.name === "reader") || (n.name === "review" && route.name === "quiz");
           return (
             <button key={n.route} className={on ? "on" : ""} aria-current={on ? "page" : undefined} onClick={() => navigate(n.route)}>
               <Icon name={n.icon} />
-              <span>{n.label}</span>
+              <span>{t(n.label)}</span>
               <span className="k" aria-hidden="true">
                 {MOD}
                 {n.key}
@@ -103,17 +106,18 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
             </button>
           );
         })}
+        <FeatureNav route={route} />
       </div>
 
       <div className="recent">
         <div className="sect">
-          <span>Recent</span>
-          <button onClick={() => void app.startSession()} aria-label="New session" title={`New session (${MOD}N)`}>
+          <span>{t("Recent")}</span>
+          <button onClick={() => void app.startSession()} aria-label={t("New session")} title={t("New session ({shortcut})", { shortcut: `${MOD}N` })}>
             <Icon name="plus" size={15} stroke={2} />
           </button>
         </div>
         <div className="recent-list">
-          {app.sessions.length === 0 && <div className="recent-empty">No sessions yet</div>}
+          {app.sessions.length === 0 && <div className="recent-empty">{t("No sessions yet")}</div>}
           {app.sessions.slice(0, 12).map((s) => (
             <button
               key={s.id}
@@ -133,26 +137,25 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
         <div className="nav">
           <button className={route.name === "customize" ? "on" : ""} aria-current={route.name === "customize" ? "page" : undefined} onClick={() => navigate("customize")}>
             <Icon name="customize" />
-            <span>Customize</span>
-            <span className="soon">SOON</span>
+            <span>{t("Customize")}</span>
           </button>
           <button className={route.name === "settings" ? "on" : ""} aria-current={route.name === "settings" ? "page" : undefined} onClick={() => navigate("settings")}>
             <Icon name="settings" />
-            <span>Settings</span>
+            <span>{t("Settings")}</span>
           </button>
         </div>
         <div className="hair" />
         {connected.length === 0 ? (
           <button className="status" onClick={() => navigate("settings")}>
             <i className="off" />
-            <span>No model connected</span>
+            <span>{t("No model connected")}</span>
           </button>
         ) : (
           connected.slice(0, 2).map((c) => (
             <div className="status" key={c.id} title={c.connectedVia}>
               <i />
               <span>
-                {c.name} · {c.connected === "oauth" ? "subscription" : "API key"}
+                {c.name} · {c.connected === "oauth" ? t("subscription") : t("API key")}
               </span>
             </div>
           ))
@@ -169,7 +172,7 @@ function AnkiStatusRow() {
     return (
       <div className="status">
         <i className="off" />
-        <span>Anki · not connected</span>
+        <span>{t("Anki · not connected")}</span>
       </div>
     );
   }
@@ -178,14 +181,14 @@ function AnkiStatusRow() {
     return (
       <div className="status" title={anki.version ? `AnkiConnect v${anki.version}` : undefined}>
         <i />
-        <span>Anki · {snap ? `synced ${fmtAgo(snap.syncedAt)}` : "connected"}</span>
+        <span>{snap ? t("Anki · synced {ago}", { ago: fmtAgo(snap.syncedAt) }) : t("Anki · connected")}</span>
       </div>
     );
   }
   return (
     <div className="status" title={anki.error}>
       <i className="warn" />
-      <span>Anki · {snap ? `offline, using ${fmtAgo(snap.syncedAt)} snapshot` : "offline"}</span>
+      <span>{snap ? t("Anki · offline, using the snapshot from {ago}", { ago: fmtAgo(snap.syncedAt) }) : t("Anki · offline")}</span>
     </div>
   );
 }

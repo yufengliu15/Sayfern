@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { decodeEntities, localName, parseHtml, tokenize } from "./html";
 import { cleanParagraph, collapseWhitespace, decodeText, type ParsedDoc, type ParsedParagraph } from "./text";
+import { msg } from "../../shared/i18n";
 
 /** Resolves `href` relative to the directory of `base` (zip paths, "/"-separated). */
 function resolvePath(base: string, href: string): string {
@@ -100,7 +101,7 @@ export async function parseEpub(bytes: Uint8Array, language?: string): Promise<P
     heading = parsed.lastHeading;
   }
   const warnings: string[] = [];
-  if (spine.length === 0) warnings.push("This EPUB has no reading order (spine), so no text was imported.");
+  if (spine.length === 0) warnings.push(msg("This EPUB has no reading order (spine), so no text was imported."));
   return { title, paragraphs, warnings };
 }
 

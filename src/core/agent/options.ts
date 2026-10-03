@@ -14,3 +14,13 @@ export function requestOptions(model: Model<Api>, answerTokens: number): { maxTo
   const level = clampThinkingLevel(model, "low");
   return level === "off" ? { maxTokens: answerTokens } : { maxTokens: answerTokens + THINKING_HEADROOM, reasoning: level };
 }
+
+/**
+ * Models that need the evidence pass (turn.ts): they tend to end their turn at the final answer
+ * without calling record_evidence. Claude follows the "reply, then record" protocol reliably;
+ * OpenAI's GPT models (API or ChatGPT sign-in) and most others often don't.
+ */
+export function needsEvidencePass(model: Pick<Model<Api>, "api" | "id">): boolean {
+  if (model.api.startsWith("anthropic")) return false;
+  return !/claude/i.test(model.id);
+}

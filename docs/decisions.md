@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Short ADR-style records of the choices behind Sayfern. Each has context, the decision, and its consequences. All were made on 2026-09-30 during the Stage 1 build (v0.1.0 to v0.2.1) unless noted. When a decision changes, add a new entry that supersedes the old one instead of editing history.
+Short ADR-style records of the choices behind Sayfern. Each has context, the decision, and its consequences. ADRs 1 to 17 were made on 2026-09-30 during the Stage 1 build (v0.1.0 to v0.3.1) unless noted; ADRs 18 to 21 come from the Stage 2 build (v0.5.0). When a decision changes, add a new entry that supersedes the old one instead of editing history.
 
 Where each decision lives in code is noted under **Where**. The full design is in [`architecture.md`](architecture.md).
 
@@ -62,6 +62,7 @@ Where each decision lives in code is noted under **Where**. The full design is i
 - **Transcript validity.** The stored transcript ends with assistant(toolCall) → toolResult, and the next turn appends a user message after the tool result. This sequence was verified against pi-ai's Anthropic and OpenAI Responses conversions.
 - **Consequences.** One request per ordinary turn. If the model calls a recording tool before writing any text, the loop does continue so the learner gets a reply. Extensions can declare `recordingOnly` tools with the same semantics.
 - **Where.** `src/core/agent/turn.ts` (`runLoop`), `src/core/agent/tools.ts`, `src/core/records/ids.ts`, tests in `src/core/agent/turn.test.ts`.
+- **Update (v0.9.0).** Models that skip the call get one tool-only evidence pass after the reply (ADR 25).
 
 ## ADR 8. Low effort plus headroom for always-thinking models
 
@@ -131,3 +132,94 @@ Recorded from the code (not from a separate discussion).
 - **Decision.** Keep `app.name` = `sayfern` (package.json `name`, no `productName`, no `app.setName`) so existing data and encrypted credentials stay reachable. Show "Sayfern" through the menu labels and About panel, and in dev patch `Electron.app`'s Info.plist and icon with `scripts/brand-electron-app.mjs`, re-signing ad hoc because the edit breaks Electron's signature. Icon: the sidebar fern on the sidebar green, source `build/icon.svg`.
 - **Consequences.** After the first rebrand macOS may ask again for Keychain access (the code signature changed); Always Allow fixes it. The process in Activity Monitor is still "Electron" in dev. A future packager config must set the bundle name and icon but must not change `app.name`.
 - **Where.** `src/main/index.ts` (`setUpBranding`), `scripts/brand-electron-app.mjs`, `build/`, `package.json` scripts.
+
+## ADR 18. Stage 2 API in per-feature slots, bound with `bindSlot`
+
+Stage 2 build (v0.5.0, 2026-09-30 to 2026-10-01). Extends ADR 4 and ADR 15.
+
+- **Context.** Stage 2 was built by three agents in parallel (review, quizzes, builder). One shared `SayfernApi`, `SayfernApp`, `mockApi.ts` and `styles.css` would have meant constant merge conflicts in the same files.
+- **Decision.** Each feature owns a slot file in `src/shared/stage2/` (an interface plus a `Record<method, true>` table such as `REVIEW_METHODS`). `SayfernApi` extends the slot interfaces and `METHOD_TABLE` spreads the tables, so the compile-time "every method listed" check still holds. Each feature's core service (`src/core/review`, `quiz`, `builder`) takes one shared `Stage2Deps` and is bound onto `SayfernApp` with `bindSlot`, which throws at startup if a listed method is missing. The mock backend and the stylesheet are split the same way: `dev/mock{Review,Quiz,Builder}.ts` over a shared `dev/mockWorld.ts`, and `src/renderer/src/styles/{review,quiz,builder}.css` next to `styles.css` (which keeps the tokens).
+- **Consequences.** Preload and main's IPC loop needed no per-method changes. The API checklist has a second path (slot → service → feature mock). `Stage2Deps` holds concrete Stage 1 classes rather than `contracts.ts` interfaces, a deliberate shortcut: Stage 2 services are app-internal, not extension points. The "one CSS file" rule of ADR 15 is replaced by "tokens in `styles.css`, one stylesheet per Stage 2 feature".
+- **Where.** `src/shared/stage2/`, `src/shared/api.ts`, `src/core/stage2.ts`, `src/core/app/index.ts`, `src/renderer/src/dev/`, `src/renderer/src/styles/`.
+
+## ADR 19. Quiz evidence is kept apart from conversation evidence (S2-09)
+
+Stage 2 build (v0.5.0); follow-up fix 2026-10-01.
+
+- **Context.** Quiz answers are linked to grammar points and should count as practice, but a quiz question is a prompt: answering "除了…还…" in a multiple-choice item says little about using the pattern unprompted. Mixing them in would inflate rates and states (ADR 9's numbers would stop meaning "in conversation").
+- **Decision.** `finishQuiz` records observations with `origin: "quiz"`, `quizId`, `sessionId: "quiz:<id>"`, `assistance: "prompted"` and deterministic ids. `summarizeGrammar` counts them separately (`GrammarSummary.quiz`); they never change conversation counts, rate or `lastUsedAt`, never make a point "independent" (a correct quiz answer can at most move "introduced" to "with help"). Follow-ups on Today and in the tutor prompt use conversation verdicts only (`lastConversationVerdicts`), so a quiz answer can't hide a recent conversation miss or steer what the tutor brings back. Revealed answers are not evidence; quiz text is never learner words.
+- **Consequences.** The Grammar page shows quiz results on their own line ("In quizzes: X of Y right"). Deleting a quiz deletes its evidence. Model-made quiz items are trusted only after local validation (`validateItem`); when an item is ambiguous, such as a multiple-choice key missing from four or more options, it is dropped rather than repaired.
+- **Where.** `src/core/quiz/index.ts` (`finishQuiz`), `src/core/records/grammar.ts` (`isQuizObservation`, `summarizeGrammar`), `src/core/agent/prompt.ts` (`lastConversationVerdicts`), `src/core/quiz/items.ts`.
+
+## ADR 20. Anki export through Sayfern-owned note types (S2-03)
+
+Stage 2 build (v0.5.0).
+
+- **Context.** The roadmap first planned a note type and field mapping in Settings > Anki. Learners' note types vary (names, fields, languages of the Anki UI), and mapping a cloze card onto an arbitrary type is fragile.
+- **Decision.** Export creates and reuses two note types of its own through AnkiConnect: "Sayfern Cloze" (a real cloze type) and "Sayfern Recall" (Sentence, Prompt, Explanation, Source; the sentence first so Anki's duplicate check is on the sentence). The deck is chosen in the export panel and remembered per language (`AnkiConfig.exportDecks`). Cloze drafts are built locally; situation prompts use one batched model call with a local fallback. Duplicates are checked before adding; notes are tagged `sayfern`, `sayfern::<kind>` and the grammar id. The learner's wrong sentence never appears on a card.
+- **Consequences.** Works with any collection and locale, no setup. If a learner edits a Sayfern note type in Anki, adding fails per card with Anki's message; Sayfern does not repair it. No Settings field for the export deck.
+- **Where.** `src/core/review/cards.ts`, `situations.ts`, `src/core/review/index.ts`, `src/core/anki/index.ts` (`ensureNoteType`, `ensureDeck`, `addNotes`).
+
+## ADR 21. Feature builder trust model: sandboxed UI, approve-before-run full access
+
+Owner decision, 2026-09-30 ("Sandboxed UI + review"); hardened in review before v0.5.0. Supersedes the "no sandbox" note of F-09 for built features.
+
+- **Context.** The builder (S2-10..S2-13) lets the learner's model write code that Sayfern then runs. Hand-installed extensions (ADR 1, `docs/extensions.md`) run with full app privileges; doing the same for model-written code would hand the model the learner's Mac account.
+- **Decision.**
+  - **Sandboxed UI.** Built screens and activities run in `<iframe sandbox="allow-scripts">` from `sayfern-feature://<id>/v<n>/`, with a strict CSP (`default-src 'none'`, scripts only from the feature, `connect-src 'none'`, no eval) and reach Sayfern only through a small SDK whose calls are allowlisted in the renderer and validated again in core.
+  - **Network-locked sessions.** The app window's default session points at a dead proxy, keeps WebRTC on that proxy, and gives sub-frames no permissions; sub-frames can't navigate outside `sayfern-feature:`. Main's own HTTP uses a separate `sayfern-net` session.
+  - **Sandboxed test runner.** Feature tests are unapproved code, so they never run in the app process: a hidden, sandboxed, preload-less window on an in-memory locked-down session runs them (8 s limit). The `node --permission` child-process runner is only for unit tests, smoke and dev (it does not block the network). Counts come from the runner, never the model.
+  - **Approve before run.** Code that needs full access (tutor tools, prompt additions, language packs) runs only after the learner reads it in the review sheet and approves that exact version. Every script outside `ui/` is flagged as full access. Such code may import only its own files statically (no `require`, computed `import()`, `eval`, `new Function`, `node:vm`, `process.dlopen`).
+  - **Frozen approved copies.** Approval stores the content hash and freezes a read-only copy in `approved/<hash>/`. The host loads full-access code only from that copy, re-hashing it at every load, never from `versions/` (which builds write to). Versions are sealed (hashed, never rewritten) when their build ends; a per-feature lock and exclusive version folders stop two builds from sharing a version.
+- **Consequences.** UI-only features need no review and can't read files or reach the network. Approved full-access code still has full access: the static checks are textual and the human review is the real boundary. Feature frames share the app's renderer process (no Node, context isolation on). Verified headless in Electron 44 on Linux (`SAYFERN_E2E_BUILDER=1`, `--no-sandbox` only because the container runs as root); the macOS OS sandbox is still to check. Hand-installed extensions are unchanged.
+- **Where.** `src/core/builder/` (`paths.ts` CSP, `manifest.ts`, `store.ts`, `rpc.ts`, `runner.ts`, `index.ts`), `src/core/extensions/index.ts` (`setManagedSource`, review gate in `loadOne`), `src/main/features.ts`, `src/main/index.ts`, `src/renderer/src/components/FeatureFrame.tsx`, `docs/extensions.md`.
+
+## ADR 22. Anki deck generator: AnkiConnect, local checks, free voices from Node (S2-14..S2-16)
+
+Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks or a generated deck), and generating should work like /ankigen but with Sayfern's tooling, with ElevenLabs audio when the learner connects an account and edge-tts voices otherwise.
+
+- **Context.** /ankigen builds a standalone `.apkg` with Python (genanki, edge-tts) and relies on the model's self-check for readings. Sayfern already talks to Anki through AnkiConnect, has CC-CEDICT and JMdict, pinyin-pro and kuromoji, and knows which words the learner has in Anki.
+- **Decision.**
+  - **Straight into Anki** through AnkiConnect (owner choice): a new deck per project and a Sayfern-owned note type, "Sayfern Vocab" (same reasoning as ADR 20). No `.apkg` writer and no new dependency. Anki must be open to add cards; planning and samples work without it.
+  - **Form and preview, then batches** (owner choice), not a chat: the model only writes words and card text as strict JSON. Sayfern checks every card (dictionary reading first, then the reader, the model's reading only when nothing contradicts it), builds the ruby itself, and drops cards it can't use. Batches of 25, saved after each one; the word list grows as batches need it, instead of curating 2000 words up front.
+  - **Skip known words** using the cached snapshot (`checkWords`), and follow the new deck in `AnkiConfig.decks` after its first batch so the tutor uses it.
+  - **Audio.** ElevenLabs with the learner's own key (stored like an API-key sign-in, `credentials.json`, encrypted), Flash v2.5; Edge's read-aloud voices otherwise and as the fallback when credits run out. Edge is spoken from Node over its websocket protocol (ported from edge-tts 7.2.8: Sec-MS-GEC token, `Origin` header), so no Python is needed.
+- **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
+- **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
+
+## ADR 25. Evidence pass for models that skip record_evidence (v0.9.0)
+
+Owner report, 2026-10-03: corrections never appear with GPT Sol and Astra (ChatGPT sign-in); Sonnet records them well.
+
+- **Context.** pi-ai only offers `toolChoice` "auto" or "none", so a tool call can't be forced. GPT models treat their final answer as the end of the turn: after writing the reply they rarely call `record_evidence`, and the old prompt let them skip it "if there is nothing to record".
+- **Decision.** (1) The prompt asks for the call on every learner turn, empty when there is nothing to record. (2) When a learner turn ends with reply text and no `record_evidence` call, models that need it (`needsEvidencePass`: everything except Claude) get one more request with `record_evidence` as the only tool and a hidden nudge (`EVIDENCE_NUDGE`). Its text is ignored; its call runs like any other; its usage counts. The nudge and the pass never enter the stored transcript. Any failure is swallowed: the reply stands. (3) Tool arguments sent as JSON text are parsed.
+- **Consequences.** GPT turns cost one extra small request when the model skips the call. Corrections show up after the reply text instead of with it. Claude behaves as before (one request per turn).
+- **Update (v0.9.1).** GPT can also write the call into its reply text in its internal chat format (`<|assistant to=functions.record_evidence ...{json}`). `leak.ts` finds the marker; the stream holds text back from it, the reply and the transcript keep only what comes before, and the JSON is run as a real call to a recording-only tool. A salvaged `record_evidence` counts, so no evidence pass follows.
+- **Where.** `src/core/agent/turn.ts` (`evidencePass`), `leak.ts`, `options.ts` (`needsEvidencePass`), `prompt.ts` (`TOOL_PROTOCOL`), `text.ts` (`arr`, `obj`); tests in `turn.test.ts`, `options.test.ts`.
+
+## ADR 24. Voice: ElevenLabs account pool, Scribe push-to-talk, Edge fallback (v0.8.0)
+
+Owner request, 2026-10-03: voice output first (ElevenLabs text to speech), then voice input with ElevenLabs Scribe (same key, push to talk, transcript fed into the text session); allow several ElevenLabs accounts with a + button.
+
+- **Decision.**
+  - **One account pool** (`ElevenLabsAccounts`) for deck audio and voice, accounts tried in the learner's order. Benching is per account for credits (until the reset date when known, else 6 h), one minute for 429, and per job (tts or stt) for a refused key or missing permission, so a key without Speech to Text still reads aloud. Network failures stop at once instead of burning through every account.
+  - **Transcript into the text flow**, not a separate voice conversation: a spoken message is a normal learner message with `spoken: true`, so corrections, evidence and statistics work unchanged. The model gets a `[spoken]` marker and a rule not to treat transcription slips as errors; transcription is never evidence of pronunciation (S3-04).
+  - **Text left in the box by default** (owner can turn on "Send right after transcribing"). With auto-read and auto-send on, the session becomes a spoken conversation without a realtime API.
+  - **Slow playback in the player** (`playbackRate` with pitch kept), not a second synthesis: no extra credits, works with both services.
+  - **Multipart body built by hand** for Scribe so it works through Electron's `net.fetch` (the renderer has no network; audio crosses IPC as bytes).
+  - **Whole messages without a language code**: tutor replies mix the target language with explanations; words and sentences keep it.
+- **Consequences.** Voice settings and accounts are global, not per language. Speaking time is clip length, listening time is play time; neither is idle-filtered. The cache is bounded by file count, not size. Scribe is told the session's language, which may hurt code-switching (the learner asking something in English).
+- **Where.** `src/core/voice/` (`accounts.ts`, `stt.ts`, `index.ts`), `src/shared/stage3/voice.ts`, `src/renderer/src/lib/voice.ts`, `components/Speak.tsx`, `Composer.tsx`, Settings > Voice.
+
+## ADR 23. Eleven learning languages, twelve interface locales, no i18n dependency (v0.7.0)
+
+Owner request, 2026-10-01: support English, Chinese, Japanese, Korean, Vietnamese, Russian, French, Italian, Spanish, German and Portuguese as learning languages (Tagalog and Arabic dropped: models are weaker there), localize the interface, follow the system language by default, allow any pairing. Owner choices: full parity now (offline dictionaries for every language), Simplified and Traditional Chinese interfaces.
+
+- **Decision.**
+  - **Own i18n, English text as keys** (gettext style) instead of a library: no new dependency, missing translations fall back to readable English, and core and the renderer share one implementation. Plurals through `Intl.PluralRules`, language names through `Intl.DisplayNames`, context keys for the rare same-word cases.
+  - **Explanation language = interface language.** One setting instead of two; a Russian speaker learning Japanese gets explanations in Russian. Prompts name the language explicitly.
+  - **Full parity enforced by a test**: every key in every catalog. Catalogs were written by a model per locale with a shared brief (register, Anki's own terms, no em dashes) and should get a native-speaker pass.
+  - **Dictionaries per pair, downloaded on demand**, preferring glosses in the interface language: JMdict (5 gloss languages), WikDict bilingual SQLite (read with built-in `node:sqlite`, so no SQLite dependency), Kengdic, kaikki.org Wiktionary for Vietnamese; English glosses as the fallback.
+  - **Lightweight morphology**: `Intl.Segmenter` plus rule-based lemmas checked against the dictionary, instead of per-language analyzers.
+- **Consequences.** Lemmas for inflected Spanish, Russian or Korean words are approximate (unknown forms fall back to the surface word). zh, ko and vi glosses are English only; English as the learning language has no dictionary when the interface is zh, ko or vi. The kaikki.org URL is marked deprecated upstream. Changing an English string means updating 11 catalogs.
+- **Where.** `src/shared/languages.ts`, `locales.ts`, `i18n/`; `src/core/lang/`; `scripts/i18n-keys.ts`; `src/core/i18n-catalogs.test.ts`.

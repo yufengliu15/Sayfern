@@ -3,7 +3,7 @@
 //   npm run bench -- doctor                       check setup (no model calls)
 //   npm run bench -- run [options]                run scenarios, then write the report
 //   npm run bench -- report [run-id]              rebuild report.md from saved captures
-//   npm run bench -- judge [run-id]               add model-judged accuracy to a run
+//   npm run bench -- judge [run-id] [--all]       grade missing verdicts in a run (--all: re-grade everything)
 //   npm run bench -- snapshot-private [options]   copy your real wiki/Anki/reader into fixtures/private
 //   npm run bench -- list                         scenarios and arms
 //   npm run bench -- selftest                     offline check of the benchmark itself
@@ -25,7 +25,7 @@ import { applyRewrites, ClaudeCodeArm } from "./lib/arms/claude-code";
 import { SayfernArm } from "./lib/arms/sayfern";
 import { BENCH_DIR, expandPath, loadConfig, type ArmConfig, type BenchConfig } from "./lib/config";
 import { copyTree, materialize } from "./lib/fixtures";
-import { judgeBlock, type JudgeResult } from "./lib/judge";
+import { judgeBlock, judgeItems, missingVerdicts, type JudgeResult } from "./lib/judge";
 import { RecordingProxy } from "./lib/proxy";
 import { renderReport } from "./lib/report";
 import type { BlockResult } from "./lib/runner";
@@ -77,9 +77,12 @@ function writeReport(cfg: BenchConfig, runDir: string): string {
   return join(runDir, "report.md");
 }
 
-async function judgeRun(cfg: BenchConfig, runDir: string): Promise<void> {
+/** Judge every block, or with `all` false, only blocks whose saved verdicts are missing or incomplete. */
+async function judgeRun(cfg: BenchConfig, runDir: string, all = true): Promise<void> {
   const meta = JSON.parse(readFileSync(join(runDir, "meta.json"), "utf8")) as { scenarios: string[] };
   const scenarios = loadScenarios(meta.scenarios);
+  const file = join(runDir, "judge.json");
+  const prev: JudgeResult[] = !all && existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
   const out: JudgeResult[] = [];
   for (const d of readdirSync(join(runDir, "blocks")).sort()) {
     const f = join(runDir, "blocks", d, "block.json");
@@ -87,12 +90,18 @@ async function judgeRun(cfg: BenchConfig, runDir: string): Promise<void> {
     const block = JSON.parse(readFileSync(f, "utf8")) as BlockResult;
     const scenario = scenarios.find((s) => s.id === block.scenario);
     if (!scenario || block.skipped) continue;
+    const old = prev.find((p) => p.block === `${block.arm}__${block.scenario}__rep${block.rep}`);
+    if (old && !old.error && !missingVerdicts(judgeItems(block, scenario), old.items).length) {
+      console.log(`judging ${d} … kept (${old.items.length} items)`);
+      out.push(old);
+      continue;
+    }
     process.stdout.write(`judging ${d} … `);
     const r = await judgeBlock(cfg, block, scenario);
-    console.log(r.error ? `✗ ${r.error.slice(0, 120)}` : `${r.items.length} items`);
+    console.log(r.missing?.length ? `✗ ${r.missing.length} item(s) still ungraded${r.error ? `: ${r.error.slice(0, 120)}` : ""}` : `${r.items.length} items`);
     out.push(r);
   }
-  writeFileSync(join(runDir, "judge.json"), JSON.stringify(out, null, 2));
+  writeFileSync(file, JSON.stringify(out, null, 2));
 }
 
 async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promise<void> {
@@ -265,7 +274,8 @@ async function main(): Promise<void> {
       return;
     case "judge": {
       const dir = resolveRun(cfg, pos[1]);
-      await judgeRun(cfg, dir);
+      // Re-judges only blocks with missing or failed verdicts; --all re-judges everything.
+      await judgeRun(cfg, dir, opt.all === true);
       console.log(writeReport(cfg, dir));
       return;
     }

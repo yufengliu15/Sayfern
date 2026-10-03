@@ -8,7 +8,8 @@ import { AnnotatedText } from "../components/AnnotatedText";
 import { Icon, type IconName } from "../components/icons";
 import { useApp } from "../context";
 import { cjkClass, cls, fmtShortDate, STATE_LABEL } from "../lib/format";
-import { grammarRoute, readerRoute, sessionRoute, type Navigate } from "../router";
+import { grammarRoute, quizRoute, readerRoute, sessionRoute, type Navigate } from "../router";
+import { langName, msg, t, tn } from "../i18n";
 
 export interface GrammarScreenProps {
   language: Language;
@@ -19,26 +20,26 @@ export interface GrammarScreenProps {
 
 type Filter = "all" | GrammarState;
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "independent", label: "On your own" },
-  { id: "with_help", label: "With help" },
-  { id: "introduced", label: "Introduced" },
+  { id: "all", label: msg("All") },
+  { id: "independent", label: msg("On your own") },
+  { id: "with_help", label: msg("With help") },
+  { id: "introduced", label: msg("Introduced") },
 ];
 const STATE_ORDER: GrammarState[] = ["introduced", "with_help", "independent"];
 const DOTS: Record<GrammarState, number> = { introduced: 1, with_help: 2, independent: 3 };
 
 const VERDICT: Record<Verdict, { label: string; icon: IconName; cls: string }> = {
-  correct: { label: "Correct", icon: "check", cls: "ok" },
-  incorrect: { label: "Incorrect", icon: "x", cls: "bad" },
-  uncertain: { label: "Unsure", icon: "hint", cls: "unc" },
-  unassessed: { label: "Not assessed", icon: "stop", cls: "unc" },
+  correct: { label: msg("Correct"), icon: "check", cls: "ok" },
+  incorrect: { label: msg("Incorrect"), icon: "x", cls: "bad" },
+  uncertain: { label: msg("Unsure"), icon: "hint", cls: "unc" },
+  unassessed: { label: msg("Not assessed"), icon: "stop", cls: "unc" },
 };
-const ASSIST: Record<Assistance, string> = { independent: "On your own", prompted: "With a prompt", corrected_retry: "Fixed on retry" };
+const ASSIST: Record<Assistance, string> = { independent: msg("On your own"), prompted: msg("With a prompt"), corrected_retry: msg("Fixed on retry") };
 
 export function Dots({ state }: { state: GrammarState }) {
   const n = DOTS[state];
   return (
-    <span className="dots" role="img" aria-label={STATE_LABEL[state]}>
+    <span className="dots" role="img" aria-label={t(STATE_LABEL[state])}>
       {[0, 1, 2].map((i) => (
         <i key={i} className={i < n ? "f" : undefined} />
       ))}
@@ -88,13 +89,13 @@ export function GrammarScreen({ language, navigate, grammarId }: GrammarScreenPr
           <span className="ph-i">
             <Icon name="grammar" size={26} />
           </span>
-          <div className="eyebrow">{app.lang.name} · Grammar</div>
-          <h1>No patterns yet.</h1>
+          <div className="eyebrow">{t("{language} · Grammar", { language: langName(language) })}</div>
+          <h1>{t("No patterns yet.")}</h1>
           <p className="muted ph-p">
-            As you talk, the tutor notes each pattern you try and whether it landed. They collect here, with every sentence you used them in.
+            {t("As you talk, the tutor notes each pattern you try and whether it landed. They collect here, with every sentence you used them in.")}
           </p>
           <button className="btn btn-p" onClick={() => void app.startSession()}>
-            Start a conversation <Icon name="arrow" size={16} stroke={2} />
+            {t("Start a conversation")} <Icon name="arrow" size={16} stroke={2} />
           </button>
         </div>
       </main>
@@ -103,26 +104,26 @@ export function GrammarScreen({ language, navigate, grammarId }: GrammarScreenPr
 
   return (
     <main className="main gram">
-      <nav className="gcat" aria-label="Grammar patterns">
+      <nav className="gcat" aria-label={t("Grammar patterns")}>
         <div className="gcat-drag drag" />
         <div className="search">
           <Icon name="search" size={16} />
           <label htmlFor="g-search" className="sr">
-            Search patterns
+            {t("Search patterns")}
           </label>
           <input
             id="g-search"
             className="input"
             type="search"
-            placeholder={`Search ${list?.length ?? ""} patterns`}
+            placeholder={list ? tn(list.length, "Search {count} pattern", "Search {count} patterns") : t("Search patterns")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="fchips" role="radiogroup" aria-label="Filter by state">
+        <div className="fchips" role="radiogroup" aria-label={t("Filter by state")}>
           {FILTERS.map((f) => (
             <button key={f.id} role="radio" aria-checked={filter === f.id} className={cls("fchip", filter === f.id && "on")} onClick={() => setFilter(f.id)}>
-              {f.label}
+              {t(f.label)}
             </button>
           ))}
         </div>
@@ -142,17 +143,17 @@ export function GrammarScreen({ language, navigate, grammarId }: GrammarScreenPr
               </button>
             </li>
           ))}
-          {list && shown.length === 0 && <li className="gcat-none">No patterns match.</li>}
+          {list && shown.length === 0 && <li className="gcat-none">{t("No patterns match.")}</li>}
         </ul>
         <div className="gcat-legend" aria-hidden="true">
           <span>
-            <Dots state="introduced" /> Introduced
+            <Dots state="introduced" /> {t("Introduced")}
           </span>
           <span>
-            <Dots state="with_help" /> With help
+            <Dots state="with_help" /> {t("With help")}
           </span>
           <span>
-            <Dots state="independent" /> On your own
+            <Dots state="independent" /> {t("On your own")}
           </span>
         </div>
       </nav>
@@ -161,7 +162,7 @@ export function GrammarScreen({ language, navigate, grammarId }: GrammarScreenPr
         <div className="gdet-drag drag" />
         {error && (
           <p className="err">
-            <Icon name="alert" size={15} /> {error}
+            <Icon name="alert" size={15} /> {t(error)}
           </p>
         )}
         {selected && <Detail key={selected} id={selected} language={language} navigate={navigate} />}
@@ -197,8 +198,8 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
   if (d === null)
     return (
       <div className="gdet-missing">
-        <h2 className="serif">This pattern isn't in your records.</h2>
-        {error && <p className="err">{error}</p>}
+        <h2 className="serif">{t("This pattern isn't in your records.")}</h2>
+        {error && <p className="err">{t(error)}</p>}
       </div>
     );
 
@@ -214,9 +215,13 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
   const libSource = point.sources.find((s) => s.kind === "library");
 
   const ladder = [
-    { s: "introduced" as const, title: "Introduced", sub: `${fmtShortDate(firstMet)}${libSource && libSource.kind === "library" ? ` · ${libSource.title ?? "your library"}` : ""}` },
-    { s: "with_help" as const, title: "Used with help", sub: reached >= 1 && firstHelp ? `${fmtShortDate(firstHelp.at)} · first correct use` : "Not yet" },
-    { s: "independent" as const, title: "Used on your own", sub: reached >= 2 && firstOwn ? `Since ${fmtShortDate(firstOwn.at)}` : "Not yet" },
+    {
+      s: "introduced" as const,
+      title: t("Introduced"),
+      sub: `${fmtShortDate(firstMet)}${libSource && libSource.kind === "library" ? ` · ${libSource.title ?? t("your library")}` : ""}`,
+    },
+    { s: "with_help" as const, title: t("Used with help"), sub: reached >= 1 && firstHelp ? t("{date} · first correct use", { date: fmtShortDate(firstHelp.at) }) : t("Not yet") },
+    { s: "independent" as const, title: t("Used on your own"), sub: reached >= 2 && firstOwn ? t("Since {date}", { date: fmtShortDate(firstOwn.at) }) : t("Not yet") },
   ];
 
   const filtered = obs.filter((o) => assist === "all" || (assist === "own" ? o.assistance === "independent" : o.assistance !== "independent"));
@@ -239,7 +244,8 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
   return (
     <article className="gd" aria-label={`${point.pattern}, ${point.name}`}>
       <div className="eyebrow">
-        Grammar{point.level ? ` · ${point.level}` : ""} · First met {fmtShortDate(firstMet)}
+        {t("Grammar")}
+        {point.level ? ` · ${point.level}` : ""} · {t("First met {date}", { date: fmtShortDate(firstMet) })}
       </div>
       <div className="gd-head">
         <div className="gd-title">
@@ -250,21 +256,21 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
           <p className="gd-name">{point.name}</p>
         </div>
         <div className="gd-actions">
-          <button className="btn" onClick={() => void practise(true)} disabled={!!busy} title="Start a practice chat that opens with a fresh explanation">
-            {busy === "explain" ? "Starting…" : "Explain again"}
+          <button className="btn" onClick={() => void practise(true)} disabled={!!busy} title={t("Start a practice chat that opens with a fresh explanation")}>
+            {busy === "explain" ? t("Starting…") : t("Explain again")}
           </button>
-          <button className="btn btn-f" onClick={() => void practise(false)} disabled={!!busy} title="The tutor steers the chat so you need this pattern">
-            {busy === "practise" ? "Starting…" : "Practise this"} <Icon name="arrow" size={16} stroke={2} />
+          <button className="btn btn-f" onClick={() => void practise(false)} disabled={!!busy} title={t("The tutor steers the chat so you need this pattern")}>
+            {busy === "practise" ? t("Starting…") : t("Practise this")} <Icon name="arrow" size={16} stroke={2} />
           </button>
         </div>
       </div>
       {error && (
         <p className="err" role="alert">
-          <Icon name="alert" size={15} /> {error}
+          <Icon name="alert" size={15} /> {t(error)}
         </p>
       )}
 
-      <ol className="ladder" aria-label="Progress on this pattern">
+      <ol className="ladder" aria-label={t("Progress on this pattern")}>
         {ladder.map((step, i) => (
           <li key={step.s} className={cls("rung", i <= reached && "reached", i === reached && "current")} aria-current={i === reached ? "step" : undefined}>
             <b>
@@ -281,30 +287,38 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
           <div className="ctiles">
             <div className="ctile">
               <b className="ok-n">{counts.correct}</b>
-              <span>Correct</span>
+              <span>{t("Correct")}</span>
             </div>
             <div className="ctile">
               <b className="bad">{counts.incorrect}</b>
-              <span>Incorrect</span>
+              <span>{t("Incorrect")}</span>
             </div>
             <div className="ctile">
               <b>{counts.uncertain}</b>
-              <span>Unsure</span>
+              <span>{t("Unsure")}</span>
             </div>
             <div className="ctile">
               <b className="muted">{counts.unassessed}</b>
-              <span>Not assessed</span>
+              <span>{t("Not assessed")}</span>
             </div>
           </div>
           <p className="rate">
             {rate == null
-              ? "Nothing assessed yet. Unassessed uses don't count as correct."
-              : `${Math.round(rate * 100)}% correct of ${assessed} assessed. Unassessed uses don't count as correct.`}
+              ? t("Nothing assessed yet. Unassessed uses don't count as correct.")
+              : t("{pct}% correct of {n} assessed. Unassessed uses don't count as correct.", { pct: Math.round(rate * 100), n: assessed })}
           </p>
+          {d.summary.quiz && (
+            <p className="rate">
+              {t("In quizzes: {right} of {total} right. Quiz answers count as practice with a prompt, apart from conversation.", {
+                right: d.summary.quiz.counts.correct,
+                total: d.summary.quiz.counts.correct + d.summary.quiz.counts.incorrect + d.summary.quiz.counts.uncertain,
+              })}
+            </p>
+          )}
 
           <section className="card pcard" aria-labelledby="pc-h">
             <h2 id="pc-h" className="eyebrow">
-              The pattern
+              {t("The pattern")}
             </h2>
             <div className={cls("pbox", L)}>{point.pattern}</div>
             <p className="pexp">{point.explanation}</p>
@@ -324,12 +338,12 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
                   s.kind === "library" ? (
                     <button key={i} className="chip chip-s" onClick={() => navigate(readerRoute(s.docId, s.paragraph))} title={s.quote}>
                       <Icon name="library" size={13} />
-                      {s.title ?? "Library"} · ¶{s.paragraph + 1}
+                      {s.title ?? t("Library")} · ¶{s.paragraph + 1}
                     </button>
                   ) : (
                     <button key={i} className="chip chip-s" onClick={() => navigate(sessionRoute(s.sessionId))}>
                       <Icon name="sessions" size={13} />
-                      From a chat
+                      {t("From a chat")}
                     </button>
                   ),
                 )}
@@ -340,7 +354,7 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
           {d.corrections.length > 0 && (
             <section className="gd-corr" aria-labelledby="gc-h">
               <h2 id="gc-h" className="eyebrow">
-                Corrections on this pattern
+                {t("Corrections on this pattern")}
               </h2>
               <ul>
                 {d.corrections.map((c) => (
@@ -353,14 +367,14 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
                     <p>{c.explanation}</p>
                     <span className="gc-s">
                       {c.status === "retried_ok"
-                        ? "Fixed on retry"
+                        ? t("Fixed on retry")
                         : c.status === "revealed"
-                          ? "Answer shown"
+                          ? t("Answer shown")
                           : c.status === "disputed"
-                            ? "You disputed this"
+                            ? t("You disputed this")
                             : c.status === "retried_wrong"
-                              ? "Still open after a retry"
-                              : "Open"}{" "}
+                              ? t("Still open after a retry")
+                              : t("Open")}{" "}
                       · {fmtShortDate(c.createdAt)}
                     </span>
                   </li>
@@ -373,14 +387,14 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
         <section className="gd-right" aria-labelledby="tl-h">
           <div className="tl-top">
             <h2 id="tl-h" className="eyebrow">
-              Every time you've used it
+              {t("Every time you've used it")}
             </h2>
-            <div className="seg" role="radiogroup" aria-label="Filter by help">
+            <div className="seg" role="radiogroup" aria-label={t("Filter by help")}>
               {(
                 [
-                  ["all", "All"],
-                  ["own", "On your own"],
-                  ["help", "With help"],
+                  ["all", t("All")],
+                  ["own", t("On your own")],
+                  ["help", t("With help")],
                 ] as const
               ).map(([k, label]) => (
                 <button key={k} role="radio" aria-checked={assist === k} className={assist === k ? "on" : ""} onClick={() => setAssist(k)}>
@@ -391,10 +405,10 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
           </div>
           {obs.length === 0 ? (
             <div className="ghost-card">
-              You haven't used this one yet. Practise it and every attempt shows up here, with the sentence and how it went.
+              {t("You haven't used this one yet. Practise it and every attempt shows up here, with the sentence and how it went.")}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="ghost-card">No attempts match this filter.</div>
+            <div className="ghost-card">{t("No attempts match this filter.")}</div>
           ) : (
             <ol className="tl">
               {filtered.map((o) => (
@@ -408,18 +422,30 @@ function Detail({ id, language, navigate }: { id: string; language: Language; na
   );
 }
 
-/** CJK chunks of a pattern ("除了…还…" → 除了, 还) for highlighting inside a sentence. */
+/** Placeholder words in patterns written for alphabetic languages ("ser + adj", "A + 比 + B"). */
+const PLACEHOLDERS = new Set(["adj", "adjective", "verb", "noun", "inf", "infinitive", "subj", "subject", "obj", "object", "sb", "sth", "pp", "ger", "past", "participle"]);
+
+/**
+ * Fixed chunks of a pattern for highlighting inside a sentence: CJK runs ("除了…还…" → 除了, 还),
+ * Hangul runs, or words of alphabetic languages that aren't placeholders ("ser + adj" → ser).
+ */
 function patternParts(pattern: string): string[] {
-  return (pattern.match(/[぀-ヿ㐀-鿿]+/g) ?? []).sort((a, b) => b.length - a.length);
+  const cjk = pattern.match(/[぀-ヿ㐀-鿿]+/g);
+  if (cjk) return cjk.sort((a, b) => b.length - a.length);
+  const hangul = pattern.match(/\p{Script=Hangul}+/gu);
+  if (hangul) return hangul.sort((a, b) => b.length - a.length);
+  const words = (pattern.match(/\p{L}{2,}/gu) ?? []).filter((w) => !PLACEHOLDERS.has(w.toLowerCase()) && w !== w.toUpperCase());
+  return words.sort((a, b) => b.length - a.length);
 }
 
 function Highlighted({ text, pattern }: { text: string; pattern: string }) {
   const parts = patternParts(pattern);
   if (!parts.length) return <>{text}</>;
-  const re = new RegExp(`(${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
+  const re = new RegExp(`(${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "giu");
+  const lower = new Set(parts.map((p) => p.toLocaleLowerCase()));
   return (
     <>
-      {text.split(re).map((seg, i) => (parts.includes(seg) ? <mark key={i} className="pm">{seg}</mark> : <span key={i}>{seg}</span>))}
+      {text.split(re).map((seg, i) => (lower.has(seg.toLocaleLowerCase()) ? <mark key={i} className="pm">{seg}</mark> : <span key={i}>{seg}</span>))}
     </>
   );
 }
@@ -470,19 +496,24 @@ function Attempt({
         <div className="obs-m">
           <span className={cls("vd", v.cls)}>
             <Icon name={v.icon} size={13} stroke={2.2} />
-            {v.label}
-            {o.note && <span className="vd-note"> · {o.note}</span>}
+            {t(v.label)}
+            {o.note && <span className="vd-note"> · {t(o.note)}</span>}
           </span>
-          <span className={cls("achip", o.assistance === "independent" && "own")}>{ASSIST[o.assistance]}</span>
+          <span className={cls("achip", o.assistance === "independent" && "own")}>{t(ASSIST[o.assistance])}</span>
           <span className="obs-acts">
             {session && (
-              <button className={cls("obs-link", cjkClass(session.title, L))} onClick={() => navigate(sessionRoute(session.id))} title="Open the session">
+              <button className={cls("obs-link", cjkClass(session.title, L))} onClick={() => navigate(sessionRoute(session.id))} title={t("Open the session")}>
                 {session.title}
+              </button>
+            )}
+            {o.origin === "quiz" && o.quizId && (
+              <button className="obs-link" onClick={() => navigate(quizRoute(o.quizId!))} title={t("Open the quiz")}>
+                {t("Open quiz")}
               </button>
             )}
             {!o.disputed && !open && (
               <button className="linkb" onClick={() => setOpen(true)}>
-                Dispute
+                {t("Dispute")}
               </button>
             )}
           </span>
@@ -491,7 +522,10 @@ function Attempt({
           <p className="obs-disp">
             <Icon name="flag" size={13} />
             <span>
-              You disputed this on {fmtShortDate(o.disputed.at)}. It was marked {VERDICT[o.disputed.originalVerdict].label.toLowerCase()}.
+              {t("You disputed this on {date}. It was marked {verdict}.", {
+                date: fmtShortDate(o.disputed.at),
+                verdict: t(VERDICT[o.disputed.originalVerdict].label).toLocaleLowerCase(),
+              })}
               {o.disputed.note && <em> "{o.disputed.note}"</em>}
             </span>
           </p>
@@ -506,24 +540,24 @@ function Attempt({
           >
             <div className="dispute-row">
               <label htmlFor={`dv-${o.id}`} className="sr">
-                What it should be
+                {t("What it should be")}
               </label>
               <select id={`dv-${o.id}`} className="input select" value={verdict} onChange={(e) => setVerdict(e.target.value as Verdict)}>
                 {(Object.keys(VERDICT) as Verdict[]).map((k) => (
                   <option key={k} value={k}>
-                    Should be: {VERDICT[k].label}
+                    {t("Should be: {verdict}", { verdict: t(VERDICT[k].label) })}
                   </option>
                 ))}
               </select>
               <label htmlFor={`dn-${o.id}`} className="sr">
-                Why
+                {t("Why")}
               </label>
               <input
                 id={`dn-${o.id}`}
                 className="input"
                 autoFocus
                 maxLength={200}
-                placeholder="Why? e.g. My textbook uses this form"
+                placeholder={t("Why? e.g. My textbook uses this form")}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
@@ -531,14 +565,14 @@ function Attempt({
             </div>
             <div className="dispute-row">
               <button className="btn btn-p btn-s" type="submit" disabled={busy || verdict === o.verdict}>
-                {busy ? "Saving…" : "Save"}
+                {busy ? t("Saving…") : t("Save")}
               </button>
               <button className="btn btn-s" type="button" onClick={() => setOpen(false)}>
-                Cancel
+                {t("Cancel")}
               </button>
-              <span className="muted small">Counts update right away. Style choices aren't errors.</span>
+              <span className="muted small">{t("Counts update right away. Style choices aren't errors.")}</span>
             </div>
-            {error && <p className="err">{error}</p>}
+            {error && <p className="err">{t(error)}</p>}
           </form>
         )}
       </div>

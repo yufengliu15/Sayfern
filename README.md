@@ -2,7 +2,7 @@
 
 Conversational language learning for free. A Mac app with an AI tutor that remembers what you're learning.
 
-**Version:** 0.4.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning for Chinese and Japanese). Feature status: [`docs/stage1.md`](docs/stage1.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
+**Version:** 0.9.1 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 12 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Run it
 
@@ -26,6 +26,9 @@ Credentials are encrypted with Electron `safeStorage` (key held in the macOS Key
 
 - **Dictionaries** (CC-CEDICT for Chinese, JMdict for Japanese) download on first use: from **Settings > Dictionaries**, or from the install button in the word lookup popover.
 - **Anki** needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on (code `2055492159`) and Anki running. Link a deck per language in **Settings > Anki**. Sayfern syncs every card (new ones too) and 90 days of review history, refreshing in the background when the snapshot is over 6 hours old. The tutor knows which words you know, are learning, will learn next and struggle with, and keeps to your known vocabulary. The last sync is cached, so all of this still works while Anki is closed. Can't connect? Settings > Anki shows the reason and a fix. If another app holds AnkiConnect's port, `sudo lsof -i :8765` shows which one.
+- **Review** (⌘4) lists every correction across sessions with filters and retries, and turns the ones you pick into Anki cards (cloze or situation prompts, with Sayfern's own note types). **Quizzes** (Review > Quizzes) are built from your mistakes, Anki words, grammar, library or saved words, at your level or an HSK/JLPT level; fixed formats are graded on your Mac, and quiz answers count as practice apart from conversation.
+- **Anki decks**: the welcome page explains why vocabulary in Anki makes everything easier, links to shared decks on AnkiWeb, and Sayfern can make a new deck with your model: words at your level, readings checked in the dictionary, ruby, example sentences and audio (ElevenLabs or free Microsoft voices), added straight to Anki in batches of 25.
+- **Customize** builds features from a description, with your model: practice tabs and Today activities that run in a sandboxed frame, tested before you turn them on, with every version kept for rollback. Code that would run with full app access only runs after you read and approve that exact version. See [`docs/feature-builder.md`](docs/feature-builder.md).
 - **Extensions** go in `~/Library/Application Support/sayfern/extensions/`. See [`docs/extensions.md`](docs/extensions.md). They run with full app privileges: only install ones you trust.
 - **Export** everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries and extensions stay, and you can keep your model sign-ins.
 
@@ -50,16 +53,20 @@ src/core/          plain Node, no Electron, unit-tested
   records/         sessions, corrections, grammar, words, levels, stats, export (JSON files)
   lang/            Chinese + Japanese packs, dictionaries, lookup
   library/         import txt/md/html/epub/pdf, reading checkpoints, search
-  anki/            AnkiConnect client, cached snapshots, word model (words.ts)
+  anki/            AnkiConnect client, cached snapshots, word model (words.ts), note export
   agent/           the tutor: prompt, tools, streaming turns, retries, summaries
+  review/          Stage 2: corrections review, Anki card drafts and export
+  quiz/            Stage 2: quiz generation, validation, grading, quiz evidence
+  builder/         Stage 2: feature builder agent, versions, sandbox assets and RPC, test runner
+  decks/           Stage 2: Anki deck generator (word list, checked cards, text to speech, AnkiConnect)
   extensions/      user extension host
   providers.ts     model providers (pi-ai)
 src/main/          Electron main: window, dialogs, Keychain-backed credentials, IPC table
 src/preload/       generic bridge exposing SayfernApi as window.sayfern
 src/renderer/      React UI (runs against a mock API in a plain browser: npx vite -c vite.mock.config.ts)
-src/shared/        types and the renderer ↔ main API contract
-examples/          example extension
-docs/              architecture, decisions, roadmap, Stage 1 feature map, extension API
+src/shared/        types and the renderer ↔ main API contract (Stage 2 slots in src/shared/stage2/)
+examples/          example extensions (chengyu-of-the-day, measure-word-drill)
+docs/              architecture, decisions, roadmap, Stage 1 and 2 feature maps, extension API, builder guide
 scripts/           smoke test, OAuth page and dev app branding
 build/             app icon (icon.svg source, icon.png, icon.icns)
 ```
@@ -71,11 +78,16 @@ Model access goes through [`@earendil-works/pi-ai`](https://github.com/badlogic/
 - [`AGENTS.md`](AGENTS.md): start here if you're changing the code (human or coding agent).
 - [`docs/architecture.md`](docs/architecture.md): how everything fits together, module by module.
 - [`docs/decisions.md`](docs/decisions.md): why it's built this way.
-- [`docs/roadmap.md`](docs/roadmap.md): Stage 2 and 3, and known gaps.
+- [`docs/roadmap.md`](docs/roadmap.md): Stage 2 follow-ups, Stage 3, and known gaps.
 - [`docs/stage1.md`](docs/stage1.md): Stage 1 features and their status.
-- [`docs/extensions.md`](docs/extensions.md): writing extensions.
+- [`docs/stage2.md`](docs/stage2.md): Stage 2 features and their status.
+- [`docs/stage3.md`](docs/stage3.md): Stage 3 (voice) features and their status.
+- [`docs/extensions.md`](docs/extensions.md): writing extensions, surfaces, versions and the review gate.
+- [`docs/feature-builder.md`](docs/feature-builder.md): the guide the feature builder reads (and you can too).
 - [`docs/benchmark.md`](docs/benchmark.md): benchmark vs Claude Code + skill.
 
 ## License
 
-MIT
+Copyright (C) 2026 Yufeng Liu
+
+Sayfern is free software, licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only). You can use, study, share and change it; if you distribute a modified version, it must stay under the same licence with its source available.

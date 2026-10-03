@@ -45,14 +45,16 @@ export function computeProgress(i: ProgressInputs): ProgressStats {
   const activity = i.activity.filter((a) => a.language === i.language && dateIn(a.date));
   const perDay = new Map<string, number>();
   let activeMs = 0;
+  let voiceMs = 0;
   for (const a of activity) {
     activeMs += a.ms;
+    voiceMs += a.voiceMs ?? 0;
     perDay.set(a.date, (perDay.get(a.date) ?? 0) + a.ms);
   }
   const daily = windowDates.map((date) => ({ date, activeMs: perDay.get(date) ?? 0 }));
 
   const sessions = new Set<string>();
-  for (const a of activity) if (a.ms > 0) sessions.add(a.sessionId);
+  for (const a of activity) if (a.ms > 0 || (a.voiceMs ?? 0) > 0) sessions.add(a.sessionId);
   for (const m of i.learnerMessages) if (timeIn(m.at)) sessions.add(m.sessionId);
 
   let wordsWritten = 0;
@@ -85,6 +87,7 @@ export function computeProgress(i: ProgressInputs): ProgressStats {
     language: i.language,
     range: i.range,
     activeMs,
+    voiceMs,
     sessions: sessions.size,
     wordsWritten,
     distinctWords: distinct.size,

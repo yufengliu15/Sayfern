@@ -78,13 +78,40 @@ export function stubGrammarPoint(id: string, language: Language, now: number): G
   };
 }
 
-/** Counts, rate, state and last use from observations (current verdicts, after disputes). */
+/** Stage 2 (S2-09): evidence from a quiz answer rather than from conversation. */
+export function isQuizObservation(o: Pick<GrammarObservation, "origin" | "sessionId">): boolean {
+  return o.origin === "quiz" || o.sessionId.startsWith("quiz:");
+}
+
+function emptyCounts(): GrammarCounts {
+  return { correct: 0, incorrect: 0, uncertain: 0, unassessed: 0 };
+}
+
+function rateOf(c: GrammarCounts): number | null {
+  const assessed = c.correct + c.incorrect;
+  return assessed > 0 ? c.correct / assessed : null;
+}
+
+/**
+ * Counts, rate, state and last use from observations (current verdicts, after disputes).
+ * Quiz evidence (S2-09) is counted apart in `quiz` and never feeds `counts`, `rate` or
+ * `lastUsedAt` (spontaneous use). A correct quiz answer is prompted practice: it can move a
+ * point to "with_help" but never to "independent", whatever its assistance says.
+ */
 export function summarizeGrammar(point: GrammarPoint, observations: GrammarObservation[]): GrammarSummary {
-  const counts: GrammarCounts = { correct: 0, incorrect: 0, uncertain: 0, unassessed: 0 };
+  const counts = emptyCounts();
+  const quizCounts = emptyCounts();
+  let quizLast: number | undefined;
   let state: GrammarState = "introduced";
   let lastUsedAt: number | undefined;
   for (const o of observations) {
     if (o.grammarId !== point.id) continue;
+    if (isQuizObservation(o)) {
+      if (o.verdict in quizCounts) quizCounts[o.verdict]++;
+      if (o.verdict === "correct" && state === "introduced") state = "with_help";
+      if (quizLast === undefined || o.at > quizLast) quizLast = o.at;
+      continue;
+    }
     if (o.verdict in counts) counts[o.verdict]++;
     if (o.verdict === "correct") {
       if (o.assistance === "independent") state = "independent";
@@ -92,14 +119,14 @@ export function summarizeGrammar(point: GrammarPoint, observations: GrammarObser
     }
     if (lastUsedAt === undefined || o.at > lastUsedAt) lastUsedAt = o.at;
   }
-  const assessed = counts.correct + counts.incorrect;
   const summary: GrammarSummary = {
     point,
     state,
     counts,
-    rate: assessed > 0 ? counts.correct / assessed : null,
+    rate: rateOf(counts),
   };
   if (lastUsedAt !== undefined) summary.lastUsedAt = lastUsedAt;
+  if (quizLast !== undefined) summary.quiz = { counts: quizCounts, rate: rateOf(quizCounts), lastAt: quizLast };
   return summary;
 }
 

@@ -4,6 +4,7 @@ import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, type Messag
 import type { TutorEvent } from "../contracts";
 import { makeHarness } from "./testkit";
 import { kickoffText } from "./turn";
+import { SayfernTutor } from "./index";
 
 const abort = () => new AbortController().signal;
 
@@ -267,6 +268,24 @@ test("learner words exclude pasted spans", async () => {
   assert.deepEqual(msgs[0].pastedSpans, [pasted]);
 });
 
+test("spoken messages are flagged and reach the model with the [spoken] marker", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  let seen = "";
+  h.faux.setResponses([
+    (ctx) => {
+      const last = ctx.messages.filter((m) => m.role === "user").at(-1);
+      seen = typeof last?.content === "string" ? last.content : JSON.stringify(last?.content ?? "");
+      return fauxAssistantMessage("好的！");
+    },
+  ]);
+  await h.tutor.runTurn({ sessionId: sid, text: "我想去银行", spoken: true, model: h.model, signal: abort(), onEvent: () => {} });
+  const msgs = await h.records.getMessages(sid);
+  assert.equal(msgs[0].spoken, true);
+  assert.equal(msgs[0].text, "我想去银行", "the display text has no marker");
+  assert.equal(seen, "[spoken] 我想去银行");
+});
+
 test("Anki targets are selected once, marked asked from tutor text and used from learner words", async () => {
   const h = makeHarness();
   h.ankiOn.value = true;
@@ -391,4 +410,112 @@ test("unknown session never throws", async () => {
   const h = makeHarness();
   const reply = await h.tutor.runTurn({ sessionId: "nope", text: "hi", model: h.model, signal: abort(), onEvent: () => {} });
   assert.match(reply.error ?? "", /Session not found/);
+});
+
+test("evidence pass: a reply without record_evidence gets one tool-only request; corrections are recorded", async () => {
+  const h = makeHarness();
+  const tutor = new SayfernTutor({ ...h.deps, evidencePass: () => true });
+  const sid = await h.newSession();
+  h.faux.setResponses([
+    fauxAssistantMessage("听起来很好玩！你和谁一起去的？"),
+    fauxAssistantMessage(
+      [
+        evidence({
+          corrections: [{ original: "我去了北京昨天", corrected: "我昨天去了北京", explanation: "Time words come before the verb.", kind: "grammar" }],
+        }),
+      ],
+      { stopReason: "toolUse" },
+    ),
+  ]);
+  const ev = h.events();
+  const reply = await tutor.runTurn({ sessionId: sid, text: "我去了北京昨天。", model: h.model, signal: abort(), onEvent: ev.onEvent });
+
+  assert.equal(reply.error, undefined);
+  assert.equal(reply.text, "听起来很好玩！你和谁一起去的？");
+  assert.equal(h.faux.state.callCount, 2);
+  assert.equal(ev.list.filter((e) => e.type === "correction").length, 1);
+  const corrections = await h.records.listCorrections({ language: "zh", sessionId: sid });
+  assert.equal(corrections.length, 1);
+  assert.deepEqual(reply.toolActivity?.map((a) => a.name), ["record_evidence"]);
+  // The hidden nudge and the pass stay out of the transcript.
+  const transcript = await h.records.getTranscript(sid);
+  assert.deepEqual(transcript.map((m) => m.role), ["user", "assistant"]);
+  assert.ok(!JSON.stringify(transcript).includes("Message from the app"));
+});
+
+test("evidence pass: skipped when record_evidence was called, for openings, and when disabled", async () => {
+  const h = makeHarness();
+  const tutor = new SayfernTutor({ ...h.deps, evidencePass: () => true });
+  const sid = await h.newSession();
+  h.faux.setResponses([fauxAssistantMessage([fauxText("好的！"), evidence({})], { stopReason: "toolUse" })]);
+  await tutor.runTurn({ sessionId: sid, text: "你好", model: h.model, signal: abort(), onEvent: () => undefined });
+  assert.equal(h.faux.state.callCount, 1);
+
+  const pid = await h.newSession("practice");
+  h.faux.setResponses([fauxAssistantMessage("我们开始吧。你周末做了什么？")]);
+  await tutor.runOpening({ sessionId: pid, model: h.model, signal: abort(), onEvent: () => undefined });
+  assert.equal(h.faux.state.callCount, 2);
+
+  h.faux.setResponses([fauxAssistantMessage("很好！")]);
+  await h.tutor.runTurn({ sessionId: sid, text: "谢谢", model: h.model, signal: abort(), onEvent: () => undefined });
+  assert.equal(h.faux.state.callCount, 3, "harness default: no pass");
+});
+
+test("evidence pass: a failed pass leaves the reply intact", async () => {
+  const h = makeHarness();
+  const tutor = new SayfernTutor({ ...h.deps, evidencePass: () => true });
+  const sid = await h.newSession();
+  h.faux.setResponses([fauxAssistantMessage("你好！你今天怎么样？")]);
+  const reply = await tutor.runTurn({ sessionId: sid, text: "你好", model: h.model, signal: abort(), onEvent: () => undefined });
+  assert.equal(reply.error, undefined);
+  assert.equal(reply.text, "你好！你今天怎么样？");
+  const msgs = await h.records.getMessages(sid);
+  assert.deepEqual(msgs.map((m) => m.role), ["user", "tutor"]);
+});
+
+test("record_evidence accepts corrections sent as JSON text", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  const list = JSON.stringify([{ original: "我去了北京昨天", corrected: "我昨天去了北京", explanation: "Time first.", kind: "grammar" }]);
+  h.faux.setResponses([fauxAssistantMessage([fauxText("真好！"), evidence({ corrections: list })], { stopReason: "toolUse" })]);
+  await h.tutor.runTurn({ sessionId: sid, text: "我去了北京昨天。", model: h.model, signal: abort(), onEvent: () => undefined });
+  const corrections = await h.records.listCorrections({ language: "zh", sessionId: sid });
+  assert.equal(corrections.length, 1);
+});
+
+test("new topic: a hidden kickoff asks for a fresh topic mid-session", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  h.faux.setResponses([fauxAssistantMessage("你好！"), fauxAssistantMessage("换个话题吧！你最近看了什么电影？")]);
+  await h.tutor.runTurn({ sessionId: sid, text: "你好", model: h.model, signal: abort(), onEvent: () => undefined });
+  const reply = await h.tutor.runOpening({ sessionId: sid, model: h.model, signal: abort(), onEvent: () => undefined, newTopic: true });
+  assert.equal(reply.text, "换个话题吧！你最近看了什么电影？");
+  const transcript = await h.records.getTranscript(sid);
+  const kickoff = transcript[2];
+  assert.equal(kickoff.role, "user");
+  assert.match(String(kickoff.content), /New topic/);
+  assert.equal(kickoff.content, kickoffText({ kind: "chat" } as never, { newTopic: true }));
+  const msgs = await h.records.getMessages(sid);
+  assert.deepEqual(msgs.map((m) => m.role), ["user", "tutor", "tutor"]);
+});
+
+test("leaked tool call in the reply text: hidden from the learner, salvaged as a real call, kept out of the transcript", async () => {
+  const h = makeHarness({ tokensPerSecond: 2000 });
+  const tutor = new SayfernTutor({ ...h.deps, evidencePass: () => true });
+  const sid = await h.newSession();
+  const args = { corrections: [{ original: "我去了北京昨天", corrected: "我昨天去了北京", explanation: "Time first.", kind: "grammar" }] };
+  const leakedReply = `北京不错！你在北京吃了什么？\n ك<|assistant to=functions.record_evidence قjsonStringify ı${JSON.stringify(args)}ترلfunctions.record_evidence commentary Recorded.`;
+  h.faux.setResponses([fauxAssistantMessage(leakedReply)]);
+  const ev = h.events();
+  const reply = await tutor.runTurn({ sessionId: sid, text: "我去了北京昨天。", model: h.model, signal: abort(), onEvent: ev.onEvent });
+
+  assert.equal(reply.text, "北京不错！你在北京吃了什么？");
+  assert.ok(!ev.deltas().includes("<|"), "the marker never streams");
+  assert.ok(!ev.deltas().includes("functions"), "the call never streams");
+  assert.equal(h.faux.state.callCount, 1, "salvaged evidence: no evidence pass");
+  const corrections = await h.records.listCorrections({ language: "zh", sessionId: sid });
+  assert.equal(corrections.length, 1);
+  assert.equal(ev.list.filter((e) => e.type === "correction").length, 1);
+  const transcript = await h.records.getTranscript(sid);
+  assert.ok(!JSON.stringify(transcript).includes("functions."), "the transcript keeps no leak for the model to copy");
 });

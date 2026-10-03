@@ -1,6 +1,6 @@
 // Dev builds run inside node_modules/electron/dist/Electron.app, so macOS shows "Electron" and
 // Electron's icon in the Dock, the menu bar and Cmd-Tab. This patches that bundle to say "Sayfern"
-// and use build/icon.icns, then re-signs it ad hoc (editing Info.plist breaks Electron's signature).
+// and use build/icon.icns (plus Sayfern's microphone prompt text), then re-signs it ad hoc (editing Info.plist breaks Electron's signature).
 // Runs from postinstall and predev, after install-electron. macOS only; idempotent; never fails the
 // install. Packaged builds get the name and icon from the packager config instead.
 //
@@ -13,6 +13,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const NAME = "Sayfern";
+/** macOS shows this when Sayfern first asks for the microphone (Stage 3 voice input). */
+const MIC = "Sayfern records your voice when you hold the mic to talk to the tutor. The recording goes to ElevenLabs for transcription and is not kept.";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bundle = join(root, "node_modules", "electron", "dist", "Electron.app");
 const plist = join(bundle, "Contents", "Info.plist");
@@ -36,11 +38,17 @@ function main() {
       return "";
     }
   };
-  const done = read("CFBundleName") === NAME && read("CFBundleDisplayName") === NAME && existsSync(bundleIcon) && sha(bundleIcon) === sha(icon);
+  const done =
+    read("CFBundleName") === NAME &&
+    read("CFBundleDisplayName") === NAME &&
+    read("NSMicrophoneUsageDescription") === MIC &&
+    existsSync(bundleIcon) &&
+    sha(bundleIcon) === sha(icon);
   if (done) return;
 
   run("plutil", ["-replace", "CFBundleName", "-string", NAME, plist]);
   run("plutil", ["-replace", "CFBundleDisplayName", "-string", NAME, plist]);
+  run("plutil", ["-replace", "NSMicrophoneUsageDescription", "-string", MIC, plist]);
   copyFileSync(icon, bundleIcon);
   try {
     // Ad-hoc signature: valid again after the edit. macOS may ask once more for Keychain access

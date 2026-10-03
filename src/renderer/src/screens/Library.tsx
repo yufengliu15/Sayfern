@@ -7,6 +7,8 @@ import { Cover, KIND_HINT, KIND_ICON, KIND_NAME, PopMenu } from "../components/u
 import { useApp } from "../context";
 import { cjkClass, cls, fmtDay, fmtNumber } from "../lib/format";
 import { readerRoute, sessionRoute, type Navigate } from "../router";
+import { COVER_TITLES, SEARCH_EXAMPLE } from "../lib/samples";
+import { langName, msg, t, tj, tn } from "../i18n";
 
 export interface LibraryScreenProps {
   language: Language;
@@ -14,7 +16,7 @@ export interface LibraryScreenProps {
 }
 
 const KINDS: DocKind[] = ["textbook", "reader", "personal", "other"];
-const FORMATS = ".txt, .md, .html, .epub and PDFs with a text layer";
+const FORMATS = msg(".txt, .md, .html, .epub and PDFs with a text layer");
 
 export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
   const app = useApp();
@@ -63,7 +65,9 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
         await load();
         const warned = added.filter((d) => d.warnings.length).length;
         setNotice({
-          text: `Added ${added.length === 1 ? added[0].title : `${added.length} files`}${warned ? `. ${warned} need attention.` : "."}`,
+          text:
+            (added.length === 1 ? t("Added {title}.", { title: added[0].title }) : t("Added {n} files.", { n: added.length })) +
+            (warned ? ` ${tn(warned, "{count} needs attention.", "{count} need attention.")}` : ""),
         });
       }
     } catch (e) {
@@ -76,17 +80,17 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
 
   const addMenu = (primary: boolean) => (
     <PopMenu
-      label="Add material"
+      label={t("Add material")}
       buttonClass={cls("btn", primary ? "btn-p" : "btn-f")}
       trigger={
         <>
           <Icon name="plus" size={16} stroke={2} />
-          {importing ? "Adding…" : "Add material"}
+          {importing ? t("Adding…") : t("Add material")}
         </>
       }
-      header="What are you adding?"
-      items={KINDS.map((k) => ({ label: KIND_NAME[k], hint: KIND_HINT[k], icon: KIND_ICON[k], onSelect: () => void add(k) }))}
-      footer={<>Works with {FORMATS}.</>}
+      header={t("What are you adding?")}
+      items={KINDS.map((k) => ({ label: t(KIND_NAME[k]), hint: t(KIND_HINT[k]), icon: KIND_ICON[k], onSelect: () => void add(k) }))}
+      footer={<>{t("Works with {formats}.", { formats: t(FORMATS) })}</>}
     />
   );
 
@@ -98,27 +102,27 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
       <div className="page-in">
         <header className="page-head">
           <div>
-            <div className="eyebrow">{app.lang.name} · Library</div>
-            <h1 className="display">Your shelf</h1>
+            <div className="eyebrow">{t("{language} · Library", { language: langName(language) })}</div>
+            <h1 className="display">{t("Your shelf")}</h1>
             <p className="page-sub">
               {docs === null
                 ? " "
                 : docCount === 0 && words.length === 0
-                  ? "Nothing here yet"
-                  : `${docCount} ${docCount === 1 ? "book or note" : "books and notes"} · ${words.length} saved ${words.length === 1 ? "word" : "words"}`}
+                  ? t("Nothing here yet")
+                  : `${tn(docCount, "{count} book or note", "{count} books and notes")} · ${tn(words.length, "{count} saved word", "{count} saved words")}`}
             </p>
           </div>
           <div className="page-actions">
             <div className="search">
               <Icon name="search" size={16} />
               <label htmlFor="lib-search" className="sr">
-                Search your library
+                {t("Search your library")}
               </label>
               <input
                 id="lib-search"
                 className={cls("input", L)}
                 type="search"
-                placeholder={language === "zh" ? "Search, e.g. 除了" : "Search, e.g. 桃太郎"}
+                placeholder={t("Search, e.g. {example}", { example: SEARCH_EXAMPLE[language] })}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && setQuery("")}
@@ -131,8 +135,8 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
         {notice && (
           <div className={cls("banner", notice.bad && "bad")} role="status">
             <Icon name={notice.bad ? "alert" : "check"} size={15} stroke={notice.bad ? 1.6 : 2.2} />
-            <span>{notice.text}</span>
-            <button className="iconb sm" aria-label="Dismiss" onClick={() => setNotice(null)}>
+            <span>{t(notice.text)}</span>
+            <button className="iconb sm" aria-label={t("Dismiss")} onClick={() => setNotice(null)}>
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -149,23 +153,24 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
         ) : docs.length === 0 ? (
           <div className="lib-empty card">
             <div className="lib-empty-art" aria-hidden="true">
-              <Cover kind="reader" title={language === "zh" ? "书" : "本"} />
-              <Cover kind="textbook" title={language === "zh" ? "课" : "課"} />
-              <Cover kind="personal" title={language === "zh" ? "我" : "私"} />
+              <Cover kind="reader" title={COVER_TITLES[language][0]} />
+              <Cover kind="textbook" title={COVER_TITLES[language][1]} />
+              <Cover kind="personal" title={COVER_TITLES[language][2]} />
             </div>
             <div className="lib-empty-t">
-              <h2>Bring what you're already reading.</h2>
+              <h2>{t("Bring what you're already reading.")}</h2>
               <p>
-                Add a textbook, a graded reader or a few notes about your life. You can read them here with the tutor, and it quotes them when it
-                explains something.
+                {t(
+                  "Add a textbook, a graded reader or a few notes about your life. You can read them here with the tutor, and it quotes them when it explains something.",
+                )}
               </p>
-              <p className="muted small">Works with {FORMATS}. Scanned PDFs need a text layer.</p>
+              <p className="muted small">{t("Works with {formats}. Scanned PDFs need a text layer.", { formats: t(FORMATS) })}</p>
               <div className="row-gap">{addMenu(false)}</div>
             </div>
           </div>
         ) : (
           <>
-            <div className="eyebrow sub">On your shelf</div>
+            <div className="eyebrow sub">{t("On your shelf")}</div>
             <div className="shelf">
               {docs.map((d) => (
                 <DocCard
@@ -185,12 +190,12 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
         <section className="saved" aria-labelledby="saved-h">
           <div className="saved-h">
             <h2 id="saved-h" className="eyebrow">
-              Saved words
+              {t("Saved words")}
             </h2>
-            {words.length > 0 && <span className="muted small">Saved from lookups, with the sentence they came from</span>}
+            {words.length > 0 && <span className="muted small">{t("Saved from lookups, with the sentence they came from")}</span>}
           </div>
           {words.length === 0 ? (
-            <div className="ghost-card">Hover any word, in a chat or a book, and choose Save with sentence. It lands here.</div>
+            <div className="ghost-card">{t("Hover any word, in a chat or a book, and choose Save with sentence. It lands here.")}</div>
           ) : (
             <ul className="wlist">
               {words.map((w) => (
@@ -208,13 +213,13 @@ export function LibraryScreen({ language, navigate }: LibraryScreenProps) {
                     onClick={() => navigate(w.source.kind === "library" ? readerRoute(w.source.docId, w.source.paragraph) : sessionRoute(w.source.sessionId))}
                   >
                     <Icon name={w.source.kind === "library" ? "library" : "sessions"} size={13} />
-                    {w.source.kind === "library" ? `${w.source.title ?? "Library"} · ¶${w.source.paragraph + 1}` : "From a chat"}
+                    {w.source.kind === "library" ? `${w.source.title ?? t("Library")} · ¶${w.source.paragraph + 1}` : t("From a chat")}
                   </button>
                   <span className="wrow-at">{fmtDay(w.createdAt)}</span>
                   <button
                     className="iconb sm"
-                    aria-label={`Remove ${w.word} from saved words`}
-                    title="Remove"
+                    aria-label={t("Remove {word} from saved words", { word: w.word })}
+                    title={t("Remove")}
                     onClick={async () => {
                       setWords((list) => list.filter((x) => x.id !== w.id));
                       await api.deleteSavedWord(w.id).catch((e) => setNotice({ text: errorText(e), bad: true }));
@@ -269,31 +274,29 @@ function DocCard({
 
   return (
     <div className={cls("doc", confirm && "confirming")}>
-      <button className="doc-open" onClick={onOpen} aria-label={`Open ${doc.title}`} disabled={renaming}>
+      <button className="doc-open" onClick={onOpen} aria-label={t("Open {title}", { title: doc.title })} disabled={renaming}>
         <Cover kind={doc.kind} title={doc.title} />
         <span className="doc-t">
           {!renaming && <b className={cjkClass(doc.title, L)}>{doc.title}</b>}
           {renaming && <span className="doc-title-space" />}
           <span className="doc-k">
-            {KIND_NAME[doc.kind]} · {doc.format.toUpperCase()}
+            {t(KIND_NAME[doc.kind])} · {doc.format.toUpperCase()}
             {doc.paragraphCount > 0 && ` · ${fmtNumber(doc.paragraphCount)} ¶`}
           </span>
           {doc.warnings.length > 0 ? (
-            <span className="warnb" title={doc.warnings.join("\n")}>
+            <span className="warnb" title={doc.warnings.map((w) => t(w)).join("\n")}>
               <Icon name="alert" size={13} />
-              {doc.warnings.length === 1 ? "Needs attention" : `${doc.warnings.length} warnings`}
+              {doc.warnings.length === 1 ? t("Needs attention") : t("{n} warnings", { n: doc.warnings.length })}
             </span>
           ) : cp ? (
             <span className="doc-prog">
               <span className="prog" aria-hidden="true">
                 <i style={{ width: `${Math.max(pct, 2)}%` }} />
               </span>
-              <span>
-                {pct}% · stopped at ¶{cp.paragraph + 1}
-              </span>
+              <span>{t("{pct}% · stopped at ¶{n}", { pct, n: cp.paragraph + 1 })}</span>
             </span>
           ) : (
-            <span className="doc-prog muted">Not started</span>
+            <span className="doc-prog muted">{t("Not started")}</span>
           )}
         </span>
       </button>
@@ -306,7 +309,7 @@ function DocCard({
           }}
         >
           <label className="sr" htmlFor={`rn-${doc.id}`}>
-            Title
+            {t("Title")}
           </label>
           <input
             id={`rn-${doc.id}`}
@@ -330,20 +333,20 @@ function DocCard({
       {!renaming && !confirm && (
         <PopMenu
           className="doc-more"
-          label={`More actions for ${doc.title}`}
+          label={t("More actions for {title}", { title: doc.title })}
           trigger={<Icon name="more" size={18} stroke={2.6} />}
           items={[
-            { label: "Rename", icon: "pen", onSelect: () => setRenaming(true) },
-            { label: "Remove from library", icon: "trash", danger: true, onSelect: () => setConfirm(true) },
+            { label: t("Rename"), icon: "pen", onSelect: () => setRenaming(true) },
+            { label: t("Remove from library"), icon: "trash", danger: true, onSelect: () => setConfirm(true) },
           ]}
         />
       )}
-      {doc.warnings.length > 0 && <p className="doc-warn">{doc.warnings[0]}</p>}
+      {doc.warnings.length > 0 && <p className="doc-warn">{t(doc.warnings[0])}</p>}
       {confirm && (
-        <div className="doc-confirm" role="alertdialog" aria-label={`Remove ${doc.title}?`}>
-          <span>Remove it? Your reading position goes too.</span>
+        <div className="doc-confirm" role="alertdialog" aria-label={t("Remove {title}?", { title: doc.title })}>
+          <span>{t("Remove it? Your reading position goes too.")}</span>
           <button className="btn btn-s" autoFocus onClick={() => setConfirm(false)}>
-            Keep
+            {t("Keep")}
           </button>
           <button
             className="btn btn-s btn-danger"
@@ -357,7 +360,7 @@ function DocCard({
               }
             }}
           >
-            Remove
+            {t("Remove")}
           </button>
         </div>
       )}
@@ -366,18 +369,16 @@ function DocCard({
 }
 
 function SearchResults({ hits, query, L, onOpen }: { hits: LibraryHit[] | null; query: string; L: string; onOpen(h: LibraryHit): void }) {
-  if (!hits) return <p className="muted small search-status">Searching…</p>;
+  if (!hits) return <p className="muted small search-status">{t("Searching…")}</p>;
   if (hits.length === 0)
     return (
       <div className="ghost-card search-status">
-        Nothing in your library matches <b className={L}>{query}</b>. Search looks inside every book and note in this language.
+        {tj("Nothing in your library matches {query}. Search looks inside every book and note in this language.", { query: <b className={L}>{query}</b> })}
       </div>
     );
   return (
     <>
-      <div className="eyebrow sub">
-        {hits.length} {hits.length === 1 ? "match" : "matches"}
-      </div>
+      <div className="eyebrow sub">{tn(hits.length, "{count} match", "{count} matches")}</div>
       <ul className="hits">
         {hits.map((h) => (
           <li key={`${h.docId}:${h.paragraph}`}>
@@ -400,16 +401,23 @@ function SearchResults({ hits, query, L, onOpen }: { hits: LibraryHit[] | null; 
   );
 }
 
+/** Marks every match of `q`, ignoring case (search is case-insensitive for alphabetic scripts). */
 function Highlight({ text, q }: { text: string; q: string }) {
-  const parts = text.split(q);
+  const lower = text.toLocaleLowerCase();
+  const needle = q.toLocaleLowerCase();
+  const out: { text: string; hit: boolean }[] = [];
+  let pos = 0;
+  if (needle && lower.length === text.length) {
+    for (let at = lower.indexOf(needle); at >= 0; at = lower.indexOf(needle, at + needle.length)) {
+      if (at > pos) out.push({ text: text.slice(pos, at), hit: false });
+      out.push({ text: text.slice(at, at + needle.length), hit: true });
+      pos = at + needle.length;
+    }
+  }
+  if (pos < text.length) out.push({ text: text.slice(pos), hit: false });
   return (
     <>
-      {parts.map((p, i) => (
-        <span key={i}>
-          {p}
-          {i < parts.length - 1 && <mark className="hl">{q}</mark>}
-        </span>
-      ))}
+      {out.map((p, i) => (p.hit ? <mark key={i} className="hl">{p.text}</mark> : <span key={i}>{p.text}</span>))}
     </>
   );
 }

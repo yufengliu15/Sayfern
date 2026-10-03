@@ -9,6 +9,8 @@ import { api, errorText } from "../api";
 export interface SendInput {
   text: string;
   pastedSpans?: string[];
+  /** Stage 3: a speech-to-text transcript. */
+  spoken?: boolean;
 }
 
 export interface StreamState {
@@ -30,7 +32,7 @@ export interface StreamState {
 }
 
 const streams = new Map<string, StreamState>();
-const lastInputs = new Map<string, { input: SendInput; model: ModelRef }>();
+const lastInputs = new Map<string, { input: SendInput; model: ModelRef; newTopic?: boolean }>();
 const listeners = new Set<() => void>();
 const viewListeners = new Set<(sessionId: string, view: SessionView) => void>();
 let unsubscribe: (() => void) | null = null;
@@ -118,6 +120,7 @@ export async function sendMessage(sessionId: string, input: SendInput, model: Mo
     text: input.text,
     at: Date.now(),
     pastedSpans: input.pastedSpans,
+    ...(input.spoken ? { spoken: true } : {}),
   };
   put(sessionId, { sessionId, user, saved: false, text: "", tools: [], corrections: [], input, model });
   try {
@@ -129,9 +132,27 @@ export async function sendMessage(sessionId: string, input: SendInput, model: Mo
   }
 }
 
+/** "New topic": a tutor turn with no learner message (like an opening). */
+export async function requestNewTopic(sessionId: string, model: ModelRef): Promise<void> {
+  ensureSubscribed();
+  lastInputs.set(sessionId, { input: { text: "" }, model, newTopic: true });
+  put(sessionId, { sessionId, saved: true, text: "", tools: [], corrections: [], model });
+  try {
+    const { requestId } = await api.newTopic(sessionId, model);
+    const cur = streams.get(sessionId);
+    if (cur && !cur.requestId) patch(sessionId, { requestId });
+  } catch (err) {
+    patch(sessionId, { error: errorText(err) });
+  }
+}
+
 /** Resend the last thing the learner sent in this session (after an error). */
 export function retryLast(sessionId: string, fallback?: { text: string; model?: ModelRef }): void {
   const last = lastInputs.get(sessionId);
+  if (last?.newTopic) {
+    void requestNewTopic(sessionId, fallback?.model ?? last.model);
+    return;
+  }
   const input = last?.input ?? (fallback ? { text: fallback.text } : undefined);
   const model = fallback?.model ?? last?.model;
   if (!input || !model) return;

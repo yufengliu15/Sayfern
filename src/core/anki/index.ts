@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { AnkiService } from "../contracts";
+import type { AnkiAddResult, AnkiNoteInput, AnkiNoteType, AnkiService } from "../contracts";
 import type {
   AnkiCard,
   AnkiConfig,
@@ -17,13 +17,14 @@ import { LANGUAGES } from "../../shared/records";
 import { cleanField, furiganaReading } from "./clean";
 import { readJson, writeJsonAtomic } from "./json-file";
 import { aggregateWords, buildOverview, checkWordsIn, MATURE_DAYS, wordPage } from "./words";
+import { msg } from "../../shared/i18n";
 
 export { cleanField, furiganaReading } from "./clean";
 export * from "./words";
 
 export const DEFAULT_ANKI_URL = "http://127.0.0.1:8765";
 export const ANKI_UNREACHABLE =
-  "Can't reach Anki. Make sure Anki is running and the AnkiConnect add-on (code 2055492159) is installed.";
+  msg("Can't reach Anki. Make sure Anki is running and the AnkiConnect add-on (code 2055492159) is installed.");
 
 const DAY_MS = 86_400_000;
 const BATCH = 500;
@@ -46,11 +47,11 @@ export type AnkiFailure = "refused" | "timeout" | "forbidden" | "not_ankiconnect
 
 const FAILURE_MESSAGE: Record<AnkiFailure, string> = {
   refused:
-    "Nothing is answering on Anki's port. Open Anki. If you just installed AnkiConnect, quit and reopen Anki once so the add-on loads.",
+    msg("Nothing is answering on Anki's port. Open Anki. If you just installed AnkiConnect, quit and reopen Anki once so the add-on loads."),
   timeout:
-    "Anki didn't answer in time. On macOS this usually means App Nap paused Anki while it's in the background.",
-  forbidden: "AnkiConnect refused the request (HTTP 403). Check its webCorsOriginList setting in Anki's add-on config.",
-  not_ankiconnect: "Something answered on Anki's port, but it isn't AnkiConnect.",
+    msg("Anki didn't answer in time. On macOS this usually means App Nap paused Anki while it's in the background."),
+  forbidden: msg("AnkiConnect refused the request (HTTP 403). Check its webCorsOriginList setting in Anki's add-on config."),
+  not_ankiconnect: msg("Something answered on Anki's port, but it isn't AnkiConnect."),
   other: ANKI_UNREACHABLE,
 };
 
@@ -157,12 +158,28 @@ function normalizeConfig(input: Partial<AnkiConfig> | null | undefined): AnkiCon
     if (typeof d.meaningField === "string" && d.meaningField.trim()) m.meaningField = d.meaningField.trim();
     decks.push(m);
   }
-  return { enabled: input.enabled === true, url, decks };
+  const config: AnkiConfig = { enabled: input.enabled === true, url, decks };
+  const exportDecks: Partial<Record<Language, string>> = {};
+  for (const l of LANGUAGES) {
+    const deck = input.exportDecks?.[l];
+    if (typeof deck === "string" && deck.trim()) exportDecks[l] = deck.trim();
+  }
+  if (Object.keys(exportDecks).length) config.exportDecks = exportDecks;
+  return config;
 }
 
 function copyConfig(c: AnkiConfig): AnkiConfig {
-  return { ...c, decks: c.decks.map((d) => ({ ...d })) };
+  const out: AnkiConfig = { ...c, decks: c.decks.map((d) => ({ ...d })) };
+  if (c.exportDecks) out.exportDecks = { ...c.exportDecks };
+  return out;
 }
+
+/** "AnkiConnect error: cannot create note because it is a duplicate" → the part after the prefix. */
+function ankiErrorText(err: unknown): string {
+  return ((err as Error)?.message ?? String(err)).replace(/^AnkiConnect error:\s*/, "");
+}
+
+const isDuplicateError = (text: string) => /duplicate/i.test(text);
 
 /**
  * AnkiConnect client (add-on 2055492159). Config and per-language snapshots are
@@ -484,6 +501,85 @@ export class AnkiConnectService implements AnkiService {
       if (i < difficult.length) await consider(difficult[i], "difficult");
     }
     return out.slice(0, count);
+  }
+
+  // ------------------------------------------------------------ note creation (S2-03)
+
+  async ensureNoteType(type: AnkiNoteType): Promise<boolean> {
+    const names = (await this.call<string[]>("modelNames")) ?? [];
+    if (names.includes(type.name)) return false;
+    await this.call("createModel", {
+      modelName: type.name,
+      inOrderFields: type.fields,
+      css: type.css,
+      isCloze: type.isCloze,
+      cardTemplates: type.templates,
+    });
+    return true;
+  }
+
+  async ensureDeck(deck: string): Promise<void> {
+    await this.call("createDeck", { deck });
+  }
+
+  async storeMedia(filename: string, base64: string): Promise<string> {
+    const name = await this.call<string | null>("storeMediaFile", { filename, data: base64 }, BULK_TIMEOUT_MS);
+    return typeof name === "string" && name ? name : filename;
+  }
+
+  async addNotes(notes: AnkiNoteInput[]): Promise<AnkiAddResult[]> {
+    if (!notes.length) return [];
+    const payload = notes.map((n) => ({
+      deckName: n.deckName,
+      modelName: n.modelName,
+      fields: n.fields,
+      tags: n.tags,
+      options: { allowDuplicate: false, duplicateScope: "collection" },
+    }));
+    const results: (AnkiAddResult | null)[] = notes.map(() => null);
+
+    // 1. Pre-check: duplicates (and empty first fields) are reported, never added.
+    let blocked: (string | null)[] | null = null;
+    try {
+      const detail = (await this.call<{ canAdd?: boolean; error?: string }[]>("canAddNotesWithErrorDetail", { notes: payload }, BULK_TIMEOUT_MS)) ?? [];
+      blocked = payload.map((_, i) => (detail[i]?.canAdd ? null : (detail[i]?.error ?? "duplicate")));
+    } catch (err) {
+      rethrowUnreachable(err);
+      try {
+        const ok = (await this.call<boolean[]>("canAddNotes", { notes: payload }, BULK_TIMEOUT_MS)) ?? [];
+        blocked = payload.map((_, i) => (ok[i] === false ? "duplicate" : null));
+      } catch (err2) {
+        rethrowUnreachable(err2);
+      }
+    }
+    blocked?.forEach((reason, i) => {
+      if (reason) results[i] = isDuplicateError(reason) ? { status: "duplicate" } : { status: "failed", error: reason };
+    });
+
+    // 2. Add the rest in one call; per-note fallback when addNotes rejects the batch.
+    const todo = payload.map((note, i) => ({ note, i })).filter(({ i }) => !results[i]);
+    if (todo.length) {
+      try {
+        const ids = (await this.call<(number | null)[]>("addNotes", { notes: todo.map((t) => t.note) }, BULK_TIMEOUT_MS)) ?? [];
+        todo.forEach(({ i }, k) => {
+          const id = ids[k];
+          results[i] = typeof id === "number" ? { status: "added", noteId: id } : { status: "failed", error: msg("Anki didn't add this note.") };
+        });
+      } catch (err) {
+        rethrowUnreachable(err);
+        for (const { note, i } of todo) {
+          try {
+            const id = await this.call<number>("addNote", { note });
+            results[i] = typeof id === "number" ? { status: "added", noteId: id } : { status: "failed", error: msg("Anki didn't add this note.") };
+          } catch (one) {
+            rethrowUnreachable(one);
+            const text = ankiErrorText(one);
+            results[i] = isDuplicateError(text) ? { status: "duplicate" } : { status: "failed", error: text };
+          }
+        }
+      }
+    }
+    return results.map((r) => r ?? { status: "failed", error: msg("Anki didn't add this note.") });
   }
 
   private snapshotPath(language: Language): string {

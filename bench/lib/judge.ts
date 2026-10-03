@@ -26,9 +26,11 @@ export interface JudgeResult {
   block: string;
   items: JudgeItem[];
   error?: string;
+  /** Item ids the judge returned no usable verdict for, after the retry. */
+  missing?: string[];
 }
 
-interface Item {
+export interface Item {
   item: string;
   kind: "turn" | "open" | "session";
   learner?: string;
@@ -70,6 +72,40 @@ export function judgeItems(block: BlockResult, scenario: Scenario): Item[] {
   return items;
 }
 
+/** The verdicts an item must carry to count: one per gold error, falsePositive, correct, pass. */
+export function needs(item: Item): { errors: string[]; clean: boolean; fact: boolean; checks: boolean } {
+  return { errors: (item.goldErrors ?? []).map((e) => e.id), clean: !!item.clean, fact: !!item.fact, checks: !!item.checks?.length };
+}
+
+/** Ids of items whose required verdicts are absent from `results`. */
+export function missingVerdicts(items: Item[], results: JudgeItem[]): string[] {
+  const byId = new Map(results.map((r) => [r.item, r]));
+  return items
+    .filter((it) => {
+      const n = needs(it);
+      if (!n.errors.length && !n.clean && !n.fact && !n.checks) return false;
+      const r = byId.get(it.item);
+      if (!r) return true;
+      if (n.errors.some((id) => !r.errors?.some((e) => e.id === id))) return true;
+      if (n.clean && typeof r.falsePositive !== "boolean") return true;
+      if (n.fact && typeof r.correct !== "boolean") return true;
+      if (n.checks && typeof r.pass !== "boolean") return true;
+      return false;
+    })
+    .map((it) => it.item);
+}
+
+/** Merge verdicts: later results fill in items or fields the earlier ones lacked. */
+function mergeResults(a: JudgeItem[], b: JudgeItem[]): JudgeItem[] {
+  const out = new Map(a.map((r) => [r.item, { ...r }]));
+  for (const r of b) {
+    const cur = out.get(r.item);
+    if (!cur) out.set(r.item, { ...r });
+    else for (const [k, v] of Object.entries(r)) if ((cur as Record<string, unknown>)[k] === undefined) (cur as Record<string, unknown>)[k] = v;
+  }
+  return [...out.values()];
+}
+
 const RUBRIC = `You grade a Mandarin tutor. For each item below, return one JSON object. Judge only from what is written; do not use tools.
 
 Rules:
@@ -88,18 +124,79 @@ Items:
 
 export async function judgeBlock(config: BenchConfig, block: BlockResult, scenario: Scenario): Promise<JudgeResult> {
   const key = `${block.arm}__${block.scenario}__rep${block.rep}`;
-  const items = judgeItems(block, scenario);
-  if (!items.length) return { block: key, items: [] };
-  const prompt = RUBRIC + JSON.stringify(items, null, 1);
-  try {
-    const text = await runClaude(config, prompt);
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error(`judge returned no JSON: ${text.slice(0, 200)}`);
-    const parsed = JSON.parse(m[0]) as { items?: JudgeItem[] };
-    return { block: key, items: parsed.items ?? [] };
-  } catch (err) {
-    return { block: key, items: [], error: String((err as Error)?.message ?? err) };
+  const all = judgeItems(block, scenario);
+  if (!all.length) return { block: key, items: [] };
+  // Up to three attempts. After the first, only the items still missing a verdict are resent,
+  // so a reply that is unparseable or skips an item cannot silently shrink a denominator.
+  let results: JudgeItem[] = [];
+  let todo = all;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3 && todo.length; attempt++) {
+    try {
+      const text = await runClaude(config, RUBRIC + JSON.stringify(todo, null, 1));
+      const parsed = extractJudgeItems(text);
+      if (parsed) results = mergeResults(results, parsed);
+      else lastErr = `judge returned no usable JSON: ${text.slice(0, 200)}`;
+    } catch (err) {
+      lastErr = String((err as Error)?.message ?? err);
+    }
+    const miss = new Set(missingVerdicts(all, results));
+    todo = all.filter((it) => miss.has(it.item));
   }
+  const missing = missingVerdicts(all, results);
+  return {
+    block: key,
+    items: results,
+    ...(missing.length ? { missing, ...(lastErr ? { error: lastErr } : {}) } : {}),
+  };
+}
+
+/** Top-level JSON objects in `text`, in order (braces inside strings are ignored). */
+export function jsonObjects(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"' && depth > 0) inStr = true;
+    else if (c === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === "}" && depth > 0) {
+      depth--;
+      if (depth === 0) out.push(text.slice(start, i + 1));
+    }
+  }
+  return out;
+}
+
+/**
+ * Judge items from a reply that may wrap the JSON in prose or code fences, or split it over
+ * several objects. Items from every parseable `{"items": [...]}` are merged; null if none.
+ */
+export function extractJudgeItems(text: string): JudgeItem[] | null {
+  let found = false;
+  const items: JudgeItem[] = [];
+  for (const raw of jsonObjects(text)) {
+    try {
+      const o = JSON.parse(raw) as { items?: unknown };
+      if (Array.isArray(o.items)) {
+        found = true;
+        items.push(...(o.items as JudgeItem[]));
+      }
+    } catch {
+      // not JSON (e.g. a brace in prose); skip it
+    }
+  }
+  return found ? items : null;
 }
 
 function runClaude(config: BenchConfig, prompt: string): Promise<string> {

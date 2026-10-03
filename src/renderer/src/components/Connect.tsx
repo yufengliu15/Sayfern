@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AuthEventPayload, AuthPromptPayload, ProviderInfo } from "../../../shared/types";
 import { Fern, Icon } from "./icons";
+import { t } from "../i18n";
 
 interface Props {
   providers: ProviderInfo[];
@@ -22,10 +23,10 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
     const offEvent = window.sayfern.onAuthEvent((e: AuthEventPayload) => {
       setLogin((cur) => {
         if (!cur) return cur;
-        if (e.type === "auth_url") return { ...cur, url: e.url, log: [...cur.log, e.instructions ?? "Opened your browser to sign in."] };
-        if (e.type === "device_code") return { ...cur, log: [...cur.log, `Enter code ${e.userCode} at ${e.verificationUri}`] };
+        if (e.type === "auth_url") return { ...cur, url: e.url, log: [...cur.log, e.instructions ? t(e.instructions) : t("Opened your browser to sign in.")] };
+        if (e.type === "device_code") return { ...cur, log: [...cur.log, t("Enter code {code} at {url}", { code: e.userCode, url: e.verificationUri })] };
         if (e.type === "prompt_cancelled") return cur.prompt?.promptId === e.promptId ? { ...cur, prompt: undefined } : cur;
-        return { ...cur, log: [...cur.log, e.message] };
+        return { ...cur, log: [...cur.log, t(e.message)] };
       });
     });
     const offPrompt = window.sayfern.onAuthPrompt((prompt) => setLogin((cur) => (cur ? { ...cur, prompt } : cur)));
@@ -53,7 +54,7 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
 
   const signIn = async (p: ProviderInfo) => {
     setError(null);
-    setLogin({ provider: p, log: ["Starting sign-in…"] });
+    setLogin({ provider: p, log: [t("Starting sign-in…")] });
     try {
       await window.sayfern.login(p.id);
       setLogin(null);
@@ -79,12 +80,12 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
             <div className="prov-top">
               <div style={{ flex: 1 }}>
                 <div className="nm">{p.name}</div>
-                <div className="nt">{p.note}</div>
+                <div className="nt">{t(p.note)}</div>
               </div>
               {p.connected && (
                 <span className="badge">
                   <Icon name="check" size={13} stroke={2.4} />
-                  {p.connected === "oauth" ? "Signed in" : "API key"}
+                  {p.connected === "oauth" ? t("Signed in") : t("API key")}
                 </span>
               )}
             </div>
@@ -92,13 +93,13 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
             <div className="prov-actions">
               {p.connected ? (
                 <button className="btn btn-s" disabled={busy === p.id} onClick={() => disconnect(p)}>
-                  Disconnect
+                  {t("Disconnect")}
                 </button>
               ) : (
                 <>
                   {p.oauthLabel && (
                     <button className="btn btn-f btn-s" onClick={() => signIn(p)}>
-                      {p.oauthLabel}
+                      {t(p.oauthLabel)}
                     </button>
                   )}
                   {p.canApiKey && keyFor !== p.id && (
@@ -110,7 +111,7 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
                       }}
                     >
                       <Icon name="key" size={15} />
-                      Use an API key
+                      {t("Use an API key")}
                     </button>
                   )}
                 </>
@@ -126,36 +127,35 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
                 }}
               >
                 <label htmlFor={`key-${p.id}`} className="sr">
-                  {p.name} API key
+                  {t("{provider} API key", { provider: p.name })}
                 </label>
                 <input
                   id={`key-${p.id}`}
                   className="input"
                   type="password"
                   autoFocus
-                  placeholder="Paste your API key"
+                  placeholder={t("Paste your API key")}
                   value={key}
                   onChange={(e) => setKey(e.target.value)}
                 />
                 <button className="btn btn-p" type="submit" disabled={!key.trim() || busy === p.id}>
-                  Save
+                  {t("Save")}
                 </button>
                 <button className="btn" type="button" onClick={() => setKeyFor(null)}>
-                  Cancel
+                  {t("Cancel")}
                 </button>
               </form>
             )}
             {error?.id === p.id && (
               <div className="err" style={{ marginTop: 0 }}>
                 <Icon name="alert" size={15} />
-                <span>{error.msg}</span>
+                <span>{t(error.msg)}</span>
               </div>
             )}
           </div>
         ))}
         <p className="note" style={{ padding: "4px 4px 0" }}>
-          Claude Pro/Max sign-in draws on your plan's monthly Agent SDK credit, not your regular chat limits. Sign in with
-          ChatGPT uses your ChatGPT plan.
+          {t("Claude Pro/Max sign-in draws on your plan's monthly Agent SDK credit, not your regular chat limits. Sign in with ChatGPT uses your ChatGPT plan.")}
         </p>
     </>
   );
@@ -184,16 +184,14 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
             Sayfern
           </span>
         </div>
-        <h1>
-          Practise with a tutor that <em>remembers</em>.
-        </h1>
+        <h1>{t("Practise with a tutor that remembers.")}</h1>
         <p style={{ fontSize: 17, lineHeight: 1.55, color: "var(--ink-3)", maxWidth: 440, marginTop: 24 }}>
-          Connect the model you already pay for. Sayfern is free; your provider bills you directly.
+          {t("Connect the model you already pay for. Sayfern is free; your provider bills you directly.")}
         </p>
         <div style={{ display: "flex", gap: 24, marginTop: 32, fontSize: 13.5, color: "var(--ink-3)" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="lock" size={16} />
-            Keys encrypted with your Mac's Keychain
+            {t("Keys encrypted with your Mac's Keychain")}
           </span>
         </div>
       </div>
@@ -201,14 +199,14 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
       <div className="connect-right">
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
           <div>
-            <div className="eyebrow">Step 1</div>
+            <div className="eyebrow">{t("Step 1")}</div>
             <div className="serif" style={{ fontSize: 36 }}>
-              Connect a model
+              {t("Connect a model")}
             </div>
           </div>
           {anyConnected && onDone && (
             <button className="btn btn-p" onClick={onDone}>
-              Start practising <Icon name="arrow" size={16} stroke={2} />
+              {t("Start practising")} <Icon name="arrow" size={16} stroke={2} />
             </button>
           )}
         </div>
@@ -237,9 +235,9 @@ function AuthModal({
   };
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label={`Sign in to ${state.provider.name}`}>
+    <div className="overlay" role="dialog" aria-modal="true" aria-label={t("Sign in to {provider}", { provider: state.provider.name })}>
       <div className="card modal">
-        <h2>Sign in to {state.provider.name}</h2>
+        <h2>{t("Sign in to {provider}", { provider: state.provider.name })}</h2>
         <div className="log">
           {state.log.map((l, i) => (
             <span key={i}>{l}</span>
@@ -248,14 +246,14 @@ function AuthModal({
         {state.url && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <button className="linkb" style={{ alignSelf: "flex-start" }} onClick={() => window.sayfern.openExternal(state.url!)}>
-              Open the sign-in page again
+              {t("Open the sign-in page again")}
             </button>
             <div className="url">{state.url}</div>
           </div>
         )}
         {pr && pr.type === "select" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ fontSize: 14 }}>{pr.message}</div>
+            <div style={{ fontSize: 14 }}>{t(pr.message)}</div>
             {pr.options.map((o) => (
               <button key={o.id} className="btn" style={{ justifyContent: "flex-start" }} onClick={() => answer(o.id)}>
                 {o.label}
@@ -273,7 +271,7 @@ function AuthModal({
             }}
           >
             <label htmlFor="auth-input" style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.45 }}>
-              {pr.message}
+              {t(pr.message)}
             </label>
             <div className="keyrow">
               <input
@@ -285,14 +283,14 @@ function AuthModal({
                 onChange={(e) => setValue(e.target.value)}
               />
               <button className="btn btn-p" type="submit" disabled={!value.trim()}>
-                Continue
+                {t("Continue")}
               </button>
             </div>
           </form>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {t("Cancel")}
           </button>
         </div>
       </div>

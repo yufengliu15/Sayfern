@@ -9,11 +9,12 @@ import type {
   ToolResultMessage,
   UserMessage,
 } from "@earendil-works/pi-ai";
-import type { TurnInput, TutorEvent, TutorTool } from "../contracts";
+import type { OpeningInput, TurnInput, TutorEvent, TutorTool } from "../contracts";
 import type { ChatMessage, SessionMeta, ToolActivity, UsageTotals } from "../../shared/records";
 import type { TutorDeps } from "./deps";
-import { requestOptions } from "./options";
-import { buildSystemPrompt } from "./prompt";
+import { needsEvidencePass, requestOptions } from "./options";
+import { buildSystemPrompt, SPOKEN_MARKER } from "./prompt";
+import { leakedCalls, leakStart, pendingTail, stripLeak, type LeakedCall } from "./leak";
 import { stripPasted } from "./text";
 import { toolContext, turnTools, type TurnState } from "./tools";
 
@@ -21,12 +22,21 @@ export const MAX_ITERATIONS = 5;
 export const MAX_TOKENS = 1500;
 export const MAX_SOURCES = 3;
 export const TARGET_COUNT = 5;
+/** Output cap for the evidence pass (tool call only). */
+export const EVIDENCE_PASS_TOKENS = 1200;
+
+/** Hidden instruction for the evidence pass. Never stored in the transcript. */
+export const EVIDENCE_NUDGE =
+  "(Message from the app, not from the learner: you replied without calling record_evidence. Call record_evidence now for the learner's latest message: corrections of real mistakes with `original` copied exactly from their message, grammar observations, patterns you taught, level estimates. Use empty lists if there is nothing to record. Do not write any text.)";
 
 export function modelLabel(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;
 }
 
-export function kickoffText(session: SessionMeta): string {
+export function kickoffText(session: SessionMeta, opts: { newTopic?: boolean } = {}): string {
+  if (opts.newTopic) {
+    return "(The learner pressed \"New topic\". Drop the current topic without summing it up and open a fresh one, clearly different from what this session has covered so far. Pick something that fits their interests if you know them. Start.)";
+  }
   if (session.kind === "practice" && session.openWith === "explain") {
     return "(The learner opened a practice session and asked you to explain the focus pattern again, with a new example. Start.)";
   }
@@ -65,6 +75,7 @@ export async function runTurn(deps: TutorDeps, input: TurnInput): Promise<ChatMe
   const at = deps.now();
   const user: ChatMessage = { id: deps.newId(), sessionId: session.id, role: "user", text: input.text, at };
   if (input.pastedSpans?.length) user.pastedSpans = [...input.pastedSpans];
+  if (input.spoken) user.spoken = true;
   try {
     await records.appendMessage(user);
   } catch (err) {
@@ -82,14 +93,15 @@ export async function runTurn(deps: TutorDeps, input: TurnInput): Promise<ChatMe
     signal: input.signal,
     onEvent: input.onEvent,
     base,
-    userPi: { role: "user", content: input.text, timestamp: at },
+    // Spoken messages carry a marker so the tutor knows the text came from speech recognition.
+    userPi: { role: "user", content: input.spoken ? `${SPOKEN_MARKER} ${input.text}` : input.text, timestamp: at },
     userMessageId: user.id,
     userText: input.text,
   });
 }
 
 /** The tutor speaks first: hidden kickoff message in the transcript only. */
-export async function runOpening(deps: TutorDeps, input: Omit<TurnInput, "text" | "pastedSpans">): Promise<ChatMessage> {
+export async function runOpening(deps: TutorDeps, input: OpeningInput): Promise<ChatMessage> {
   const session = await deps.records.getSession(input.sessionId).catch(() => null);
   if (!session) return unsavedError(deps, input, `Session not found: ${input.sessionId}`);
   await ensureTargets(deps, session).catch(() => undefined);
@@ -100,7 +112,7 @@ export async function runOpening(deps: TutorDeps, input: Omit<TurnInput, "text" 
     signal: input.signal,
     onEvent: input.onEvent,
     base,
-    userPi: { role: "user", content: kickoffText(session), timestamp: deps.now() },
+    userPi: { role: "user", content: kickoffText(session, { newTopic: input.newTopic }), timestamp: deps.now() },
   });
 }
 
@@ -144,6 +156,20 @@ export async function ankiReady(deps: TutorDeps, language: SessionMeta["language
   }
 }
 
+/** The message with its text blocks replaced by one block holding `text` (dropped when empty). */
+function withText(m: AssistantMessage, text: string): AssistantMessage {
+  const content: AssistantMessage["content"] = [];
+  let placed = false;
+  for (const c of m.content) {
+    if (c.type !== "text") content.push(c);
+    else if (!placed) {
+      placed = true;
+      if (text.trim()) content.push({ ...c, text });
+    }
+  }
+  return { ...m, content };
+}
+
 function textOf(m: AssistantMessage): string {
   return m.content
     .filter((c): c is { type: "text"; text: string } => c.type === "text")
@@ -176,7 +202,9 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   const piTools: Tool[] = tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
   const ctx = toolContext(deps, turn);
 
-  const transcript: Message[] = [...li.base, li.userPi];
+  // Earlier replies saved before v0.9.1 may still hold leaked tool-call text: don't show it to the model again.
+  const base = li.base.map((m) => (m.role === "assistant" && leakStart(textOf(m)) >= 0 ? withText(m, stripLeak(textOf(m))) : m));
+  const transcript: Message[] = [...base, li.userPi];
   /** transcript.length after the last fully completed iteration. */
   let committed = transcript.length;
   let completedIterations = 0;
@@ -184,6 +212,8 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   const usage: UsageTotals = { input: 0, output: 0, cost: 0 };
   const activity: ToolActivity[] = [];
   let failure: TurnFailure | null = null;
+  let evidenceCalled = false;
+  let systemPrompt = "";
 
   const appendText = (delta: string) => {
     text += delta;
@@ -191,25 +221,36 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   };
 
   try {
-    const systemPrompt = await buildSystemPrompt(deps, session);
+    systemPrompt = await buildSystemPrompt(deps, session);
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (signal.aborted) throw new TurnFailure("Stopped", true);
       let needSeparator = false;
-      let streamedThisIter = "";
+      // This iteration's reply text, held back from the learner once leaked tool-call text starts (leak.ts).
+      let raw = "";
+      let shown = 0;
+      const flush = (final: boolean) => {
+        const cut = leakStart(raw);
+        const safe = cut >= 0 ? cut : final ? raw.length : raw.length - pendingTail(raw);
+        if (safe > shown) {
+          appendText(raw.slice(shown, safe));
+          shown = safe;
+        }
+      };
       let message: AssistantMessage | undefined;
       const stream = deps.models.streamSimple(model, { systemPrompt, messages: transcript, tools: piTools }, { signal, ...requestOptions(model, MAX_TOKENS) });
       for await (const ev of stream) {
         if (ev.type === "text_start") {
-          needSeparator = text.trim().length > 0;
+          needSeparator = (text + raw.slice(shown)).trim().length > 0;
         } else if (ev.type === "text_delta") {
           if (!ev.delta) continue;
           if (needSeparator) {
             needSeparator = false;
-            const sep = text.endsWith("\n\n") ? "" : text.endsWith("\n") ? "\n" : "\n\n";
-            if (sep) appendText(sep);
+            const tail = text + raw.slice(shown);
+            const sep = tail.endsWith("\n\n") ? "" : tail.endsWith("\n") ? "\n" : "\n\n";
+            raw += sep;
           }
-          appendText(ev.delta);
-          streamedThisIter += ev.delta;
+          raw += ev.delta;
+          flush(false);
         } else if (ev.type === "done") {
           message = ev.message;
         } else if (ev.type === "error") {
@@ -221,14 +262,43 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
 
       // A provider that returned text without streaming deltas: surface it now.
       const final = textOf(message);
-      if (final.trim() && !streamedThisIter) appendText((text.trim() ? "\n\n" : "") + final);
+      if (final.trim() && !raw) raw = (text.trim() ? "\n\n" : "") + final;
       addUsage(usage, message);
+
+      // Leaked tool calls: keep only the reply, salvage the calls, and keep the noise out of the transcript.
+      let salvaged: LeakedCall[] = [];
+      if (leakStart(raw) >= 0) {
+        salvaged = leakedCalls(raw);
+        const clean = stripLeak(raw);
+        if (clean.length >= shown && clean.startsWith(raw.slice(0, shown))) {
+          if (clean.length > shown) appendText(clean.slice(shown));
+        } else {
+          text = text.slice(0, text.length - shown) + clean;
+        }
+        message = withText(message, stripLeak(final));
+      } else {
+        flush(true);
+      }
 
       const calls = message.content.filter((c): c is ToolCall => c.type === "toolCall");
       const results: ToolResultMessage[] = [];
       for (const call of calls) {
+        if (call.name === EVIDENCE_TOOL) evidenceCalled = true;
         const { result, act } = await runTool(byName.get(call.name), call, ctx, deps.now());
         results.push(result);
+        activity.push(act);
+        emit({ type: "tool", activity: act });
+      }
+      // Run salvaged calls to recording-only tools (their results go nowhere, so nothing else is safe).
+      for (const leaked of salvaged) {
+        const tool = byName.get(leaked.name);
+        if (!tool?.recordingOnly) continue;
+        if (leaked.name === EVIDENCE_TOOL) {
+          if (evidenceCalled) continue;
+          evidenceCalled = true;
+        }
+        const call: ToolCall = { type: "toolCall", id: `leaked-${deps.newId()}`, name: leaked.name, arguments: leaked.args as ToolCall["arguments"] };
+        const { act } = await runTool(tool, call, ctx, deps.now());
         activity.push(act);
         emit({ type: "tool", activity: act });
       }
@@ -248,6 +318,27 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
     addUsage(usage, failure.partial);
   }
 
+  // Evidence pass: some models (OpenAI's especially) end their turn at the final answer and never call
+  // record_evidence, so corrections go missing. Ask once more, with record_evidence as the only tool.
+  // The reply is already streamed; the pass only records. Its messages stay out of the transcript.
+  const evidenceTool = byName.get(EVIDENCE_TOOL);
+  const wantPass = deps.evidencePass ? deps.evidencePass(model) : needsEvidencePass(model);
+  if (!failure && !evidenceCalled && evidenceTool && li.userMessageId && text.trim() && wantPass && !signal.aborted) {
+    await evidencePass(deps, {
+      model,
+      signal,
+      systemPrompt,
+      messages: [...transcript.slice(0, committed), { role: "user", content: EVIDENCE_NUDGE, timestamp: deps.now() }],
+      tool: evidenceTool,
+      ctx,
+      usage,
+      onActivity: (act) => {
+        activity.push(act);
+        emit({ type: "tool", activity: act });
+      },
+    });
+  }
+
   // Nothing to show (e.g. a reasoning model spent the whole output cap thinking): report it rather than
   // saving a blank bubble, and keep the empty exchange out of the transcript so a retry starts clean.
   let empty = false;
@@ -257,7 +348,7 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   }
 
   // Persist the transcript: drop the failed iteration; if nothing completed, drop the new user message too.
-  const finalTranscript = failure && (completedIterations === 0 || empty) ? li.base : transcript.slice(0, committed);
+  const finalTranscript = failure && (completedIterations === 0 || empty) ? base : transcript.slice(0, committed);
 
   const tutor: ChatMessage = {
     id: deps.newId(),
@@ -282,6 +373,47 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
     tutor.error ??= `Could not save the reply: ${errorText(err)}`;
   }
   return tutor;
+}
+
+const EVIDENCE_TOOL = "record_evidence";
+
+/** One tool-only request for record_evidence. Never throws: a failed pass just records nothing. */
+async function evidencePass(
+  deps: TutorDeps,
+  p: {
+    model: Model<Api>;
+    signal: AbortSignal;
+    systemPrompt: string;
+    messages: Message[];
+    tool: TutorTool;
+    ctx: ReturnType<typeof toolContext>;
+    usage: UsageTotals;
+    onActivity(act: ToolActivity): void;
+  },
+): Promise<void> {
+  try {
+    const piTool: Tool = { name: p.tool.name, description: p.tool.description, parameters: p.tool.parameters };
+    const stream = deps.models.streamSimple(
+      p.model,
+      { systemPrompt: p.systemPrompt, messages: p.messages, tools: [piTool] },
+      { signal: p.signal, ...requestOptions(p.model, EVIDENCE_PASS_TOKENS) },
+    );
+    let message: AssistantMessage | undefined;
+    for await (const ev of stream) {
+      if (ev.type === "done") message = ev.message;
+      else if (ev.type === "error") {
+        addUsage(p.usage, ev.error);
+        return;
+      }
+    }
+    addUsage(p.usage, message);
+    const call = message?.content.find((c): c is ToolCall => c.type === "toolCall" && c.name === p.tool.name);
+    if (!call) return;
+    const { act } = await runTool(p.tool, call, p.ctx, deps.now());
+    p.onActivity(act);
+  } catch {
+    // Best effort: the reply is already saved-to-be; missing evidence is not a turn failure.
+  }
 }
 
 async function markAsked(deps: TutorDeps, sessionId: string, text: string): Promise<void> {

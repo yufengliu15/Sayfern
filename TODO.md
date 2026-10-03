@@ -1,0 +1,3 @@
+- Add a "New topic" button in the chat interface. add a "Go easier / go harder" slider. go harder means relatively more difficult grammar, vocab, harder topics. must still be within reason
+- Bulletproof the "Corrections" tooling. sol and astra cannot trigger it for some reason. sonnet does a really good job at it, but openai struggles
+- make ui fill the space better.

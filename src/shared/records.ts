@@ -1,8 +1,9 @@
 // Learning-record domain types. Shared by core, main and renderer.
 // No runtime imports: this file must stay types-only (plus tiny pure consts).
 
-export type Language = "zh" | "ja";
-export const LANGUAGES: readonly Language[] = ["zh", "ja"];
+/** Learning languages. Metadata (names, levels, scripts) lives in ./languages. */
+export type Language = "zh" | "ja" | "ko" | "en" | "es" | "fr" | "de" | "it" | "pt" | "ru" | "vi";
+export const LANGUAGES: readonly Language[] = ["zh", "ja", "ko", "en", "es", "fr", "de", "it", "pt", "ru", "vi"];
 
 // ---------------------------------------------------------------- sources
 
@@ -16,6 +17,10 @@ export type SourceRef =
 export type SessionKind = "chat" | "reading" | "practice" | "placement";
 export type FeedbackMode = "inline" | "end";
 
+/** Session difficulty offset from the learner's estimated level: -2 much easier … 2 much harder. */
+export type Difficulty = -2 | -1 | 0 | 1 | 2;
+export const DIFFICULTIES: readonly Difficulty[] = [-2, -1, 0, 1, 2];
+
 export interface SessionMeta {
   id: string;
   language: Language;
@@ -24,6 +29,8 @@ export interface SessionMeta {
   createdAt: number;
   updatedAt: number;
   feedbackMode: FeedbackMode;
+  /** "Go easier / go harder" slider: -2..2, 0 (or absent) = the tutor's default level. */
+  difficulty?: Difficulty;
   /** practice sessions: grammar point to work on (S1-19). */
   focusGrammarId?: string;
   /** practice sessions: how the tutor opens. "explain" = a fresh explanation of the focus pattern with a new example first. */
@@ -32,6 +39,8 @@ export interface SessionMeta {
   docId?: string;
   /** Active (non-idle) milliseconds, text practice only (S1-24). */
   activeMs: number;
+  /** Stage 3 (S3-04): speaking and listening milliseconds, counted apart from activeMs. */
+  voiceMs?: number;
   /** Set when the learner ends the session (end-of-session feedback). */
   endedAt?: number;
   usage: UsageTotals;
@@ -63,8 +72,12 @@ export interface ChatMessage {
   error?: string;
   /** user: substrings the learner pasted in; excluded from independent-use stats (S1-23). */
   pastedSpans?: string[];
+  /** user: spoken, then transcribed by speech to text (Stage 3). Not evidence of pronunciation. */
+  spoken?: boolean;
   /** tutor: cached translation (S1-08). */
   translation?: string;
+  /** Language the translation is in ("German"); absent = English (written before v0.7). */
+  translationLang?: string;
   /** tutor: tools called while producing this reply (F-07). */
   toolActivity?: ToolActivity[];
   /** tutor: sources the reply relied on (S1-12). */
@@ -102,6 +115,10 @@ export interface Correction {
   /** Learner retries, oldest first. */
   retries: { text: string; ok: boolean; at: number }[];
   disputeNote?: string;
+  /** Stage 2 (S2-03): last time it was sent to Anki (added, or found already there). */
+  exportedAt?: number;
+  /** Stage 2 (S2-03): Anki note ids created from this correction. */
+  ankiNoteIds?: number[];
 }
 
 // ---------------------------------------------------------------- grammar (S1-15..S1-20)
@@ -151,6 +168,13 @@ export interface GrammarObservation {
   note?: string;
   at: number;
   disputed?: { note: string; at: number; originalVerdict: Verdict };
+  /**
+   * Stage 2 (S2-09): "quiz" = evidence from a quiz answer (sessionId "quiz:<quizId>", messageId = the
+   * question id). Quiz evidence is prompted practice: it never makes a point "independent" and is
+   * counted apart from conversation (GrammarSummary.quiz). Absent = conversation.
+   */
+  origin?: "quiz";
+  quizId?: string;
 }
 
 export interface GrammarCounts {
@@ -168,6 +192,8 @@ export interface GrammarSummary {
   /** correct / (correct + incorrect); null when nothing assessed. */
   rate: number | null;
   lastUsedAt?: number;
+  /** Stage 2 (S2-09): quiz answers, kept apart from conversation use. Absent when there are none. */
+  quiz?: { counts: GrammarCounts; rate: number | null; lastAt: number };
 }
 
 // ---------------------------------------------------------------- vocabulary (S1-09, S1-22, S1-23)
@@ -283,6 +309,8 @@ export interface AnkiConfig {
   /** AnkiConnect endpoint. */
   url: string;
   decks: AnkiDeckMapping[];
+  /** Stage 2 (S2-03): last deck correction cards were exported to, per language. */
+  exportDecks?: Partial<Record<Language, string>>;
 }
 
 export interface AnkiCard {
@@ -420,6 +448,8 @@ export interface ProgressStats {
   language: Language;
   range: ProgressRange;
   activeMs: number;
+  /** Stage 3 (S3-04): speaking and listening time, apart from activeMs. */
+  voiceMs: number;
   sessions: number;
   /** Learner-produced words (tutor text and pasted spans excluded). */
   wordsWritten: number;

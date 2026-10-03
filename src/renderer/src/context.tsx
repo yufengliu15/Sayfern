@@ -3,15 +3,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AnkiStatus, NewSessionOptions } from "../../shared/api";
 import type { LanguageInfo } from "../../shared/lang";
+import { languageInfo } from "../../shared/languages";
+import { effectiveLocale, matchLocale, type UiLocale } from "../../shared/locales";
 import { pickDefaultModel } from "../../shared/models";
 import type { Language, SessionMeta } from "../../shared/records";
 import type { ModelInfo, ModelRef, ProviderInfo, Settings } from "../../shared/types";
 import { api } from "./api";
+import { setLocale } from "./i18n";
 import { startChatStream } from "./lib/chatStream";
 import { currentRoute, navigate, parseRoute, replaceRoute, sessionRoute } from "./router";
 
 export interface AppContextValue {
   settings: Settings;
+  /** Interface language in effect (the learner's choice, else the system's). */
+  locale: UiLocale;
+  /** The locale matched from the system's preferred languages. */
+  systemLocale: UiLocale;
   updateSettings(patch: Partial<Settings>): Promise<void>;
   /** Languages the learner opted into, in picker order. */
   languages: LanguageInfo[];
@@ -43,10 +50,10 @@ export function useApp(): AppContextValue {
   return v;
 }
 
-const FALLBACK_LANG: Record<Language, LanguageInfo> = {
-  zh: { id: "zh", name: "Chinese", nativeName: "中文", glyph: "中", fontClass: "zh", levels: [], readingName: "Pinyin" },
-  ja: { id: "ja", name: "Japanese", nativeName: "日本語", glyph: "日", fontClass: "ja", levels: [], readingName: "Reading" },
-};
+const FALLBACK_LANG = (id: Language): LanguageInfo => languageInfo(id);
+
+/** The browser's languages, for the dev mock and if the backend can't answer. */
+const browserLocale = (): UiLocale => matchLocale(typeof navigator === "undefined" ? [] : [...(navigator.languages ?? [navigator.language])]);
 
 export function AppProvider({ children, fallback }: { children: ReactNode; fallback: ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -56,6 +63,7 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
   const [model, setModelState] = useState<ModelRef | undefined>();
   const [sessionsByLang, setSessionsByLang] = useState<Partial<Record<Language, SessionMeta[]>>>({});
   const [anki, setAnki] = useState<AnkiStatus | null>(null);
+  const [systemLocale, setSystemLocale] = useState<UiLocale>(browserLocale);
 
   const refreshAuth = useCallback(async () => {
     const [prov, list, s] = await Promise.all([api.listProviders(), api.listModels(), api.getSettings()]);
@@ -81,8 +89,10 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
   useEffect(() => {
     startChatStream();
     void (async () => {
-      const [s, langs] = await Promise.all([api.getSettings(), api.listLanguages()]);
+      const [s, langs, sys] = await Promise.all([api.getSettings(), api.listLanguages(), api.systemLocale().catch(() => browserLocale())]);
       setAllLanguages(langs);
+      setSystemLocale(sys);
+      setLocale(effectiveLocale(s.uiLocale, [sys]));
       setSettings(s);
       await Promise.all([refreshAuth(), loadSessions(s.languages ?? langs.map((l) => l.id)), refreshAnki()]);
       const route = parseRoute(currentRoute());
@@ -95,9 +105,12 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
   const value = useMemo<AppContextValue | null>(() => {
     if (!settings) return null;
     const enabled = settings.languages?.length ? settings.languages : allLanguages.map((l) => l.id);
-    const languages = enabled.map((id) => allLanguages.find((l) => l.id === id) ?? FALLBACK_LANG[id]);
+    const languages = enabled.map((id) => allLanguages.find((l) => l.id === id) ?? FALLBACK_LANG(id));
     const language = enabled.includes(settings.language) ? settings.language : (enabled[0] ?? "zh");
-    const lang = languages.find((l) => l.id === language) ?? FALLBACK_LANG[language];
+    const lang = languages.find((l) => l.id === language) ?? FALLBACK_LANG(language);
+    const locale = effectiveLocale(settings.uiLocale, [systemLocale]);
+    // Before any child renders: t() reads the module-level locale.
+    setLocale(locale);
     const modelInfo = model && models.find((m) => m.provider === model.provider && m.id === model.id);
 
     const updateSettings = async (patch: Partial<Settings>) => {
@@ -108,6 +121,8 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
 
     return {
       settings,
+      locale,
+      systemLocale,
       updateSettings,
       languages,
       allLanguages,
@@ -140,7 +155,7 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
         navigate(sessionRoute(view.meta.id));
       },
     };
-  }, [settings, allLanguages, providers, models, model, sessionsByLang, anki, refreshAuth, loadSessions, refreshAnki]);
+  }, [settings, systemLocale, allLanguages, providers, models, model, sessionsByLang, anki, refreshAuth, loadSessions, refreshAnki]);
 
   if (!value) return <>{fallback}</>;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

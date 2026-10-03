@@ -28,6 +28,7 @@ import type {
   ChatMessage,
   Correction,
   DocKind,
+  Difficulty,
   FeedbackMode,
   GrammarObservation,
   GrammarSummary,
@@ -47,9 +48,10 @@ import type {
   Verdict,
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
-import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings } from "../../shared/types";
+import { LANGUAGE_META } from "../../shared/languages";
+import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "../../shared/types";
 import { SayfernTutor } from "../agent";
-import { pickFollowUps } from "../agent/prompt";
+import { lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
 import { TARGET_COUNT } from "../agent/turn";
 import { AnkiConnectService } from "../anki";
 import type { TutorEvent } from "../contracts";
@@ -58,6 +60,14 @@ import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { describeProviders, listAvailableModels } from "../providers";
 import { JsonRecordsStore } from "../records";
+import { BuilderService } from "../builder";
+import { QuizService } from "../quiz";
+import { DeckService } from "../decks";
+import { ReviewService } from "../review";
+import { bindSlot, type Stage2Deps } from "../stage2";
+import { ElevenLabsAccounts, VoiceService } from "../voice";
+import { VOICE_METHODS, type VoiceApi } from "../../shared/stage3";
+import { BUILDER_METHODS, DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type BuilderApi, type DeckApi, type QuizApi, type ReviewApi } from "../../shared/stage2";
 import { SettingsStore } from "./settings";
 
 export { SettingsStore, DEFAULT_SETTINGS } from "./settings";
@@ -80,16 +90,19 @@ export interface SayfernAppDeps {
   kuromojiDicPath?: string;
   /** Extension log sink. Default: console. */
   extensionLog?: (id: string, ...args: unknown[]) => void;
+  /** The OS's preferred languages, in order (main: app.getPreferredSystemLanguages). Picks the default interface language. */
+  systemLocales?: () => readonly string[];
 }
 
 /** Methods that need Electron (dialogs, shell): main implements these itself. */
-export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExtensionsFolder" | "openExternal";
+export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExtensionsFolder" | "openExternal" | "requestMicrophone";
 
 /**
- * What "Erase all data" removes, relative to dataDir. Kept: dict/ (downloaded dictionaries, not learner data)
- * and extensions/ (code the learner installed). credentials.json goes too unless sign-ins are kept.
+ * What "Erase all data" removes, relative to dataDir. Kept: dict/ (downloaded dictionaries, not learner data),
+ * extensions/ (code the learner installed) and builder/features/ (features built in Customize); what those
+ * features stored (builder/data/) goes. credentials.json goes too unless sign-ins are kept.
  */
-export const ERASE_PATHS = ["records", "library", "anki", "sessions", "settings.json", "extensions.json"] as const;
+export const ERASE_PATHS = ["records", "library", "anki", "sessions", "settings.json", "extensions.json", "builder/data"] as const;
 export type CoreApi = Pick<SayfernApi, Exclude<ApiMethod, ElectronOnlyMethod>>;
 
 type ChatEventBody = ChatEvent extends infer E ? (E extends ChatEvent ? Omit<E, "requestId" | "sessionId"> : never) : never;
@@ -99,12 +112,13 @@ const RECENT_COUNT = 5;
 /** Background Anki refresh: sync when the snapshot is older than this. */
 export const ANKI_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
-const PLACEMENT_TITLES: Record<Language, string> = { zh: "水平测试", ja: "レベルチェック" };
-const PRACTICE_PREFIX: Record<Language, string> = { zh: "练习", ja: "練習" };
 
 export function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
+
+/** Stage 2 slot methods are bound onto SayfernApp at construction (see bindSlot in core/stage2.ts). */
+export interface SayfernApp extends ReviewApi, QuizApi, Omit<BuilderApi, `on${string}`>, DeckApi, VoiceApi {}
 
 export class SayfernApp implements CoreApi {
   readonly dataDir: string;
@@ -117,6 +131,11 @@ export class SayfernApp implements CoreApi {
   readonly extensions: FileExtensionHost;
   readonly tutor: SayfernTutor;
   readonly settings: SettingsStore;
+  readonly review: ReviewService;
+  readonly quizzes: QuizService;
+  readonly builder: BuilderService;
+  readonly decks: DeckService;
+  readonly voice: VoiceService;
 
   private readonly emitEvent: SayfernAppDeps["emit"];
   private readonly now: () => number;
@@ -144,7 +163,7 @@ export class SayfernApp implements CoreApi {
     this.openUrl = deps.openExternal;
     const now = this.now;
 
-    this.settings = new SettingsStore(join(this.dataDir, "settings.json"));
+    this.settings = new SettingsStore(join(this.dataDir, "settings.json"), deps.systemLocales);
     this.records = new JsonRecordsStore({ dataDir: join(this.dataDir, "records"), now });
     // AnkiConnect is on localhost: use Node's fetch (deps.ankiFetch) rather than Chromium's net stack,
     // so system proxy/PAC settings can never intercept 127.0.0.1.
@@ -154,6 +173,7 @@ export class SayfernApp implements CoreApi {
       dataDir: join(this.dataDir, "dict"),
       fetch: deps.fetch,
       kuromojiDicPath: deps.kuromojiDicPath,
+      glossLocale: () => this.settings.locale(),
       wordUsage: (language, word) => this.records.getWordUsage(language, word),
       ankiCard: async (language, word) => ((await this.anki.getConfig()).enabled ? this.anki.findCard(language, word) : null),
     });
@@ -171,7 +191,45 @@ export class SayfernApp implements CoreApi {
       extensions: this.extensions,
       now,
       newId: this.newId,
+      explanationLanguage: () => this.settings.explanationLanguage(),
+      translator: () => this.settings.translator(),
     });
+
+    // Stage 2 services: one shared deps object; their slot methods become SayfernApp methods.
+    const stage2: Stage2Deps = {
+      dataDir: this.dataDir,
+      models: this.models,
+      records: this.records,
+      anki: this.anki,
+      library: this.library,
+      lang: this.lang,
+      extensions: this.extensions,
+      settings: this.settings,
+      resolveModel: (ref) => this.resolveModel(ref),
+      emit: (channel, payload) => this.emitEvent(channel, payload),
+      now,
+      newId: this.newId,
+      fetch: deps.fetch,
+      credentials: this.credentials,
+    };
+    // One ElevenLabs account pool for deck audio and voice.
+    stage2.eleven = new ElevenLabsAccounts({
+      credentials: this.credentials,
+      settings: this.settings,
+      fetch: () => deps.fetch ?? globalThis.fetch.bind(globalThis),
+      now,
+      newId: this.newId,
+    });
+    this.review = new ReviewService(stage2);
+    this.quizzes = new QuizService(stage2);
+    this.builder = new BuilderService(stage2);
+    bindSlot(this, this.review, REVIEW_METHODS);
+    bindSlot(this, this.quizzes, QUIZ_METHODS);
+    bindSlot(this, this.builder, BUILDER_METHODS);
+    this.decks = new DeckService(stage2);
+    bindSlot(this, this.decks, DECK_METHODS);
+    this.voice = new VoiceService(stage2);
+    bindSlot(this, this.voice, VOICE_METHODS);
   }
 
   /** One-time setup: v0.1 session import (once), extensions. Call before serving requests. */
@@ -220,6 +278,10 @@ export class SayfernApp implements CoreApi {
 
   setSettings(patch: Partial<Settings>): Promise<Settings> {
     return this.settings.update(patch);
+  }
+
+  async systemLocale(): Promise<UiLocale> {
+    return this.settings.systemLocale();
   }
 
   listProviders(): Promise<ProviderInfo[]> {
@@ -337,12 +399,7 @@ export class SayfernApp implements CoreApi {
       this.homeTargets(language, sessions[0]),
     ]);
 
-    const lastAssessed = new Map<string, { verdict: string; at: number }>();
-    for (const o of observations) {
-      if (o.verdict !== "correct" && o.verdict !== "incorrect") continue;
-      const prev = lastAssessed.get(o.grammarId);
-      if (!prev || o.at >= prev.at) lastAssessed.set(o.grammarId, { verdict: o.verdict, at: o.at });
-    }
+    const lastAssessed = lastConversationVerdicts(observations);
 
     const home: HomeView = {
       language,
@@ -501,7 +558,27 @@ export class SayfernApp implements CoreApi {
     return this.records.updateSession(sessionId, { feedbackMode: mode });
   }
 
-  async send(sessionId: string, input: { text: string; pastedSpans?: string[] }, ref: ModelRef): Promise<{ requestId: string }> {
+  async setDifficulty(sessionId: string, difficulty: Difficulty): Promise<SessionMeta> {
+    const n = Math.round(Number(difficulty)) || 0;
+    const level = Math.max(-2, Math.min(2, n)) as Difficulty;
+    return this.records.updateSession(sessionId, { difficulty: level });
+  }
+
+  /** "New topic": a tutor turn with a hidden kickoff, like an opening, mid-session. */
+  async newTopic(sessionId: string, ref: ModelRef): Promise<{ requestId: string }> {
+    const session = await this.records.getSession(sessionId);
+    if (!session) throw new Error("This session no longer exists.");
+    if (this.openings.has(sessionId)) throw new Error("The tutor is still starting this session. Try again in a moment.");
+    const model = this.resolveModel(ref);
+    this.openings.add(sessionId);
+    const requestId = this.startRequest(sessionId, (signal, onEvent) => {
+      onEvent({ type: "delta", text: "" });
+      return this.tutor.runOpening({ sessionId, model, signal, onEvent, newTopic: true }).finally(() => this.openings.delete(sessionId));
+    });
+    return { requestId };
+  }
+
+  async send(sessionId: string, input: { text: string; pastedSpans?: string[]; spoken?: boolean }, ref: ModelRef): Promise<{ requestId: string }> {
     const session = await this.records.getSession(sessionId);
     if (!session) throw new Error("This session no longer exists.");
     const text = input.text?.trim();
@@ -509,7 +586,7 @@ export class SayfernApp implements CoreApi {
     if (this.openings.has(sessionId)) throw new Error("The tutor is still starting this session. Try again in a moment.");
     const model = this.resolveModel(ref);
     const requestId = this.startRequest(sessionId, (signal, onEvent) =>
-      this.tutor.runTurn({ sessionId, text: input.text, pastedSpans: input.pastedSpans, model, signal, onEvent }),
+      this.tutor.runTurn({ sessionId, text: input.text, pastedSpans: input.pastedSpans, spoken: input.spoken === true, model, signal, onEvent }),
     );
     return { requestId };
   }
@@ -685,7 +762,7 @@ export class SayfernApp implements CoreApi {
       kind: "practice",
       focusGrammarId: grammarId,
       ...(opts.explain ? { openWith: "explain" as const } : {}),
-      title: `${PRACTICE_PREFIX[point.language] ?? "Practice"} ${point.pattern}`,
+      title: `${LANGUAGE_META[point.language]?.titles.practice ?? "Practice"} ${point.pattern}`,
     });
   }
 
@@ -835,7 +912,7 @@ export class SayfernApp implements CoreApi {
   }
 
   startPlacement(language: Language): Promise<SessionView> {
-    return this.createAndOpen({ language, kind: "placement", title: PLACEMENT_TITLES[language] });
+    return this.createAndOpen({ language, kind: "placement", title: LANGUAGE_META[language].titles.placement });
   }
 
   // ============================================================ data & extensions
@@ -848,6 +925,9 @@ export class SayfernApp implements CoreApi {
   async eraseData(opts: { keepSignIns: boolean }): Promise<void> {
     const deviceId = opts.keepSignIns ? (await this.settings.get()).deviceId : undefined;
     for (const ctrl of this.inflight.values()) ctrl.abort();
+    this.quizzes.abortAll();
+    await this.builder.abortAll();
+    await this.decks.abortAll();
     await this.cancelLogin();
     await this.whenIdle();
     await this.whenAnkiFresh();
@@ -871,6 +951,8 @@ export class SayfernApp implements CoreApi {
       exportedAt: new Date(this.now()).toISOString(),
       settings,
       records: await this.records.exportAll(),
+      quizzes: await this.quizzes.exportAll(),
+      builder: await this.builder.exportAll(),
       library,
       anki: await this.anki.getConfig(),
     };

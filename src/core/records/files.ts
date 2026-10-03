@@ -1,6 +1,7 @@
 // On-disk record shapes that are private to the records store.
 import type { Message } from "@earendil-works/pi-ai";
-import type { ChatMessage, Language, PracticeTarget, SessionMeta, WordUsage } from "../../shared/records";
+import { LANGUAGE_META, spaceSeparated } from "../../shared/languages";
+import { LANGUAGES, type ChatMessage, type Language, type PracticeTarget, type SessionMeta, type WordUsage } from "../../shared/records";
 import type { JsonCodec } from "./io";
 
 /** sessions/<id>.json */
@@ -25,6 +26,8 @@ export interface ActivityEntry {
   language: Language;
   sessionId: string;
   ms: number;
+  /** Stage 3 (S3-04): listening and speaking time, counted apart from text practice. */
+  voiceMs?: number;
 }
 
 /** word-usage-<lang>.json is stored as an array (oldest first) and held as a Map in memory. */
@@ -39,10 +42,11 @@ export const wordUsageCodec: JsonCodec<Map<string, WordUsage>> = {
   },
 };
 
-export const DEFAULT_TITLES: Record<Language, string> = { zh: "新对话", ja: "新しい会話" };
+export const DEFAULT_TITLES = Object.fromEntries(LANGUAGES.map((l) => [l, LANGUAGE_META[l].titles.chat])) as Record<Language, string>;
 
-/** Title a session from the learner's first message (~14 characters). */
-export function titleFrom(text: string): string {
+/** Title a session from the learner's first message (~14 CJK characters, ~28 for languages written with spaces). */
+export function titleFrom(text: string, language?: Language): string {
+  const max = language && spaceSeparated(language) ? 28 : 14;
   const chars = [...text.replace(/\s+/g, " ").trim()];
-  return chars.slice(0, 14).join("") + (chars.length > 14 ? "…" : "");
+  return chars.slice(0, max).join("") + (chars.length > max ? "…" : "");
 }

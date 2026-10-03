@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileCredentialStore } from "../credential-file-store";
 import { createSayfernModels } from "../providers";
-import { requestOptions, THINKING_HEADROOM } from "./options";
+import { needsEvidencePass, requestOptions, THINKING_HEADROOM } from "./options";
 
 const models = createSayfernModels(new FileCredentialStore(join(mkdtempSync(join(tmpdir(), "sayfern-opt-")), "c.json")));
 const model = (provider: string, id: string) => {
@@ -26,4 +26,11 @@ test("requestOptions: always-thinking models get low effort and headroom", () =>
   assert.deepEqual(requestOptions(model("openai", "gpt-5"), 1500), { maxTokens: 1500 + THINKING_HEADROOM, reasoning: "low" });
   // Only "high" exists: clamp up rather than send an unsupported level.
   assert.deepEqual(requestOptions(model("openai", "gpt-5-pro"), 1500), { maxTokens: 1500 + THINKING_HEADROOM, reasoning: "high" });
+});
+
+test("evidence pass: on for GPT models (API and ChatGPT sign-in), off for Claude anywhere", () => {
+  assert.equal(needsEvidencePass({ api: "openai-responses", id: "gpt-5" }), true);
+  assert.equal(needsEvidencePass({ api: "openai-codex-responses", id: "gpt-6-sol" }), true);
+  assert.equal(needsEvidencePass({ api: "anthropic-messages", id: "claude-sonnet-4-5" }), false);
+  assert.equal(needsEvidencePass({ api: "bedrock-converse-stream", id: "anthropic.claude-sonnet-4-5" }), false);
 });

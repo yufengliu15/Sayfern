@@ -2,12 +2,13 @@
 // Claude Code CLI, the real Sayfern core, the real proxy, fake AnkiConnect,
 // scoring and report. No network, no subscription, no tokens spent.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClaudeCodeArm } from "../lib/arms/claude-code";
 import { SayfernArm } from "../lib/arms/sayfern";
 import { BENCH_DIR, type BenchConfig, type ClaudeCodeArmConfig, type SayfernArmConfig } from "../lib/config";
+import { extractJudgeItems, missingVerdicts, type Item } from "../lib/judge";
 import { RecordingProxy } from "../lib/proxy";
 import { computeMetrics, renderReport } from "../lib/report";
 import { runAll } from "../lib/runner";
@@ -76,5 +77,36 @@ export async function selftest(base: BenchConfig): Promise<void> {
   assert.ok(md.includes("## Headline") && md.includes("Estimated plan-limit usage"));
   assert.ok(!readFileSync(join(runDir, "wire.jsonl"), "utf8").includes("SECRET-42"), "API keys never written to disk");
   step(`report rendered (${md.split("\n").length} lines); no credentials in captures`);
+  // Judge replies: prose, code fences, a second object, and braces inside strings (the parse
+  // failure seen in run 2026-10-01T17-47-57).
+  assert.deepEqual(extractJudgeItems('Here:\n```json\n{"items":[{"item":"s0-t0","note":"uses {braces}"}]}\n```'), [{ item: "s0-t0", note: "uses {braces}" }]);
+  assert.deepEqual(
+    (extractJudgeItems('{"items":[{"item":"a"}]}\n{"items":[{"item":"b"}]}') ?? []).map((i) => i.item),
+    ["a", "b"],
+  );
+  assert.equal(extractJudgeItems("no json here"), null);
+  assert.equal(extractJudgeItems('{"other":1}'), null);
+  step("judge reply parsing: fenced, split and brace-in-string replies");
+  // Missing verdicts are detected per item and field.
+  const jItems: Item[] = [
+    { item: "f", kind: "turn", tutor: "", fact: "x" },
+    { item: "c", kind: "turn", tutor: "", clean: true },
+    { item: "e", kind: "turn", tutor: "", goldErrors: [{ id: "g1", original: "", accept: [], pattern: "" }] },
+    { item: "n", kind: "turn", tutor: "" },
+  ];
+  assert.deepEqual(missingVerdicts(jItems, []), ["f", "c", "e"]);
+  assert.deepEqual(missingVerdicts(jItems, [{ item: "f", correct: false }, { item: "c", falsePositive: false }, { item: "e", errors: [{ id: "g1", flagged: true, correctFix: true }] }]), []);
+  // A block whose judge call failed keeps its denominators: both arms are scored out of the same totals.
+  const blockKeys = readdirSync(join(runDir, "blocks")).sort();
+  const failedKey = blockKeys.find((k) => k.startsWith("sayfern__zh-anki-grounding"));
+  writeFileSync(join(runDir, "judge.json"), JSON.stringify(blockKeys.map((k) => (k === failedKey ? { block: k, items: [], error: "simulated parse failure" } : { block: k, items: [] }))));
+  const md2 = renderReport(cfg, runDir, scenarios, { runId: "selftest", startedAt: new Date().toISOString(), fixtures: "synthetic", reps: 1, arms: [{ id: "sayfern", label: "Sayfern", version: "selftest" }, { id: "claude-code", label: "Claude Code + skill", version: "fake" }] });
+  const factsRow = md2.split("\n").find((l) => l.startsWith("| Judge: Anki facts stated correctly"));
+  assert.ok(factsRow, "facts row present");
+  const dens = [...factsRow!.matchAll(/\(\d+\/(\d+)/g)].map((m) => m[1]);
+  assert.equal(dens.length, 2);
+  assert.equal(dens[0], dens[1], `same Anki fact totals for both arms: ${factsRow}`);
+  assert.ok(md2.includes("ungraded"), "missing verdicts are flagged");
+  step(`judge denominators come from gold items (${factsRow!.trim()})`);
   console.log(`✓ bench selftest passed (${runDir})`);
 }

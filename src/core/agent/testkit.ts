@@ -1,12 +1,13 @@
 // Test harness for the agent (not a test file itself): real records, language
 // and library services on temp dirs, a fake Anki service, pi-ai's faux provider.
+import { translator } from "../../shared/i18n";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createModels, fauxProvider, type Api, type Model } from "@earendil-works/pi-ai";
 import type { AnkiCard, AnkiConfig, AnkiSnapshot, AnkiWordFilter, Language, PracticeTarget, SessionKind } from "../../shared/records";
 import { aggregateWords, buildOverview, checkWordsIn, wordPage } from "../anki/words";
-import type { AnkiService, TutorEvent } from "../contracts";
+import type { AnkiAddResult, AnkiNoteInput, AnkiNoteType, AnkiService, TutorEvent } from "../contracts";
 import { JsonRecordsStore } from "../records";
 import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
@@ -74,6 +75,16 @@ export class FakeAnki implements AnkiService {
     this.selectCalls++;
     return this.targets.slice(0, count).map((t) => ({ ...t }));
   }
+  async ensureNoteType(_type: AnkiNoteType): Promise<boolean> {
+    return false;
+  }
+  async ensureDeck(_deck: string): Promise<void> {}
+  async addNotes(_notes: AnkiNoteInput[]): Promise<AnkiAddResult[]> {
+    throw new Error("FakeAnki can't add notes");
+  }
+  async storeMedia(filename: string, _base64: string): Promise<string> {
+    return filename;
+  }
 }
 
 export interface Harness {
@@ -108,7 +119,7 @@ export function makeHarness(opts: { tokensPerSecond?: number } = {}): Harness {
   const ankiOn = { value: false };
   let n = 0;
   const newId = () => `id${++n}`;
-  const deps: TutorDeps = { models, records, lang, library, anki, now, newId, ankiEnabled: async () => ankiOn.value };
+  const deps: TutorDeps = { models, records, lang, library, anki, now, newId, ankiEnabled: async () => ankiOn.value, explanationLanguage: async () => "English", translator: async () => translator("en"), evidencePass: () => false };
   const tutor = new SayfernTutor(deps);
   return {
     dir,

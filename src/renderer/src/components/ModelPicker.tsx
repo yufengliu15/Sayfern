@@ -4,6 +4,7 @@ import type { ModelInfo, ModelRef } from "../../../shared/types";
 import { useApp } from "../context";
 import { cls } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
+import { t } from "../i18n";
 import { navigate } from "../router";
 import { Icon } from "./icons";
 
@@ -24,7 +25,7 @@ export function ModelPicker({ placement = "up" }: { placement?: "up" | "down" })
     return (
       <button className="mp-btn connect" onClick={() => navigate("settings")}>
         <Icon name="key" size={14} />
-        Connect a model
+        {t("Connect a model")}
       </button>
     );
   }
@@ -39,15 +40,15 @@ export function ModelPicker({ placement = "up" }: { placement?: "up" | "down" })
         className="mp-btn"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Model: ${modelInfo?.name ?? "none"}`}
+        aria-label={t("Model: {name}", { name: modelInfo?.name ?? t("none") })}
         onClick={() => setOpen(!open)}
       >
         {modelInfo?.reasoning && <Icon name="spark" size={13} />}
-        <span>{modelInfo?.name ?? "Choose a model"}</span>
+        <span>{modelInfo?.name ?? t("Choose a model")}</span>
         <Icon name={placement === "up" ? "chevUp" : "chev"} size={13} stroke={2} />
       </button>
       {open && (
-        <div className={cls("mp-menu", placement)} role="menu" aria-label="Models">
+        <div className={cls("mp-menu", placement)} role="menu" aria-label={t("Models")}>
           {[...groups.entries()].map(([prov, list]) => (
             <div key={prov} role="group" aria-label={providerName(prov)}>
               <div className="mh">{providerName(prov)}</div>
@@ -67,13 +68,13 @@ export function ModelPicker({ placement = "up" }: { placement?: "up" | "down" })
                     <span className="mp-name">{m.name}</span>
                     <span className="mp-caps">
                       {m.reasoning && (
-                        <span className="cap" title="Thinks before answering">
-                          <Icon name="spark" size={12} /> Reasoning
+                        <span className="cap" title={t("Thinks before answering")}>
+                          <Icon name="spark" size={12} /> {t("Reasoning")}
                         </span>
                       )}
                       {m.input.includes("image") && (
-                        <span className="cap" title="Can read images">
-                          <Icon name="image" size={12} /> Images
+                        <span className="cap" title={t("Can read images")}>
+                          <Icon name="image" size={12} /> {t("Images")}
                         </span>
                       )}
                       {m.contextWindow > 0 && <span className="cap mono">{ctx(m.contextWindow)}</span>}

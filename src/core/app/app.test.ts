@@ -503,3 +503,23 @@ test("anki: background refresh at startup and session start (6 h max age, never 
   await app.whenAnkiFresh();
   assert.equal((await app.anki.snapshot("zh"))?.syncedAt, clock.t);
 });
+
+test("setDifficulty clamps to -2..2; newTopic streams a tutor turn and blocks send while it runs", async () => {
+  const { app, faux, chat, ref } = await makeApp({ tokensPerSecond: 50 });
+  const s = await app.newSession({ language: "zh", kind: "chat" });
+  assert.equal((await app.setDifficulty(s.meta.id, 7 as never)).difficulty, 2);
+  assert.equal((await app.setDifficulty(s.meta.id, -1)).difficulty, -1);
+  assert.equal((await app.getSession(s.meta.id))?.meta.difficulty, -1);
+
+  faux.setResponses([fauxAssistantMessage("换个话题吧！你喜欢什么音乐？")]);
+  const { requestId } = await app.newTopic(s.meta.id, ref);
+  await assert.rejects(app.send(s.meta.id, { text: "你好" }, ref), /still starting/);
+  await app.whenIdle();
+  const evs = chat(s.meta.id);
+  assert.ok(evs.every((e) => e.requestId === requestId));
+  const done = evs.at(-1) as Extract<ChatEvent, { type: "done" }>;
+  assert.equal(done.type, "done");
+  assert.equal(done.message.text, "换个话题吧！你喜欢什么音乐？");
+  assert.deepEqual(done.view.messages.map((m) => m.role), ["tutor"]);
+  await assert.rejects(app.newTopic("nope", ref), /no longer exists/);
+});

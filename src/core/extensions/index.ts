@@ -1,7 +1,8 @@
 // User extensions (F-09). Each extension is a folder `<dir>/<id>/` with a
 // package.json and an ESM entry that exports `activate(api)`. See docs/extensions.md.
+import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { TSchema } from "@earendil-works/pi-ai";
 import type { ExtensionInfo } from "../../shared/api";
@@ -42,7 +43,25 @@ export interface FileExtensionHostOptions {
   log?: (id: string, ...args: unknown[]) => void;
 }
 
+/**
+ * An extension managed by the feature builder (S2-13): loaded from its version folder, not from `dir`.
+ * Its main-side entry (full app access) is only imported when the folder's current hash was approved.
+ */
+export interface ManagedExtension {
+  id: string;
+  /** Folder of the version to load. */
+  dir: string;
+  enabled: boolean;
+  /** Content hashes (hashDir) the learner approved after reading the code. */
+  approvedHashes: string[];
+}
+
+export interface ManagedExtensionSource {
+  list(): Promise<ManagedExtension[]>;
+}
+
 interface Loaded {
+  managed?: boolean;
   info: ExtensionInfo;
   tools: TutorTool[];
   additions: ((language: Language) => string | undefined)[];
@@ -69,6 +88,7 @@ export class FileExtensionHost implements ExtensionHost {
   /** Bumped on every load so re-imports bypass the ESM module cache. */
   private generation = 0;
   private chain: Promise<unknown> = Promise.resolve();
+  private managed?: ManagedExtensionSource;
 
   constructor(opts: FileExtensionHostOptions) {
     this.dir = resolve(opts.dir);
@@ -101,8 +121,19 @@ export class FileExtensionHost implements ExtensionHost {
 
   // ------------------------------------------------------------ management
 
+  /** Hand-installed extensions (the `extensions/` folder). */
   list(): ExtensionInfo[] {
-    return this.loaded.map((l) => structuredClone(l.info));
+    return this.loaded.filter((l) => !l.managed).map((l) => structuredClone(l.info));
+  }
+
+  /** Builder-made features as loaded by the host (errors include refused, unapproved code). */
+  managedList(): ExtensionInfo[] {
+    return this.loaded.filter((l) => l.managed).map((l) => structuredClone(l.info));
+  }
+
+  /** The feature builder registers its features here; they load after the folder's extensions on every (re)load. */
+  setManagedSource(source: ManagedExtensionSource | undefined): void {
+    this.managed = source;
   }
 
   /** (Re)loads every extension folder. Never throws for a broken extension. */
@@ -147,12 +178,24 @@ export class FileExtensionHost implements ExtensionHost {
     }
     const loaded: Loaded[] = [];
     for (const id of names) loaded.push(await this.loadOne(id, state.enabled[id] !== false));
+    let managed: ManagedExtension[] = [];
+    try {
+      managed = (await this.managed?.list()) ?? [];
+    } catch (err) {
+      this.logFn("builder", "couldn't list features:", errorText(err));
+    }
+    for (const m of managed) {
+      if (names.includes(m.id)) continue; // a hand-installed folder with the same id wins
+      const l = await this.loadOne(m.id, m.enabled, { dir: resolve(m.dir), approvedHashes: m.approvedHashes });
+      l.managed = true;
+      loaded.push(l);
+    }
     this.loaded = loaded;
     return this.list();
   }
 
-  private async loadOne(id: string, enabled: boolean): Promise<Loaded> {
-    const path = join(this.dir, id);
+  private async loadOne(id: string, enabled: boolean, managed?: { dir: string; approvedHashes: string[] }): Promise<Loaded> {
+    const path = managed?.dir ?? join(this.dir, id);
     const info: ExtensionInfo = {
       id,
       name: id,
@@ -185,8 +228,24 @@ export class FileExtensionHost implements ExtensionHost {
     try {
       if (!(await stat(file)).isFile()) throw new Error("not a file");
     } catch {
+      // A builder feature without a main entry is UI-only (sandboxed): nothing to import.
+      if (managed && pkg.main === undefined) return entry;
       info.error = `Entry file not found: ${main}`;
       return entry;
+    }
+    if (managed) {
+      // Review gate: builder-made code with full access runs only if this exact code was approved.
+      let hash: string;
+      try {
+        hash = await hashDir(path);
+      } catch (err) {
+        info.error = `Couldn't check the feature's code: ${errorText(err)}`;
+        return entry;
+      }
+      if (!managed.approvedHashes.includes(hash)) {
+        info.error = "This version's code hasn't been approved, or changed after you approved it. Review it in Customize.";
+        return entry;
+      }
     }
 
     // Contributions are staged and only kept if activate() succeeds.
@@ -273,6 +332,9 @@ export class FileExtensionHost implements ExtensionHost {
   }
 }
 
+/** Default inspector line for an extension tool. English; the renderer translates the "Used {name}" pattern. */
+const used = (name: string): string => `Used ${name}`;
+
 function normalizeTool(t: ExtensionToolInput): TutorTool {
   if (!t || typeof t !== "object") throw new Error("registerTool expects a tool object");
   if (typeof t.name !== "string" || !TOOL_NAME.test(t.name)) {
@@ -289,13 +351,45 @@ function normalizeTool(t: ExtensionToolInput): TutorTool {
     recordingOnly: t.recordingOnly === true,
     async execute(args, ctx) {
       const out = await execute(args, ctx);
-      if (typeof out === "string") return { content: out, activity: `Used ${t.name}` };
+      if (typeof out === "string") return { content: out, activity: used(t.name) };
       if (out && typeof out === "object") {
         const o = out as { content?: unknown; activity?: unknown };
         const content = typeof o.content === "string" ? o.content : JSON.stringify(out);
-        return { content, activity: typeof o.activity === "string" && o.activity ? o.activity : `Used ${t.name}` };
+        return { content, activity: typeof o.activity === "string" && o.activity ? o.activity : used(t.name) };
       }
-      return { content: out === undefined ? "Done." : String(out), activity: `Used ${t.name}` };
+      return { content: out === undefined ? "Done." : String(out), activity: used(t.name) };
     },
   };
+}
+
+/** sha256 over sorted (path, bytes) pairs. The same files always give the same hash. */
+export function hashFiles(files: Iterable<[path: string, data: string | Uint8Array]>): string {
+  const h = createHash("sha256");
+  const sorted = [...files].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  for (const [path, data] of sorted) {
+    const bytes = typeof data === "string" ? Buffer.from(data, "utf8") : data;
+    h.update(`${path}\0${bytes.length}\0`);
+    h.update(bytes);
+  }
+  return h.digest("hex");
+}
+
+/** Every regular file under `dir` (posix relative paths). Symlinks and other entries are refused. */
+export async function readDirFiles(dir: string): Promise<[string, Buffer][]> {
+  const out: [string, Buffer][] = [];
+  const walk = async (d: string): Promise<void> => {
+    for (const e of await readdir(d, { withFileTypes: true })) {
+      const full = join(d, e.name);
+      if (e.isDirectory()) await walk(full);
+      else if (e.isFile()) out.push([relative(dir, full).split(sep).join("/"), await readFile(full)]);
+      else throw new Error(`Unexpected entry ${relative(dir, full)}`);
+    }
+  };
+  await walk(dir);
+  return out;
+}
+
+/** Content hash of a folder (see hashFiles). */
+export async function hashDir(dir: string): Promise<string> {
+  return hashFiles(await readDirFiles(dir));
 }

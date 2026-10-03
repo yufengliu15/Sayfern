@@ -2,7 +2,7 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { EndSummary } from "../../shared/api";
 import type { GrammarObservation, WordUsage } from "../../shared/records";
-import type { TutorDeps } from "./deps";
+import { explainIn, type TutorDeps } from "./deps";
 import { requestOptions } from "./options";
 import { stripPasted } from "./text";
 
@@ -10,12 +10,14 @@ export async function translate(deps: TutorDeps, sessionId: string, messageId: s
   const messages = await deps.records.getMessages(sessionId);
   const msg = messages.find((m) => m.id === messageId);
   if (!msg) throw new Error(`Message not found: ${messageId}`);
-  if (msg.translation) return msg.translation;
+  const target = await explainIn(deps);
+  // A translation is cached with the language it was made in; switching the interface language re-translates.
+  if (msg.translation && (msg.translationLang ?? "English") === target) return msg.translation;
   if (!msg.text.trim()) return "";
   const reply = await deps.models.completeSimple(
     model,
     {
-      systemPrompt: "Translate into natural English. Output only the translation.",
+      systemPrompt: `Translate into natural ${target}. Output only the translation.`,
       messages: [{ role: "user", content: msg.text, timestamp: deps.now() }],
     },
     requestOptions(model, 800),
@@ -27,7 +29,7 @@ export async function translate(deps: TutorDeps, sessionId: string, messageId: s
     .map((c) => (c.type === "text" ? c.text : ""))
     .join("")
     .trim();
-  if (translation) await deps.records.updateMessage(sessionId, messageId, { translation });
+  if (translation) await deps.records.updateMessage(sessionId, messageId, { translation, translationLang: target });
   return translation;
 }
 

@@ -1,3 +1,4 @@
+import { msg } from "../shared/i18n";
 import { createModels, type CredentialStore, type MutableModels, type Provider } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
@@ -21,19 +22,20 @@ const FACTORIES: (() => Provider)[] = [
 ];
 
 /** Friendlier sign-in button labels than the library defaults. */
+// Shown through the renderer's t(): msg() marks them for the catalogs.
 const LOGIN_LABELS: Record<string, string> = {
-  anthropic: "Sign in with Claude Pro/Max",
-  openai: "Sign in with ChatGPT",
+  anthropic: msg("Sign in with Claude Pro/Max"),
+  openai: msg("Sign in with ChatGPT"),
 };
 
 /** Short product notes shown on the connect screen. */
 const NOTES: Record<string, string> = {
-  anthropic: "Claude. Sign in with Pro/Max (uses your plan's Agent SDK credit) or an API key.",
-  openai: "GPT. Sign in with ChatGPT to use your subscription, or an API key.",
-  deepseek: "DeepSeek API key.",
-  fireworks: "Fireworks API key. Many open models.",
-  openrouter: "One key for hundreds of models.",
-  google: "Gemini API key.",
+  anthropic: msg("Claude. Sign in with Pro/Max (uses your plan's Agent SDK credit) or an API key."),
+  openai: msg("GPT. Sign in with ChatGPT to use your subscription, or an API key."),
+  deepseek: msg("DeepSeek API key."),
+  fireworks: msg("Fireworks API key. Many open models."),
+  openrouter: msg("One key for hundreds of models."),
+  google: msg("Gemini API key."),
 };
 
 export function createSayfernModels(credentials: CredentialStore): MutableModels {

@@ -1,6 +1,6 @@
-# Sayfern architecture (v0.3.1)
+# Sayfern architecture (v0.5.0)
 
-This is the deep reference for the codebase. It describes what the code does as of v0.3.1, module by module, then walks through every end-to-end flow. For the short version read [`AGENTS.md`](../AGENTS.md). For why things are the way they are, read [`decisions.md`](decisions.md). For what comes next, read [`roadmap.md`](roadmap.md). Feature IDs (S1-xx, F-xx) are mapped to code in [`stage1.md`](stage1.md).
+This is the deep reference for the codebase. It describes what the code does as of v0.5.0, module by module, then walks through every end-to-end flow. Sections 1 to 15 cover the app as a whole (Stage 1 plus the places Stage 2 touched); section 16 covers the Stage 2 modules (review, quizzes, feature builder). For the short version read [`AGENTS.md`](../AGENTS.md). For why things are the way they are, read [`decisions.md`](decisions.md). For what comes next, read [`roadmap.md`](roadmap.md). Feature IDs are mapped to code in [`stage1.md`](stage1.md) (S1-xx, F-xx) and [`stage2.md`](stage2.md) (S2-xx).
 
 Contents
 
@@ -19,6 +19,7 @@ Contents
 13. [Styling](#13-styling)
 14. [Testing](#14-testing)
 15. [Build and dev scripts](#15-build-and-dev-scripts)
+16. [Stage 2: review, quizzes, feature builder](#16-stage-2-review-quizzes-feature-builder)
 
 ---
 
@@ -29,9 +30,11 @@ Contents
 │                                                                                                          │
 │  Renderer process (Chromium, no Node)            Preload (src/preload/index.ts)                          │
 │  src/renderer/src/**  React 19                   contextBridge.exposeInMainWorld("sayfern", api)          │
+│    FeatureFrame: <iframe sandbox="allow-scripts"> from sayfern-feature://, SDK calls → featureCall       │
 │    api.ts: Proxy over window.sayfern  ───────►   every API_METHODS entry → ipcRenderer.invoke("ipc:<m>")  │
 │    lib/chatStream.ts  ◄── events ─────────────   onChatEvent / onAuthEvent / onAuthPrompt /               │
-│                                                  onDictionaryProgress → ipcRenderer.on("evt:*")           │
+│                                                  onDictionaryProgress / onBuilderEvent →                 │
+│                                                  ipcRenderer.on("evt:*")                                 │
 │                                                              │  ▲                                        │
 │                                                  invoke      │  │ webContents.send(EVENT_CHANNELS[x])    │
 │                                                              ▼  │                                        │
@@ -39,18 +42,22 @@ Contents
 │    ipcMain.handle("ipc:<m>") for every API method                                                        │
 │      ├── electronOnly: importDocs, exportData, eraseAllData, openExtensionsFolder, openExternal           │
 │      └── everything else ──► SayfernApp (src/core/app/index.ts, plain Node)                              │
+│    sayfern-feature:// handler ──► BuilderService.serveAsset (feature pages, SDK, test pages)             │
+│    default session locked down (dead proxy, no subframe permissions); main HTTP on "sayfern-net"         │
 │    FileCredentialStore + safeStorage cipher (key in macOS Keychain)                                      │
-│    window, navigation guard, single-instance lock                                                        │
+│    window, navigation and frame-navigation guards, single-instance lock                                  │
+│    hidden sandboxed test windows for feature tests (src/main/features.ts)                                │
 │                                                                                                          │
 │  SayfernApp wires: SettingsStore · JsonRecordsStore · DefaultLanguageService · FileLibraryService ·      │
 │                    AnkiConnectService · FileExtensionHost · SayfernTutor · pi-ai MutableModels           │
+│                    + Stage 2 (bindSlot): ReviewService · QuizService · BuilderService                    │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-        │ HTTPS (pi-ai's own requests)          │ Node fetch                  │ Chromium net.fetch
+        │ HTTPS (pi-ai's own requests)          │ Node fetch                  │ Chromium net.fetch ("sayfern-net" session)
         ▼                                       ▼                             ▼
   model providers (Anthropic, OpenAI, ...)   AnkiConnect 127.0.0.1:8765    dictionary downloads
 ```
 
-The same `SayfernApp` also runs outside Electron: `scripts/smoke.ts` and `src/core/app/app.test.ts` construct it directly with a plain (unencrypted) `FileCredentialStore` and an `emit` callback.
+The same `SayfernApp` also runs outside Electron: `scripts/smoke.ts` and `src/core/app/app.test.ts` construct it directly with a plain (unencrypted) `FileCredentialStore` and an `emit` callback. Outside Electron the builder runs feature tests in a `node --permission` child process instead of a sandboxed window (section 16.4).
 
 ## 2. Repository map
 
@@ -65,13 +72,15 @@ The same `SayfernApp` also runs outside Electron: `scripts/smoke.ts` and `src/co
 | `scripts/brand-electron-app.mjs` | macOS only: renames node_modules' `Electron.app` to Sayfern (CFBundleName, CFBundleDisplayName), swaps in `build/icon.icns`, re-signs ad hoc (postinstall, predev, prestart). Idempotent; never fails the install. |
 | `build/icon.svg`, `icon.png`, `icon.icns` | App icon: the sidebar fern on forest green, Apple 824 px grid. The SVG is the source. |
 | `scripts/smoke.ts` | Terminal harness: providers, login, key, models, chat, offline selftest. |
-| `src/shared/` | Types and the renderer ↔ main contract. No runtime dependencies. |
+| `src/shared/` | Types and the renderer ↔ main contract. No runtime dependencies. Stage 2 API slots in `src/shared/stage2/`. |
 | `src/core/` | All app logic, plain Node, no Electron imports. |
-| `src/main/` | Electron main process: window, dialogs, credentials cipher, IPC table, e2e hook. |
+| `src/main/` | Electron main process: window, dialogs, credentials cipher, IPC table, feature sandbox sessions and test runner (`features.ts`), e2e hooks (`e2e.ts`). |
 | `src/preload/` | Generic bridge exposing `window.sayfern`. |
-| `src/renderer/` | React UI: `src/renderer/index.html`, `src/renderer/src/**`, including the mock backend `src/renderer/src/dev/mockApi.ts`. |
-| `examples/extensions/chengyu-of-the-day/` | Example extension used by docs, smoke selftest and tests. |
-| `docs/` | This documentation. |
+| `src/renderer/` | React UI: `src/renderer/index.html`, `src/renderer/src/**`, including the mock backend `src/renderer/src/dev/mockApi.ts` (+ Stage 2 mock slots) and per-feature stylesheets in `src/renderer/src/styles/`. |
+| `examples/extensions/chengyu-of-the-day/` | Example extension (main-side tutor tool) used by docs, smoke selftest, tests and the builder kit. |
+| `examples/extensions/measure-word-drill/` | Example built feature: sandboxed tab + Today activity, pure logic in `ui/drill.js`, 12 tests. Part of the builder kit. |
+| `bench/` | Benchmark vs Claude Code + skill ([`benchmark.md`](benchmark.md)). |
+| `docs/` | This documentation. `feature-builder.md` and `feature-sdk.d.ts` are also builder kit files the builder model reads. |
 | `.sayfern-dev/` | Gitignored data and plain-text credentials written by `npm run smoke`. |
 | `design/wireframes/` | Design Component sources and canvas link. Exists in the owner's copy of the repo; not present in this checkout. |
 
@@ -86,8 +95,8 @@ src/renderer ◄── imports src/shared (types, pickDefaultModel); talks to th
 ```
 
 - Core services are classes constructed with explicit dependencies (`dataDir`, `fetch`, `now`, other services). No singletons, no globals. This is what lets tests and the smoke script run the whole app without Electron.
-- Cross-module calls inside core go through the interfaces in `src/core/contracts.ts` (`RecordsStore`, `LanguageService`, `LibraryService`, `AnkiService`, `Tutor`, `ExtensionHost`, `TutorTool`, `ToolContext`).
-- The only renderer-visible surface is `SayfernApi` in `src/shared/api.ts`.
+- Cross-module calls inside core go through the interfaces in `src/core/contracts.ts` (`RecordsStore`, `LanguageService`, `LibraryService`, `AnkiService`, `Tutor`, `ExtensionHost`, `TutorTool`, `ToolContext`). Stage 2 services are the exception: they get one `Stage2Deps` object (`src/core/stage2.ts`) holding the concrete Stage 1 services, plus `resolveModel`, `emit`, `now`, `newId`.
+- The only renderer-visible surface is `SayfernApi` in `src/shared/api.ts`, which extends the Stage 2 slot interfaces. Built feature UIs see only the feature SDK (`window.sayfern` inside their frame, section 16.4), never `SayfernApi`.
 
 ---
 
@@ -95,11 +104,16 @@ src/renderer ◄── imports src/shared (types, pickDefaultModel); talks to th
 
 | File | Contents |
 |---|---|
-| `src/shared/api.ts` | `SayfernApi` (every renderer-callable method), view types (`HomeView`, `SessionView`, `EndSummary`, `GrammarDetail`, `RetryResult`, `AnkiStatus`, `ExtensionInfo`, `NewSessionOptions`, `SaveWordInput`), the `ChatEvent` union, `EVENT_CHANNELS`, `ApiMethod`, `ipcChannel()`, and `API_METHODS` (derived from a `Record<ApiMethod, true>` table so a missing or unknown method is a compile error). |
-| `src/shared/records.ts` | Domain types: `Language` (`"zh" \| "ja"`), `LANGUAGES`, sessions (`SessionMeta`, `ChatMessage`, `ToolActivity`, `UsageTotals`), `Correction`, grammar (`GrammarPoint`, `GrammarObservation`, `GrammarSummary`, `Verdict`, `Assistance`, `GrammarState`), vocabulary (`SavedWord`, `WordUsage`), `LevelEstimate`, `SKILLS`, `LearnerProfile`, library (`LibraryDoc`, `LibraryParagraph`, `LibraryHit`, `DocKind`, `DocFormat`), Anki (`AnkiConfig`, `AnkiDeckMapping`, `AnkiCard`, `AnkiSnapshot`, `AnkiWord`, `AnkiWordFilter`, `AnkiWordPage`, `AnkiOverview`, `PracticeTarget`), progress (`ProgressStats`, `ProgressRange`). Types only plus `LANGUAGES` and `SKILLS`. |
+| `src/shared/api.ts` | `SayfernApi` (every renderer-callable method), view types (`HomeView`, `SessionView`, `EndSummary`, `GrammarDetail`, `RetryResult`, `AnkiStatus`, `ExtensionInfo`, `NewSessionOptions`, `SaveWordInput`), the `ChatEvent` union, `EVENT_CHANNELS`, `ApiMethod`, `ipcChannel()`, and `API_METHODS` (derived from a `Record<ApiMethod, true>` table that spreads `REVIEW_METHODS`, `QUIZ_METHODS` and `BUILDER_METHODS`, so a missing or unknown method is a compile error). |
+| `src/shared/records.ts` | Domain types: `Language` (`"zh" \| "ja"`), `LANGUAGES`, sessions (`SessionMeta`, `ChatMessage`, `ToolActivity`, `UsageTotals`), `Correction`, grammar (`GrammarPoint`, `GrammarObservation` (optional `origin: "quiz"`, `quizId`), `GrammarSummary` (optional `quiz` counts), `Verdict`, `Assistance`, `GrammarState`), vocabulary (`SavedWord`, `WordUsage`), `LevelEstimate`, `SKILLS`, `LearnerProfile`, library (`LibraryDoc`, `LibraryParagraph`, `LibraryHit`, `DocKind`, `DocFormat`), Anki (`AnkiConfig` with optional `exportDecks`, `AnkiDeckMapping`, `AnkiCard`, `AnkiSnapshot`, `AnkiWord`, `AnkiWordFilter`, `AnkiWordPage`, `AnkiOverview`, `PracticeTarget`), progress (`ProgressStats`, `ProgressRange`). Types only plus `LANGUAGES` and `SKILLS`. |
 | `src/shared/lang.ts` | `Token`, `DictEntry`, `DictSense`, `LookupResult`, `DictionaryStatus`, `DictionaryProgress`, `LanguageInfo`. |
 | `src/shared/types.ts` | `ProviderInfo`, `ModelInfo`, `ModelRef`, `Settings`, `AuthPromptPayload`, `AuthEventPayload`. |
 | `src/shared/models.ts` | `pickDefaultModel(list)`: prefers `/sonnet/`, then `gpt-5`, `gpt-5-mini`, any `gpt-5*`, Gemini Flash, `deepseek-chat`; newest match (last in the catalogue) wins; otherwise the first model. Used by main (openings) and the renderer (initial model). |
+| `src/shared/stage2/index.ts` | Re-exports the three slots. `api.ts` re-exports all their types. |
+| `src/shared/stage2/review.ts` | `ReviewApi` + `REVIEW_METHODS`; `ReviewFilter`, `ReviewItem`, `ReviewList`, `AnkiCardStyle`, `AnkiCardDraft`, draft/export inputs and results; helpers `REVIEW_KIND` (correction kind → chip) and `clozeFront(back, gap, hint)`. |
+| `src/shared/stage2/quiz.ts` | `QuizApi` + `QUIZ_METHODS`; `QuizSpec` (focus, source, level, formats, length), `QuizOptions`, `QuizEstimate`, `QuizView`, `QuizQuestion` (no key until answered), `QuizListItem`, `QuizSummary`. |
+| `src/shared/stage2/builder.ts` | `BuilderApi` + `BUILDER_METHODS`; `BuilderEvent`, `FeatureInfo`, `FeatureVersion`, `FeatureTurn`, `BuildStep`, `FeatureSurface(Ref)`, `FeatureFile`, `FeatureCallContext`, `FEATURE_RPC_METHODS`, `FEATURE_LIMITS`, `FEATURE_SCHEME` (`sayfern-feature`). |
+| `src/shared/stage2/builder-sdk.ts` | `FEATURE_SDK_JS` and `FEATURE_SDK_CSS`: the SDK script and stylesheet served to feature frames at `/_sdk/`. |
 | `src/shared/correction.ts` | `splitCorrection(text)`: splits a "✎ " correction line off a reply. Not used by current code (the tutor records corrections through `record_evidence`); kept from v0.1. |
 
 Key `Token` contract (`src/shared/lang.ts`): tokens cover the input exactly and in order (`start`/`end` are UTF-16 offsets), `isWord` is false for punctuation, whitespace, latin and numbers, `reading` is tone-marked pinyin (zh) or hiragana (ja), `lemma` is the dictionary form (ja).
@@ -119,7 +133,7 @@ Key `Token` contract (`src/shared/lang.ts`): tokens cover the input exactly and 
 | `listAvailableModels(models)` | same | `models.getAvailable()` mapped to `ModelInfo` (provider, id, name, reasoning, input modalities, contextWindow). |
 | `FileCredentialStore` | `src/core/credential-file-store.ts` | Implements pi-ai's `CredentialStore` (`read`, `list`, `modify`, `delete`). One JSON file, writes serialized on a promise chain (pi-ai relies on serialized `modify` so concurrent requests never double-refresh an OAuth token). Optional `Cipher`; main passes one backed by `safeStorage`. |
 
-Auth modes as registered in v0.3.1: every provider accepts an API key; anthropic (Claude Pro/Max, subscription), openai (ChatGPT subscription) and openrouter have OAuth.
+Auth modes as registered in v0.5.0: every provider accepts an API key; anthropic (Claude Pro/Max, subscription), openai (ChatGPT subscription) and openrouter have OAuth.
 
 **Persistence.** `credentials.json`, mode 0600, written via tmp + rename:
 
@@ -131,7 +145,7 @@ Decrypted `data` is `Record<providerId, Credential>` as defined by pi-ai (`{ "ty
 
 ### 5.2 `app/`: `SayfernApp` and `SettingsStore`
 
-**Purpose.** The facade. Wires every service and implements `CoreApi` (all of `SayfernApi` except the four Electron-only methods). Main's IPC table routes to it; the smoke script and `app.test.ts` call it directly.
+**Purpose.** The facade. Wires every service and implements `CoreApi` (all of `SayfernApi` except the Electron-only methods), including the Stage 2 slot methods bound from `ReviewService`, `QuizService` and `BuilderService` (section 16.1). Main's IPC table routes to it; the smoke script and `app.test.ts` call it directly.
 
 Key files: `src/core/app/index.ts`, `src/core/app/settings.ts`.
 
@@ -148,8 +162,14 @@ It constructs, under `dataDir`:
 | `lang` | `DefaultLanguageService` | `dict/` (plus `wordUsage` and `ankiCard` callbacks into records and anki) |
 | `extensions` | `FileExtensionHost` | `extensions/` (state in `extensions.json`) |
 | `tutor` | `SayfernTutor` | uses all of the above |
+| `review` | `ReviewService` | none (reads records, writes through Anki) |
+| `quizzes` | `QuizService` | `records/quizzes/` |
+| `builder` | `BuilderService` | `builder/` (`features/`, `data/`) |
+| `decks` | `DeckService` | `records/decks/`, `records/deck-audio/` |
 
-Public helpers beyond `CoreApi`: `init()`, `refreshAnki(language)`, `whenAnkiFresh()`, `whenIdle()`, `getDeviceId()`, `authInteraction(signal)`, `importFiles(language, kind, paths)`, `exportTo(path)`, `exportFileName()`, `eraseData({ keepSignIns })` (stops work and deletes learner data; the instance must be discarded afterwards), `extensionsDir`. Constants: `ANKI_MAX_AGE_MS` (6 h), `ERASE_PATHS`, `ElectronOnlyMethod`, `CoreApi`, `errorText()`.
+The last four share one `Stage2Deps` and are bound with `bindSlot(this, service, *_METHODS)`; `SayfernApp` is declared to extend `ReviewApi`, `QuizApi`, `BuilderApi` (minus `onBuilderEvent`) and `DeckApi` through interface merging.
+
+Public helpers beyond `CoreApi`: `init()`, `refreshAnki(language)`, `whenAnkiFresh()`, `whenIdle()`, `getDeviceId()`, `authInteraction(signal)`, `importFiles(language, kind, paths)`, `exportTo(path)`, `exportFileName()`, `eraseData({ keepSignIns })` (stops turns, quiz generations and builds, then deletes learner data; the instance must be discarded afterwards), `extensionsDir`. Constants: `ANKI_MAX_AGE_MS` (6 h), `ERASE_PATHS`, `ElectronOnlyMethod`, `CoreApi`, `errorText()`.
 
 Internal state:
 
@@ -175,7 +195,7 @@ Internal state:
 }
 ```
 
-Tests: `src/core/app/app.test.ts` (streaming events, failure and abort paths, openings, self level, import + reading spot, export, extensions, settings + legacy import, translate lookup, background Anki refresh).
+Tests: `src/core/app/app.test.ts` (streaming events, failure and abort paths, openings, self level, import + reading spot, export, extensions, settings + legacy import, translate lookup, background Anki refresh); `src/core/quiz/app.test.ts` (quiz methods bound, quiz evidence on the grammar page, export and erase).
 
 ### 5.3 `records/`: `JsonRecordsStore`
 
@@ -194,7 +214,7 @@ Tests: `src/core/app/app.test.ts` (streaming events, failure and abort paths, op
 
 **Derived values.**
 
-- Grammar summary (`summarizeGrammar`): counts per current verdict (after disputes), `rate = correct / (correct + incorrect)` or `null`, state: `introduced` by default, `with_help` after any correct non-independent observation, `independent` after any correct independent one. `lastUsedAt` = newest observation.
+- Grammar summary (`summarizeGrammar`): counts per current verdict (after disputes), `rate = correct / (correct + incorrect)` or `null`, state: `introduced` by default, `with_help` after any correct non-independent observation, `independent` after any correct independent one. `lastUsedAt` = newest observation. Quiz observations (`isQuizObservation`: `origin: "quiz"` or `sessionId` starting `quiz:`) are counted apart in `GrammarSummary.quiz` (`counts`, `rate`, `lastAt`, absent when there are none) and never touch the conversation counts, rate or `lastUsedAt`; a correct quiz answer can only move `introduced` to `with_help`.
 - `listGrammar` sorts by `lastUsedAt` desc (never used last), then `updatedAt`.
 - `listSessions(language)` sorts by `updatedAt` desc and hides sessions with no messages that are older than one day (their files stay on disk).
 - Session title: set from the first learner message while the title is still the default.
@@ -202,6 +222,7 @@ Tests: `src/core/app/app.test.ts` (streaming events, failure and abort paths, op
 - `markTargets` only upgrades status: `pending` → `asked` → `used`.
 - `getLevels`: history sorted by time; `current[skill]` is the latest estimate.
 - `deleteSession` removes the session file and its corrections, observations and writing rows. Word usage is kept.
+- `recordObservations` keeps the optional `origin` / `quizId`; `deleteObservations({ sessionId })` (not on the `RecordsStore` interface) removes a quiz's evidence when the quiz is deleted.
 
 **Progress (`computeProgress`, S1-22..S1-25).** Range windows: week = last 7 local dates, month = 30, all = everything (daily chart shows last 90 days).
 
@@ -263,9 +284,9 @@ Other files:
 
 | File | Shape | Example item |
 |---|---|---|
-| `corrections.json` | `Correction[]` | `{ "id": "5e0c9b2a41d7f3c8", "language": "zh", "sessionId": "0b6f...", "messageId": "7c1d...", "original": "我去了北京昨天", "corrected": "我昨天去了北京", "explanation": "Time words come before the verb.", "kind": "grammar", "grammarId": "zh:time-before-verb", "createdAt": 1790794864000, "status": "retried_ok", "retries": [{ "text": "我昨天去了北京", "ok": true, "at": 1790794900000 }] }` |
+| `corrections.json` | `Correction[]` (exported ones also carry `exportedAt` and `ankiNoteIds`) | `{ "id": "5e0c9b2a41d7f3c8", "language": "zh", "sessionId": "0b6f...", "messageId": "7c1d...", "original": "我去了北京昨天", "corrected": "我昨天去了北京", "explanation": "Time words come before the verb.", "kind": "grammar", "grammarId": "zh:time-before-verb", "createdAt": 1790794864000, "status": "retried_ok", "retries": [{ "text": "我昨天去了北京", "ok": true, "at": 1790794900000 }] }` |
 | `grammar.json` | `GrammarPoint[]` | `{ "id": "zh:chule-hai", "language": "zh", "pattern": "除了…还…", "name": "besides A, also B", "reading": "chúle… hái…", "level": "HSK 3", "explanation": "...", "examples": [{ "text": "除了中文，她还会说日语。", "translation": "Besides Chinese, she also speaks Japanese." }], "sources": [], "createdAt": 1790000000000, "updatedAt": 1790794864000, "introducedAt": 1790000000000 }` |
-| `observations.json` | `GrammarObservation[]` | `{ "id": "b41f0a9c7e2d8813", "grammarId": "zh:le-completed", "language": "zh", "sessionId": "0b6f...", "messageId": "7c1d...", "span": "去了", "verdict": "correct", "assistance": "independent", "at": 1790794864000 }` (a dispute adds `"disputed": { "note": "...", "at": ..., "originalVerdict": "incorrect" }`) |
+| `observations.json` | `GrammarObservation[]` | `{ "id": "b41f0a9c7e2d8813", "grammarId": "zh:le-completed", "language": "zh", "sessionId": "0b6f...", "messageId": "7c1d...", "span": "去了", "verdict": "correct", "assistance": "independent", "at": 1790794864000 }` (a dispute adds `"disputed": { "note": "...", "at": ..., "originalVerdict": "incorrect" }`; quiz evidence has `"origin": "quiz", "quizId": "...", "sessionId": "quiz:<quizId>", "assistance": "prompted"`, `messageId` = question id) |
 | `saved-words.json` | `SavedWord[]` | `{ "id": "...", "language": "zh", "word": "烤鸭", "reading": "kǎoyā", "definition": "roast duck", "sentence": "我们吃了北京烤鸭。", "source": { "kind": "session", "sessionId": "0b6f...", "messageId": "a93e..." }, "createdAt": 1790794870000 }` |
 | `activity.json` | `ActivityEntry[]` | `{ "date": "2026-09-30", "language": "zh", "sessionId": "0b6f...", "ms": 42000 }` |
 | `levels.json` | `LevelEstimate[]` | `{ "language": "zh", "skill": "writing", "level": "HSK 3", "confidence": "medium", "evidence": "Self-rated", "examples": [], "at": 1790794800000, "by": "self" }` |
@@ -290,13 +311,18 @@ Tests: `src/core/records/sessions.test.ts` (create, titles, listing rules, updat
 | `src/core/lang/ja.ts` | `JapanesePack`, `JA_INFO` (levels `N5`..`N1`), `defaultKuromojiDicPath()`. |
 | `src/core/lang/dictionary.ts` | `StoredDictionary<Row>` base class (download, parse, index, persist, single-flight install, status), `download()` with progress, `writeFileAtomic`. |
 | `src/core/lang/cedict.ts` | `CedictProvider`, `parseCedict`, `parseCedictLine`, `CEDICT_URL` (MDBG gzip export, CC BY-SA 4.0, about 4 MB). |
-| `src/core/lang/jmdict.ts` | `JmdictProvider`, `parseJmdict`, `readTarFile`, `JMDICT_RELEASE_API` (GitHub releases API of scriptin/jmdict-simplified; picks the `jmdict-eng-common-*.json.zip`, else `.tgz`). |
+| `src/core/lang/jmdict.ts` | `JmdictProvider`, `parseJmdict`, `readTarFile`, `JMDICT_RELEASE_API` (GitHub releases API of scriptin/jmdict-simplified; English: `jmdict-eng-common-*.json.zip`, else `.tgz`; other gloss languages (`JMDICT_GLOSS`: ger, rus, spa, fre) use the full `jmdict-<gloss>-*` file). |
+| `src/core/lang/spaced.ts` | `SpacedPack` (en, es, fr, de, it, pt, ru: `Intl.Segmenter` words, French/Italian elision split, `lemma` checked against the dictionary's `WordIndex`), `KoreanPack` (strips particles and endings to a dictionary form), `VietnamesePack` (joins syllables into the longest dictionary word, up to 4), `spacedPromptNotes`. |
+| `src/core/lang/lemma.ts` | Irregular forms and suffix rules per language; `candidates(language, word)`, `lemmatize(language, surface, has?)`. |
+| `src/core/lang/wordlists.ts` | `SimpleDictionary` (rows `[headword, reading, senses, importance]`, exact then lower-case lookup, `has()`), `WikdictProvider` (`download.wikdict.com` bilingual SQLite, read with `node:sqlite` from a temp file, `cleanGloss`), `KengdicProvider` (Korean–English TSV), `KaikkiProvider` (kaikki.org Wiktionary JSONL, Vietnamese). |
 | `src/core/lang/pinyin.ts` | `toneMark`, `numberedToMarks`, `joinSyllables`, `glossPinyin`. |
 | `src/core/lang/text.ts` | `normalizeText` (NFKC, strip whitespace and punctuation), `toHiragana`, `runs`, `otherTokens`, `Lru`, script tests. |
 
 **Chinese.** `segment()` splits text into Han runs and other runs. Other runs become non-word tokens (`Intl.Segmenter("en")`). Han runs are split by greedy forward maximum matching against CC-CEDICT (`longestMatch`, up to 8 characters) when the dictionary index is loaded, otherwise by `Intl.Segmenter("zh")`. Readings come from `pinyin-pro` for the whole run (context aware), then are assigned to words and joined with `joinSyllables` (apostrophe before a/e/o). `learnerWords()` = word token texts.
 
 **Japanese.** `ready()` builds the kuromoji IPADIC tokenizer once (dictionary directory from `kuromojiDicPath` or `defaultKuromojiDicPath()`). `segment()` aligns kuromoji tokens to the input, merges a verb or adjective head with its conjugation auxiliaries (`CONJUGATION_AUX`, て/で, non-independent verbs), gives hiragana readings only when the surface has kanji and the reading has none, and sets `lemma` to kuromoji's `basic_form`. `learnerWords()` = lemmas of content words (nouns except numbers/suffixes, independent verbs and adjectives, adverbs, interjections).
+
+**Dictionary choice.** `DefaultLanguageService.choices(language, locale)` lists the dictionaries for a pair, best first: gloss in the interface language when one exists (JMdict in 5 languages, WikDict pairs among en/es/fr/de/it/pt/ru), English otherwise; zh, ko and vi have English glosses only. `resolve(language)` returns the preferred one and the installed ones; lookup uses an installed one and sets `needsDictionary` when the preferred one isn't installed yet, or `noDictionary` when none exists (English with a zh/ko/vi interface). Built dictionaries are cached per key (`"ja@de"`, `"es@en"`) under `dict/<key>/`. The interface locale comes from the `glossLocale` option (`settings.locale()`).
 
 **Dictionaries.** `StoredDictionary` stores rows in `<dir>/<file>` and writes `<dir>/meta.json` last; meta present means installed. `install()` is single-flight and idempotent, reports `download` → `parse` → `index` → `done` (or `error`) through `DictionaryProgress`. CC-CEDICT lookups fall back to single characters when the whole word is missing. JMdict lookups index every kanji and kana form, also try the hiragana form, and rank headword matches, then common words.
 
@@ -359,6 +385,8 @@ Tests: `parsers.test.ts` (txt, md, html, epub), `pdf.test.ts` (text, paragraphs,
 | `src/core/anki/clean.ts` | `cleanField` (strip HTML, `[sound:]`, ruby `<rt>`, entities, furigana brackets), `furiganaReading` (reading implied by `日本[にほん]` syntax). |
 | `src/core/anki/json-file.ts` | Pretty atomic JSON writes with a per-path queue, `readJson`. |
 
+Writing to Anki (v0.5.0, used by the corrections export): `ensureNoteType(type)` (`modelNames`, then `createModel` if missing; cloze types are created as real cloze types), `ensureDeck(name)` (`createDeck`), `addNotes(notes)` (`canAddNotesWithErrorDetail`, falling back to `canAddNotes`, then `addNotes`, then per-note `addNote` if the batch is rejected). All go through `call`, so failures are the usual `AnkiUnreachableError` reasons. `normalizeConfig` keeps `exportDecks`.
+
 **Transport.** `call(action, params, timeout)` POSTs `{ action, version: 6, params }` to `config.url` with `AbortSignal.timeout` (8 s per call, 20 s for bulk calls). Failures become `AnkiUnreachableError` with a reason:
 
 | Reason | Trigger | Message / fix shown in Settings > Anki |
@@ -376,7 +404,8 @@ A JSON body with `error` becomes a plain `Error("AnkiConnect error: ...")` (reco
 ```json
 // anki/config.json
 { "enabled": true, "url": "http://127.0.0.1:8765",
-  "decks": [{ "language": "zh", "deck": "Chinese::HSK", "wordField": "Hanzi", "readingField": "Pinyin", "meaningField": "English" }] }
+  "decks": [{ "language": "zh", "deck": "Chinese::HSK", "wordField": "Hanzi", "readingField": "Pinyin", "meaningField": "English" }],
+  "exportDecks": { "zh": "Chinese::Sayfern corrections" } }
 ```
 
 **Sync (`sync(language)` → `pull`).** One sync per language at a time (shared promise).
@@ -434,14 +463,14 @@ Tests: `anki.test.ts` (fake AnkiConnect through an injected fetch: config, ping,
 | `src/core/agent/index.ts` | `SayfernTutor` (implements `Tutor`), re-exports `buildSystemPrompt`, `gatherPromptData`, `renderSystemPrompt`, `turnTools`. |
 | `src/core/agent/deps.ts` | `TutorDeps` (`models`, `records`, `lang`, `library`, `anki`, `extensions?`, `now`, `newId`, `ankiEnabled`) and `TutorOptions`. |
 | `src/core/agent/turn.ts` | `runTurn`, `runOpening`, the loop (`runLoop`), `ankiReady`, `kickoffText`, `modelLabel`, constants `MAX_ITERATIONS` (5), `MAX_TOKENS` (1500), `MAX_SOURCES` (3), `TARGET_COUNT` (5). |
-| `src/core/agent/prompt.ts` | `gatherPromptData`, `renderSystemPrompt`, `buildSystemPrompt`, `pickFollowUps`; constants `MAX_FOLLOW_UPS` (3), `MAX_CATALOGUE` (60), `PERSONAL_CONTEXT_CHARS` (1500), `ANKI_PROMPT_HARDEST` (5), `ANKI_PROMPT_NEXT_NEW` (8). |
+| `src/core/agent/prompt.ts` | `gatherPromptData`, `renderSystemPrompt`, `buildSystemPrompt`, `pickFollowUps`, `lastConversationVerdicts` (latest correct/incorrect verdict per point, quiz evidence skipped; also used by `getHome`); constants `MAX_FOLLOW_UPS` (3), `MAX_CATALOGUE` (60), `PERSONAL_CONTEXT_CHARS` (1500), `ANKI_PROMPT_HARDEST` (5), `ANKI_PROMPT_NEXT_NEW` (8). |
 | `src/core/agent/tools.ts` | `record_evidence`, `search_library`, `update_checkpoint`, `turnTools`, `toolContext`, `matchLevel`, `TurnState`. |
 | `src/core/agent/anki-tools.ts` | `anki_overview`, `anki_struggling`, `anki_vocabulary`, `anki_check_words`, `anki_lookup`, formatting helpers (`syncedLine`, `wordLine`, `overviewText`, `cardText`). |
 | `src/core/agent/retry.ts` | `localRetryCheck`, `parseRetryJson`, `checkRetry`. |
 | `src/core/agent/session.ts` | `translate`, `endSession`. |
 | `src/core/agent/options.ts` | `requestOptions(model, answerTokens)`, `THINKING_HEADROOM` (4096). |
 | `src/core/agent/text.ts` | `stripPasted`, `findOriginal`, `slugify`, `canonicalGrammarId`, small coercion helpers. |
-| `src/core/agent/testkit.ts` | Test harness: `FakeAnki` and faux-provider setup (not a test file). |
+| `src/core/agent/testkit.ts` | Test harness: `FakeAnki` (with stub `ensureNoteType` / `ensureDeck` / `addNotes`) and faux-provider setup (not a test file). |
 
 The prompt and tools are described in section 10; the loop in section 11.3.
 
@@ -458,6 +487,7 @@ Tests: `turn.test.ts`, `prompt.test.ts`, `retry.test.ts`, `anki-tools.test.ts`, 
 - Contributions are staged and kept only if `activate` succeeds. Languages go to `LanguageService.registerPack` (never unregistered until restart).
 - `normalizeTool` validates the name (`[A-Za-z0-9_-]{1,64}`), defaults parameters to an empty object schema, and wraps `execute` so a string, `{ content, activity }`, other object (JSON-stringified) or `undefined` ("Done.") all become `{ content, activity }`.
 - `tools()` and `promptAdditions(language)` serve only enabled, error-free extensions. A throwing prompt addition is logged and skipped.
+- Builder-managed features (v0.5.0): `setManagedSource` lets `BuilderService` register the active version of each built feature (`ManagedExtension`: id, dir, enabled, `approvedHashes`). The host loads them after `extensions/`, lists them in `managedList()` (not `list()`), imports nothing for UI-only features, and imports main-side code only when the directory's `hashDir` is in `approvedHashes` (the builder points it at the frozen `approved/<hash>/` copy). Exported helpers: `hashFiles`, `readDirFiles`, `hashDir`. See section 16.4.
 
 ```json
 // extensions.json (next to the extensions/ folder)
@@ -472,18 +502,19 @@ Tests: covered by `src/core/app/app.test.ts` ("extensions: ...") and `scripts/sm
 
 `src/main/index.ts`, in order:
 
-1. `dataDir = app.getPath("userData")` (on macOS `~/Library/Application Support/sayfern`).
+1. `dataDir = app.getPath("userData")` (on macOS `~/Library/Application Support/sayfern`; `SAYFERN_E2E_DATA=<dir>` overrides it for end-to-end checks). `protocol.registerSchemesAsPrivileged` registers `sayfern-feature` (standard, secure, fetch, CORS) before the app is ready.
 2. `buildApp()` builds everything below (called at startup and again after "Erase all data"; the module-level `let sayfern` is replaced). `FileCredentialStore(join(dataDir, "credentials.json"), cipher)` with `safeStorage.encryptString` / `decryptString` (base64). The first read or write can trigger a macOS Keychain prompt for "sayfern Safe Storage" (Electron names the Keychain item after `app.name`, which must stay `sayfern`).
 3. `createSayfernModels(credentials)`; if `SAYFERN_E2E_FAUX=1`, `installE2EFaux(models)` from `src/main/e2e.ts`.
-4. `new SayfernApp({ dataDir, models, credentials, fetch: electronFetch (Chromium net.fetch), ankiFetch: Node fetch, emit → webContents.send(EVENT_CHANNELS[channel]), openExternal: shell.openExternal })`. With the e2e flag the app is also exposed as `globalThis.__sayfernE2E`.
+4. `new SayfernApp({ dataDir, models, credentials, fetch: electronFetch (Chromium net.fetch on the "sayfern-net" session), ankiFetch: Node fetch, emit → webContents.send(EVENT_CHANNELS[channel]), openExternal: shell.openExternal })`, then `builder.setTestRunner(createElectronTestRunner(...))`. With the e2e flag the app is also exposed as `globalThis.__sayfernE2E`.
 5. `electronOnly`: `importDocs` (open dialog for txt/md/markdown/html/htm/xhtml/epub/pdf → `SayfernApp.importFiles`), `exportData` (save dialog in Downloads, default `sayfern-export-YYYY-MM-DD.json` → `exportTo`), `eraseAllData({ keepSignIns })` (`sayfern.eraseData`, then `buildApp()` + `init()`; the renderer reloads itself afterwards), `openExtensionsFolder` (mkdir + `shell.openPath`), `openExternal` (http/https only).
 6. `registerIpc()`: for each `API_METHODS` entry, `ipcMain.handle("ipc:<method>")` calls `electronOnly[method]` or `sayfern[method]`, resolving `sayfern` on every call (it changes after an erase). While an erase runs, other calls wait for it. Events from a discarded instance are dropped (`emit` checks `built === sayfern`). Thrown errors are re-thrown as `new Error(errorText(err))` because only the message crosses IPC; the renderer strips Electron's "Error invoking remote method" prefix (`errorText` in `src/renderer/src/api.ts`).
-7. Lifecycle: `requestSingleInstanceLock()` (a second launch focuses the first window), `whenReady` → `setUpBranding()` (About panel, dev Dock icon from `build/icon.png`, an app menu that is Electron's default with the app items labelled "Sayfern"; standard roles keep Edit shortcuts working) → `sayfern.init()` (errors logged, app still starts) → `registerIpc()` → `createWindow()` (title "Sayfern"; window icon on Linux).
-8. Window: 1440×900 (min 980×640), `titleBarStyle: "hiddenInset"`, background `#F4F0E7`, preload `../preload/index.mjs`, `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false` (ESM preload). `setWindowOpenHandler` opens http(s) in the browser and denies new windows. `will-navigate` guard: only hash changes of the current page are allowed; anything else (a file dropped on the window, a stray link) is prevented and web links open externally.
+7. Lifecycle: `requestSingleInstanceLock()` (a second launch focuses the first window), `whenReady` → `setUpBranding()` (About panel, dev Dock icon from `build/icon.png`, an app menu that is Electron's default with the app items labelled "Sayfern"; standard roles keep Edit shortcuts working) → `lockDownAppSession` (below) → `sayfern.init()` (errors logged, app still starts) → `registerIpc()` → `createWindow()` (title "Sayfern"; window icon on Linux) → with `SAYFERN_E2E_BUILDER=1`, `runBuilderE2E`.
+8. Window: 1440×900 (min 980×640), `titleBarStyle: "hiddenInset"`, background `#F4F0E7`, preload `../preload/index.mjs`, `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false` (ESM preload). `setWindowOpenHandler` opens http(s) in the browser and denies new windows. `will-navigate` guard: only hash changes of the current page are allowed; anything else (a file dropped on the window, a stray link) is prevented and web links open externally. `will-frame-navigate` guard: sub-frames may only navigate to `sayfern-feature://`, `about:srcdoc` or `about:blank`. `setWebRTCIPHandlingPolicy("disable_non_proxied_udp")` keeps WebRTC on the (dead) proxy.
+9. `src/main/features.ts`: `lockDownAppSession` registers the `sayfern-feature` handler on the default session (forwarding to `BuilderService.serveAsset`, resolved per request because `sayfern` changes after an erase), points the session at a dead proxy (`http://127.0.0.1:9`; loopback is proxied too in production, left reachable in dev for the Vite server), and refuses permissions to sub-frames and feature URLs. `netSession()` is the `sayfern-net` partition used by `electronFetch`. `createElectronTestRunner` runs feature tests in a hidden `BrowserWindow` (`sandbox: true`, no preload) on the in-memory `sayfern-feature-tests` partition with the same lockdown; the window is crashed and destroyed after the result or the timeout (section 16.4).
 
-`src/preload/index.ts` builds one invoker per `API_METHODS` entry and the four `on*` subscriptions (each returns an unsubscribe function), then `contextBridge.exposeInMainWorld("sayfern", api)`.
+`src/preload/index.ts` builds one invoker per `API_METHODS` entry and the five `on*` subscriptions (`onBuilderEvent` included) (each returns an unsubscribe function), then `contextBridge.exposeInMainWorld("sayfern", api)`.
 
-`src/main/e2e.ts` (`installE2EFaux`): registers pi-ai's faux provider (400 tokens/s) with 500 scripted steps: translation prompts return `(translation)`, retry checks return `{"ok": true, "feedback": "Good."}`, openings return a fixed Chinese line, other turns reply with text plus one `record_evidence` call (one `zh:le-completion` observation).
+`src/main/e2e.ts`: `runBuilderE2E` (with `SAYFERN_E2E_BUILDER=1`) runs the feature sandbox checks in the real app and prints PASS/FAIL lines (section 14). `installE2EFaux`: registers pi-ai's faux provider (400 tokens/s) with 500 scripted steps: translation prompts return `(translation)`, retry checks return `{"ok": true, "feedback": "Good."}`, openings return a fixed Chinese line, other turns reply with text plus one `record_evidence` call (one `zh:le-completion` observation).
 
 ---
 
@@ -498,6 +529,7 @@ extensions.json                 { enabled: { <id>: boolean } }
 extensions/<id>/                user extensions: package.json + entry module
 records/
   sessions/<sessionId>.json     SessionFile: meta, messages, transcript, targets
+  quizzes/<quizId>.json         QuizFile: spec, status, alignment, provenance, items with keys and answers (section 16.3)
   corrections.json  grammar.json  observations.json  saved-words.json
   activity.json  levels.json  profile.json
   word-usage-zh.json  word-usage-ja.json  writing-zh.json  writing-ja.json
@@ -507,15 +539,21 @@ dict/ja/  jmdict.json meta.json
 library/<docId>/  meta.json paragraphs.json index.json original.<ext>
 anki/  config.json  snapshot-zh.json  snapshot-ja.json
 sessions/                       v0.1 sessions, imported once into records/ (left in place)
+builder/
+  features/<id>/feature.json    feature metadata, versions, approvals, build turns (kept by erase)
+  features/<id>/versions/<n>/   the extension folder of version n
+  features/<id>/approved/<hash>/  read-only copy of an approved full-access version (what the host loads)
+  data/<id>/storage.json        sayfern.storage of the feature (≤ 256 KB; erased)
+  data/<id>/results.json        sayfern.results rows (≤ 2000, newest kept; erased)
 ```
 
-Electron also keeps its own data here (for example Local Storage, which holds the renderer's `sayfern.inspector` and `sayfern.ruby.<lang>` flags). Only `records/` and `anki/config.json` plus settings and the library list go into an export.
+Electron also keeps its own data here (for example Local Storage, which holds the renderer's `sayfern.inspector` and `sayfern.ruby.<lang>` flags). Only `records/` (quizzes under their own `quizzes` key), built features and their data (`builder`), `anki/config.json`, settings and the library list go into an export.
 
 ---
 
 ## 8. IPC / API surface
 
-Channel for every method: `ipc:<methodName>`, arguments in order. Core implementation is `SayfernApp` (`src/core/app/index.ts`) unless marked "main".
+Channel for every method: `ipc:<methodName>`, arguments in order. Core implementation is `SayfernApp` (`src/core/app/index.ts`) unless marked "main". The Stage 2 methods (review, quiz, builder) are listed in section 16 with their services.
 
 | Method | Purpose | Implementation |
 |---|---|---|
@@ -536,6 +574,8 @@ Channel for every method: `ipc:<methodName>`, arguments in order. Core implement
 | `renameSession(id, title)` | Rename (non-empty) | `records.updateSession` |
 | `deleteSession(id)` | Delete session and its rows (no UI calls it yet) | `records.deleteSession` |
 | `setFeedbackMode(id, mode)` | `inline` or `end` | `records.updateSession` |
+| `setDifficulty(id, difficulty)` | -2..2 ("Go easier / go harder"), clamped | `records.updateSession`; read by `difficultyBlock` |
+| `newTopic(id, model)` | `{ requestId }`; the tutor opens a fresh topic | `tutor.runOpening({ newTopic: true })`, streamed like an opening |
 | `send(id, { text, pastedSpans? }, model)` | Start a turn; returns `{ requestId }`; progress via `onChatEvent` | `startRequest` → `tutor.runTurn` |
 | `abort(requestId)` | Stop a running turn | `AbortController` |
 | `translate(messageId, model)` | Translate a tutor message (cached on it) | `tutor.translate` |
@@ -583,6 +623,7 @@ Events (main → renderer), `EVENT_CHANNELS`:
 | `onAuthEvent` | `evt:auth` | `AuthEventPayload` (`info`, `auth_url`, `device_code`, `progress`, `prompt_cancelled`) |
 | `onAuthPrompt` | `evt:auth-prompt` | `AuthPromptPayload` (`text`, `secret`, `manual_code`, `select`) |
 | `onDictionaryProgress` | `evt:dictionary-progress` | `DictionaryProgress` |
+| `onBuilderEvent` | `evt:builder` | `BuilderEvent` (section 16.4) |
 
 ---
 
@@ -616,7 +657,7 @@ Rebuilt from local records at the start of every turn (`buildSystemPrompt` = `ga
 | 3 | Level | `records.getLevels().current`: "Current level estimates: reading HSK 3 (medium confidence); ..." or "Level: unknown. Start simple..." |
 | 4 | `# The learner` | Profile name, about, goal for this language, personal library notes (`kind: "personal"`, first 1500 chars) |
 | 5 | `# Session: ...` | Chat: open conversation. Practice: focus pattern, invite without naming it, model it after two misses. Reading: doc title, checkpoint, paragraphs checkpoint-1 .. checkpoint+3 marked `¶n`, ask comprehension questions, use `search_library`, call `update_checkpoint`. Placement: 5 to 7 exchanges across reading, recognition, writing; record a level for all three skills from the language's scale; tell the result kindly. |
-| 6 | `# Grammar to revisit` | `pickFollowUps`: up to 3 points in state `introduced` or `with_help`, or with an incorrect verdict in the last 14 days; skips the practice focus. "Never name the pattern..." |
+| 6 | `# Grammar to revisit` | `pickFollowUps`: up to 3 points in state `introduced` or `with_help`, or whose latest conversation verdict (`lastConversationVerdicts`, quiz evidence skipped) is incorrect and from the last 14 days; skips the practice focus. "Never name the pattern..." |
 | 7 | `# Words from their Anki reviews` | Session targets with status `pending` or `asked`; weave one or two per reply; never list them or mention Anki |
 | 8 | `# Anki knowledge (synced N h ago)` | Only when Anki is enabled and an overview exists: counts, 5 hardest words with their top reason, next 8 new words, i+1 guidance, `anki_check_words` hint, at most one new word per reply |
 | 9 | `# Grammar ids` | Up to 60 catalogue rows `id \| pattern \| name`, and the id format `<lang>:<ascii-slug>` |
@@ -654,8 +695,8 @@ Every Anki tool result starts with "Anki snapshot from YYYY-MM-DD HH:MM UTC (N h
 5. Renderer `main.tsx` loads fonts and `styles.css`; if there is no `window.sayfern` (plain browser) it installs `createMockApi()`; renders `<App>`.
 6. `AppProvider` boot: `startChatStream()` subscribes to chat events (so openings are followed from the first delta); `getSettings` + `listLanguages`; then `refreshAuth` (`listProviders`, `listModels`, pick the saved model if still available else `pickDefaultModel`), `listSessions` per enabled language, `ankiStatus`.
 7. Route: `settings.onboarded` false → `#/onboarding`; no hash → `#/today`.
-8. Onboarding (`src/renderer/src/screens/Onboarding.tsx`): step 1 connect a model (`Connect`: API key or sign-in, section 11.2); step 2 pick languages and a level per language, or "find my level"; step 3 optional "about you" text and a "Connect Anki" shortcut.
-9. `finish()`: `setSelfLevel` for each chosen level, `setProfile({ about })`, `setSettings({ onboarded: true, languages, language })`; then either Settings > Anki, a placement session (`startPlacement` for the first language set to "find my level", see 11.5), or Today.
+8. Onboarding (`src/renderer/src/screens/Onboarding.tsx`): step 1 connect a model (`Connect`: API key or sign-in, section 11.2); step 2 pick languages and a level per language, or "find my level"; step 3 "Learn words with Anki" (S2-14: why Anki, then a shared deck on AnkiWeb per language, make one with the model, or decide later); step 4 optional "about you" text and a "Connect Anki" shortcut. In dev builds Settings > Preferences > Debug reopens it ("Close preview").
+9. `finish()`: `setSelfLevel` for each chosen level, `setProfile({ about })`, `setSettings({ onboarded: true, languages, language })`; then either Settings > Anki, the deck generator (`#/decks`, when "make one with your model" was picked), a placement session (`startPlacement` for the first language set to "find my level", see 11.5), or Today.
 
 ### 11.2 OAuth login
 
@@ -748,14 +789,14 @@ Anthropic subscription requests are sent by pi-ai with Claude Code identity head
 ### 11.10 Export
 
 1. Settings > Data → `exportData()` → main save dialog (default `~/Downloads/sayfern-export-YYYY-MM-DD.json`).
-2. `exportTo(path)` writes `{ app: "Sayfern", format: 1, exportedAt, settings (without deviceId and legacyImported), records: exportAll(), library: LibraryDoc[] (metadata only), anki: AnkiConfig }` atomically.
-3. Not exported: credentials, transcripts, document text and originals, dictionaries, Anki snapshots, extensions. There is no import.
+2. `exportTo(path)` writes `{ app: "Sayfern", format: 1, exportedAt, settings (without deviceId and legacyImported), records: exportAll(), quizzes: QuizFile[], builder: { features (without build turns), data: { <id>: { storage, results } } }, library: LibraryDoc[] (metadata only), anki: AnkiConfig }` atomically.
+3. Not exported: credentials, transcripts, document text and originals, dictionaries, Anki snapshots, extensions, built feature code. There is no import.
 
 ### 11.10a Erase all data
 
 1. Settings > Data > Start over → "Erase…" → optional "Keep model sign-ins" (on by default) → type `erase` → `eraseAllData({ keepSignIns })`.
-2. Main: `sayfern.eraseData` aborts in-flight turns and openings, cancels sign-in, waits for idle and Anki refreshes, then deletes `ERASE_PATHS` (`records/`, `library/`, `anki/`, legacy `sessions/`, `settings.json`, `extensions.json`) and `credentials.json` unless sign-ins are kept. With sign-ins kept, `settings.json` is rewritten with only the `deviceId` (ChatGPT sign-ins are registered against it).
-3. Kept: `dict/` (downloaded dictionaries) and `extensions/` (installed code); Chromium's own files in `userData` are untouched.
+2. Main: `sayfern.eraseData` aborts in-flight turns and openings, quiz generations (`quizzes.abortAll`) and builds (`builder.abortAll`), cancels sign-in, waits for idle and Anki refreshes, then deletes `ERASE_PATHS` (`records/` with quizzes, `library/`, `anki/`, legacy `sessions/`, `settings.json`, `extensions.json`, `builder/data/`) and `credentials.json` unless sign-ins are kept. With sign-ins kept, `settings.json` is rewritten with only the `deviceId` (ChatGPT sign-ins are registered against it).
+3. Kept: `dict/` (downloaded dictionaries), `extensions/` (installed code) and `builder/features/` (built features); Chromium's own files in `userData` are untouched.
 4. Main builds a new `SayfernApp` (fresh caches and credential store) and `init()`s it. The renderer clears `localStorage`, sets the hash to `#/` and reloads; with no `onboarded` setting it lands on onboarding.
 5. Mock API: sets `?onboarding=1` (or `?fresh=1` when sign-ins are kept) before the reload.
 
@@ -764,40 +805,44 @@ Anthropic subscription requests are sent by pi-ai with Claude Code identity head
 1. `SayfernApp.init()` → `extensions.load()`; Settings > Extensions lists them (`listExtensions`), toggles (`setExtensionEnabled`, which writes `extensions.json` and reloads everything) and opens the folder.
 2. Each turn, `turnTools` appends enabled extension tools and `renderSystemPrompt` appends their prompt additions.
 3. Language packs are registered on the language service at load and stay registered until restart.
+4. Every load also loads the builder's managed features (active version of each, after `extensions/`), behind the review gate (section 16.4). Customize lists hand-installed extensions under "Installed by hand" with the same switches.
 
 ---
 
 ## 12. Renderer
 
-Entry: `src/renderer/index.html` (CSP: scripts from self only) → `src/renderer/src/main.tsx` → `App.tsx`.
+Entry: `src/renderer/index.html` (CSP: scripts from self only; `frame-src sayfern-feature:` for built features) → `src/renderer/src/main.tsx` → `App.tsx`.
 
 | Area | Files | Notes |
 |---|---|---|
 | Backend access | `src/renderer/src/api.ts` | `api`: a Proxy over `window.sayfern`, resolved lazily so the mock and the real bridge behave the same. `errorText()` strips Electron's IPC prefix. |
-| Router | `src/renderer/src/router.ts` | Hash routes as plain strings: `today`, `session/<id>`, `library`, `reader/<docId>[/<p>]`, `grammar[/<id>]`, `progress`, `settings[/<tab>]`, `onboarding`, `customize`. `navigate` pushes history, `replaceRoute` replaces, `useRoute` subscribes. |
+| Router | `src/renderer/src/router.ts` | Hash routes as plain strings: `today`, `session/<id>`, `library`, `reader/<docId>[/<p>]`, `grammar[/<id>]`, `progress`, `settings[/<tab>]`, `onboarding`, `customize`, `review` (Corrections), `review/quizzes`, `quiz/<id>`, `feature/<id>/<surface index>` (a built feature's tab or activity; `surfaceRoute` in `FeatureNav.tsx`). Helpers `reviewRoute`, `quizRoute`, `featureRoute`. `navigate` pushes history, `replaceRoute` replaces, `useRoute` subscribes. |
 | App state | `src/renderer/src/context.tsx` | `AppProvider` / `useApp()`: settings (optimistic `updateSettings`), languages, current language (`setLanguage` leaves session/reader/grammar-detail routes), providers, models, chosen model (`setModel` persists), sessions per language, Anki status, `startSession`. Screens receive only `{ language, navigate }` as props. |
-| Shell | `src/renderer/src/App.tsx` | Sidebar + screen; ⌘N new session, ⌘1..4 Today/Library/Grammar/Progress. `WordPopoverHost` rendered once. |
+| Shell | `src/renderer/src/App.tsx` | Sidebar + screen; ⌘N new session, ⌘1..5 Today/Library/Grammar/Review/Progress (`NAV_KEYS`). `WordPopoverHost` rendered once. |
 | Chat state | `src/renderer/src/lib/chatStream.ts`, `lib/useChat.ts` | Stream store outside React keyed by session (survives navigation); `useChat` merges stored view, stream, optimistic learner message and local correction overrides. |
 | Caches | `lib/cache.ts` | Promise caches for `annotate`, `lookup`, `translate`. |
 | Hooks | `lib/hooks.ts` | `useDismiss`, `useActivityTracker` (S1-24), `useStoredFlag` (localStorage). |
-| Formatting | `lib/format.ts`, `lib/ruby.ts` | Durations, tokens, cost, dates, labels; ruby segmentation (okurigana-aware for ja, per-character pinyin split for zh). |
-| Mock backend | `src/renderer/src/dev/mockApi.ts` | Full in-memory `SayfernApi` with believable zh/ja data, simulated streaming, corrections and tool activity. Query switches: `?onboarding=1` (first run), `?fresh=1` (no records), `?anki=offline`. Never loaded inside Electron. |
+| Formatting | `lib/format.ts`, `src/shared/ruby.ts` | Durations, tokens, cost, dates, labels; ruby segmentation (okurigana-aware for ja, per-character pinyin split for zh). |
+| Mock backend | `src/renderer/src/dev/mockApi.ts` | Full in-memory `SayfernApi` with believable zh/ja data, simulated streaming, corrections and tool activity. Query switches: `?onboarding=1` (first run), `?fresh=1` (no records), `?anki=offline`. Stage 2 slots come from `dev/mockReview.ts`, `mockQuiz.ts` and `mockBuilder.ts`, which share mutable state with `mockApi.ts` through `dev/mockWorld.ts`. Never loaded inside Electron. |
 
 Screens (`src/renderer/src/screens/`):
 
 | Screen | Route | What it does | Main API calls |
 |---|---|---|---|
-| `Today.tsx` | `today` | Resume card, start tiles (talk, continue reading or open the library, grammar), placement prompt, follow-ups, week numbers, levels | `getHome`, `newSession`, `openReading`, `startPlacement` |
-| `Session.tsx` | `session/<id>` | Conversation, feedback mode toggle, translate toggle, token/cost chip, end session, inspector (⌘I), rename by double-click | `getSession` (via `useChat`), `send`, `abort`, `setFeedbackMode`, `renameSession`, `endSession`, `translate` |
+| `Today.tsx` | `today` | Resume card, start tiles (talk, continue reading or open the library, grammar), "Your activities" (built features, `FeatureActivities`), placement prompt, follow-ups, week numbers, levels | `getHome`, `newSession`, `openReading`, `startPlacement`, `featureSurfaces` (via `useFeatureSurfaces`) |
+| `Session.tsx` | `session/<id>` | Conversation, feedback mode toggle, translate toggle, token/cost chip, end session, inspector (⌘I), rename by double-click, New topic and difficulty slider (`SessionTools`) | `getSession` (via `useChat`), `send`, `abort`, `setFeedbackMode`, `setDifficulty`, `newTopic`, `renameSession`, `endSession`, `translate` |
 | `Library.tsx` | `library` | Shelf, import by kind, debounced search, rename/delete, saved words | `listDocs`, `importDocs`, `searchLibrary`, `renameDoc`, `deleteDoc`, `listSavedWords`, `deleteSavedWord` |
 | `Reader.tsx` | `reader/<docId>[/<p>]` | Paper page with ruby toggle, lookups, checkpoint, selection toolbar, reading chat pane | `getDoc`, `openReading`, `getParagraphs`, `setCheckpoint`, `saveWord` |
-| `Grammar.tsx` | `grammar[/<id>]` | Catalogue with filters; detail with state ladder, counts, pattern card, every attempt (disputable), corrections; Practise / Explain again | `listGrammar`, `getGrammar`, `disputeObservation`, `practiseGrammar` |
+| `Grammar.tsx` | `grammar[/<id>]` | Catalogue with filters; detail with state ladder, counts, pattern card, every attempt (disputable; quiz attempts link to their quiz), "In quizzes: X of Y right", corrections; Practise / Explain again | `listGrammar`, `getGrammar`, `disputeObservation`, `practiseGrammar` |
+| `Review.tsx` | `review`, `review/quizzes` | Header and tabs; `review/CorrectionsTab.tsx` (+ `CorrectionsItem`, `AnkiExportPanel`) and `review/QuizzesTab.tsx` (+ `QuizParts`) | review and quiz slots (section 16) |
+| `Quiz.tsx` | `quiz/<id>` | Generating state, one question at a time, feedback, summary | `getQuiz` (polled while generating), `answerQuestion`, `finishQuiz`, `retryMistakes`, `deleteQuiz`, `cancelQuizGeneration` |
+| `FeatureHost.tsx` | `feature/<id>/<surface index>` | A built feature's tab or activity (active ready version) in a sandboxed `FeatureFrame` | `getFeature`, then `featureFrame` and `featureCall` through `FeatureFrame` |
 | `Progress.tsx` | `progress` | Week/month/all numbers, daily chart, first-used words, grammar states, corrections by kind, Anki | `getProgress` |
 | `Settings.tsx` | `settings/<tab>` | Tabs: models, languages (levels, placement), about (profile), anki, dictionaries, preferences (feedback mode, auto-translate), data (export), extensions | many |
 | `Onboarding.tsx` | `onboarding` | Three-step first run | `setSelfLevel`, `setProfile`, `startPlacement` |
-| `Customize.tsx` | `customize` | Stage 2 placeholder (feature builder) with installed extensions, read-only | `listExtensions` |
+| `Customize.tsx` | `customize` | Feature builder: request composer, live checklist and build text, live preview, versions, review sheet (`FeatureReview`), on/off, roll back, discard, delete; "Installed by hand" extensions with switches | builder slot, `onBuilderEvent`, `listExtensions`, `setExtensionEnabled` |
 
-Components (`src/renderer/src/components/`): `Sidebar` (brand, language picker, nav, 12 recent sessions, Customize, Settings, connection and Anki status), `Composer` (IME-safe input, paste tracking, disabled mic for Stage 3), `MessageList`, `CorrectionCard`, `EndSessionSheet`, `Inspector` (targets, grammar in play, sources, per-reply usage and tool activity), `AnnotatedText`, `WordPopover` (+ `InstallDictionary`), `ModelPicker` (grouped by provider; reasoning and image capability hints, F-04), `Connect` (providers, API keys, sign-in log and prompts), `ui.tsx` (`Switch`, `PopMenu`, doc kind labels, `Cover`), `icons.tsx` (`Icon`, `Fern`), `Placeholder`.
+Components (`src/renderer/src/components/`): `Sidebar` (brand, language picker, nav incl. Review, built feature tabs via `FeatureNav`, 12 recent sessions, Customize, Settings, connection and Anki status), `FeatureFrame` (sandboxed iframe + SDK message bridge), `FeatureActivities`, `FeatureReview`, `Composer` (IME-safe input, paste tracking, disabled mic for Stage 3), `MessageList`, `CorrectionCard`, `EndSessionSheet`, `Inspector` (targets, grammar in play, sources, per-reply usage and tool activity), `AnnotatedText`, `WordPopover` (+ `InstallDictionary`), `ModelPicker` (grouped by provider; reasoning and image capability hints, F-04), `Connect` (providers, API keys, sign-in log and prompts), `ui.tsx` (`Switch`, `PopMenu`, doc kind labels, `Cover`), `icons.tsx` (`Icon`, `Fern`), `Placeholder`.
 
 IME safety: every text input that submits on Enter checks `e.nativeEvent.isComposing || e.keyCode === 229` (and `Composer` also tracks composition events) so pinyin and kana input never sends half-composed text.
 
@@ -805,7 +850,7 @@ IME safety: every text input that submits on Enter checks `e.nativeEvent.isCompo
 
 ## 13. Styling
 
-`src/renderer/src/styles.css`, one stylesheet, "paper, fern and red pen". Tokens on `:root`:
+`src/renderer/src/styles.css` holds the tokens and the Stage 1 styles, "paper, fern and red pen". Each Stage 2 feature has its own stylesheet in `src/renderer/src/styles/` (`review.css` with `rv-` classes, `quiz.css` with `qz-`, `builder.css` with `cz-`, `frv-`, `fh-`), imported in `main.tsx` after `styles.css` and using the same tokens. Built features get a separate stylesheet with the same variables, `FEATURE_SDK_CSS` (served at `/_sdk/sayfern.css`). Tokens on `:root`:
 
 | Token | Value | Use |
 |---|---|---|
@@ -841,6 +886,12 @@ Runner: `node:test` + `node:assert/strict` through `tsx --test "src/**/*.test.ts
 | `src/core/library/*.test.ts` | See 5.5. |
 | `src/core/records/*.test.ts` | See 5.3. |
 | `src/core/app/app.test.ts` | See 5.2. Runs the real `SayfernApp` with pi-ai's faux provider, an offline fetch and an event recorder. |
+| `src/core/review/review.test.ts` | Sentence and revision, list order, chip counts and filters, cloze and situation drafts (batched call, fallback, junk tolerance), export (note type created once, duplicates, older AnkiConnect, rejected batch, invalid drafts, offline/disabled Anki). |
+| `src/core/quiz/items.test.ts` | `validateItem` per format (repairs, drops incl. a key missing from four options), local grading, JSON salvage, length planning, levels and provenance. |
+| `src/core/quiz/service.test.ts` | Generation (material, validation, no keys before answering, top-up, cancel, failures, stale "generating"), local and model grading, scoring, quiz evidence (prompted, never independent), retry mistakes, delete, options and estimates. |
+| `src/core/quiz/app.test.ts` | Quiz slot bound on `SayfernApp`; quiz evidence on the grammar page; export and erase. |
+| `src/core/builder/builder.test.ts` | Build loop (kit, writes, tests, finish, sealed versions), ask for changes, roll back, discard, review gate and host refusal, managed loading, Node fallback runner (vm escape contained), injected app runner and test-page serving, static checks for full-access code, build lock, abort, RPC allowlist and caps, erase and export. |
+| `src/core/builder/paths.test.ts` | Path normalization, `parseFeatureUrl`, CSP headers, import resolution, manifest parsing, main-side file sets, test-page URLs. |
 
 Test doubles:
 
@@ -848,6 +899,8 @@ Test doubles:
 - **`FakeAnki`** (`src/core/agent/testkit.ts`): an `AnkiService` over a settable card list that reuses the real pure word functions.
 - **Fake AnkiConnect** (`src/core/anki/anki.test.ts`): a fetch function answering AnkiConnect actions from fake cards and reviews.
 - **E2E hook**: `SAYFERN_E2E_FAUX=1` makes main install the scripted faux provider (`src/main/e2e.ts`) and expose `globalThis.__sayfernE2E`, for driving the built app without credentials (for example `SAYFERN_E2E_FAUX=1 npm run dev`). No driver script is checked in.
+- **Feature sandbox e2e**: `npx electron-vite build && xvfb-run -a env SAYFERN_E2E_BUILDER=1 SAYFERN_E2E_DATA=$(mktemp -d) node_modules/.bin/electron --no-sandbox out/main/index.js` runs `runBuilderE2E` in the real app and prints 12 PASS lines: a control window's STUN probe works; the app session blocks loopback and STUN/TURN; the example's test page reports 12 of 12; a vm escape, `require`/`process`, `fetch`, loopback and WebRTC all fail in the test page and an endless test times out; the drill iframe loads with origin `null`, SDK calls reach core, network fails; a full-access feature is refused before approval and loads from `approved/<hash>/` after. `--no-sandbox` is only because the Linux container runs as root; `SAYFERN_E2E_DATA` keeps it off real data.
+- **Fake test runner**: unit tests use `runTestsInChildProcess` (`node --permission`) or an injected runner; never the app's Electron runner.
 - **Smoke selftest**: `npm run smoke -- selftest` runs `SayfernApp` end to end offline in a temp dir (example extension, streamed turn with one request, correction and observations, grammar detail, progress, home, placement opening, export).
 
 ## 15. Build and dev scripts
@@ -861,6 +914,244 @@ Test doubles:
 | `npm run typecheck` | `tsc --noEmit` for `tsconfig.node.json` and `tsconfig.web.json`. |
 | `npm test` | All unit and integration tests. |
 | `npm run smoke -- <cmd>` | `providers`, `login <p>`, `key <p> <key>`, `models [p]`, `chat <p> [model] "msg"`, `selftest`. Data in `./.sayfern-dev/`. |
+| `SAYFERN_E2E_BUILDER=1 SAYFERN_E2E_DATA=<dir> electron out/main/index.js` | Feature sandbox checks in the built app (section 14). |
 | `npx vite --config vite.mock.config.ts` | Renderer in a browser at `http://localhost:5174` against the mock API (drops the CSP meta for Vite's dev client). `npx vite build --config vite.mock.config.ts` writes `out/mock-renderer/`. |
 
 Requirements: Node ≥ 22.19 (`engines`). There is no packaging or code signing setup yet (no electron-builder); see [roadmap.md](roadmap.md).
+
+---
+
+## 16. Stage 2: review, quizzes, feature builder, Anki decks
+
+Built in v0.5.0 (decks in v0.6.0). Feature IDs S2-01 to S2-16 are mapped to code in [`stage2.md`](stage2.md); the trust model behind the builder is ADR 21 in [`decisions.md`](decisions.md).
+
+### 16.1 Foundation: API slots, services, routes
+
+```
+src/shared/stage2/review.ts   ReviewApi  + REVIEW_METHODS  ─┐
+src/shared/stage2/quiz.ts     QuizApi    + QUIZ_METHODS    ─┼─► SayfernApi extends all four; METHOD_TABLE spreads the *_METHODS
+src/shared/stage2/builder.ts  BuilderApi + BUILDER_METHODS ─┤
+src/shared/stage2/decks.ts    DeckApi    + DECK_METHODS    ─┘
+                                   │
+src/core/app/index.ts  SayfernApp: builds one Stage2Deps (src/core/stage2.ts), then
+                         this.review   = new ReviewService(stage2);  bindSlot(this, this.review,   REVIEW_METHODS)
+                         this.quizzes  = new QuizService(stage2);    bindSlot(this, this.quizzes,  QUIZ_METHODS)
+                         this.builder  = new BuilderService(stage2); bindSlot(this, this.builder,  BUILDER_METHODS)
+                         this.decks    = new DeckService(stage2);    bindSlot(this, this.decks,    DECK_METHODS)
+                                   │
+src/main/index.ts      the IPC loop over API_METHODS finds the bound methods like any other
+src/renderer/src/dev   mockApi.ts merges createReviewMock / createQuizMock / createBuilderMock / createDeckMock (all over mockWorld.ts)
+```
+
+- `Stage2Deps`: `dataDir`, `models`, `records`, `anki`, `library`, `lang`, `extensions`, `settings` (the concrete Stage 1 services), `resolveModel(ref)` (throws a learner-readable error), `emit(channel, payload)`, `now`, `newId`, `fetch?`, `credentials?` (the sign-ins store; decks keep the ElevenLabs key there).
+- `bindSlot(target, service, methods)` defines each listed method on `SayfernApp` as a bound, non-enumerable property and throws at construction if the service lacks one. A slot interface plus its `Record<…, true>` table makes a missing or extra method a compile error.
+- Slot files hold types plus tiny pure helpers both sides need (`REVIEW_KIND`, `clozeFront`, `FEATURE_*` constants, the SDK strings). They are compiled by both TS projects, so no Node or DOM APIs.
+- Renderer: Review in the sidebar (⌘4; Progress is ⌘5), `Review.tsx` with Corrections and Quizzes tabs, `Quiz.tsx`, `FeatureHost.tsx`, Customize. Stylesheets in `src/renderer/src/styles/` (section 13).
+- One new event channel, `evt:builder` (`onBuilderEvent`). Quizzes have none: the renderer polls `getQuiz` every 800 ms while a quiz is generating.
+
+### 16.2 Review: corrections review and Anki export (S2-01..S2-03)
+
+| File | Contents |
+|---|---|
+| `src/core/review/index.ts` | `ReviewService` (`listReviewCorrections`, `draftAnkiCards`, `exportAnkiCards`), `MAX_CARDS` (100). |
+| `src/core/review/list.ts` | `buildItem` (correction + learner message, session, grammar point), `sentenceAndRevision`, `reviewList` (filters, chip counts, grammar points; all local). |
+| `src/core/review/cards.ts` | Pure card drafting: cloze (corrected sentence, fix as the gap, local English hint), recall drafts, note types `CLOZE_NOTE_TYPE` ("Sayfern Cloze", a real cloze type) and `RECALL_NOTE_TYPE` ("Sayfern Recall": Sentence, Prompt, Explanation, Source), `noteTypeFor`. |
+| `src/core/review/situations.ts` | One strict-JSON `completeSimple` call for all selected situation cards (`requestOptions` headroom, 60 s abort), validated per card (no CJK, no answer, length), explanation-based fallback with the answer masked; `parseSituations` tolerates fences and junk. |
+
+Flow:
+
+1. `listReviewCorrections(filter)` reads the language's corrections, joins each with its context (`buildItem`), filters by kind (`REVIEW_KIND`: style counts as phrasing), status, grammar point and search, and returns items newest first with chip counts.
+2. Retry, reveal and dispute in the list call the Stage 1 methods `checkRetry`, `revealCorrection`, `disputeCorrection` (section 11.5).
+3. `draftAnkiCards({ language, correctionIds, style }, model?)` skips disputed corrections. Cloze drafts are local; situation drafts make one model call, or fall back (`fallback: true`, `notice`).
+4. `exportAnkiCards({ language, deck, cards })`: `ensureNoteType`, `ensureDeck`, duplicate check, `addNotes` (section 5.6). Notes are tagged `sayfern`, `sayfern::<kind>` and the grammar id. The recall type puts the sentence first so Anki's duplicate check is on the sentence. Added and duplicate cards set `Correction.exportedAt` (+ `ankiNoteIds`); the deck goes to `AnkiConfig.exportDecks[language]`. The result lists added, duplicate and failed cards.
+
+| Method | Purpose |
+|---|---|
+| `listReviewCorrections(filter)` | Corrections of a language with sentence, revision, session and grammar; filtered; newest first; chip counts and grammar points computed locally. |
+| `draftAnkiCards(input, model?)` | Editable card drafts (cloze local; situation one batched model call with fallback). |
+| `exportAnkiCards(input)` | Adds cards with the Sayfern note types, skips duplicates, reports per card, marks corrections exported, remembers the deck. |
+
+Disk: no new files. `records/corrections.json` (`exportedAt`, `ankiNoteIds`) and `anki/config.json` (`exportDecks`). Inside Anki: the two note types, created on first export.
+
+Renderer: `screens/review/CorrectionsTab.tsx` (toolbar, list, selection), `CorrectionsItem.tsx` (one correction, inline retry/reveal/dispute, IME-safe), `AnkiExportPanel.tsx` (drafts cached per style and correction, editor, deck picker, export), `styles/review.css`.
+
+### 16.3 Quizzes (S2-04..S2-09)
+
+| File | Contents |
+|---|---|
+| `src/core/quiz/index.ts` | `QuizService` (implements `QuizApi`), `sanitizeSpec`, `toView` (strips keys of unanswered questions), `summarize` (local score), `quizSessionId` (`quiz:<id>`), `evidenceSpan`. |
+| `src/core/quiz/material.ts` | Gathers material locally: corrections and earlier wrong quiz answers, Anki words (`anki.words`), grammar summaries, library paragraphs by chapter or around the checkpoint, profile goal, saved words. |
+| `src/core/quiz/levels.ts` | HSK 2.0, HSK 3.0 and JLPT level names, vocabulary sizes and grammar descriptors; alignment and provenance text. No official word lists bundled. |
+| `src/core/quiz/estimate.ts` | Format of each question, minutes ↔ question count. |
+| `src/core/quiz/generate.ts` | Slot targets (a grammar point, a word, a correction or the passage), one strict-JSON request per 10 slots in parallel, one top-up request, `AbortController` per quiz. |
+| `src/core/quiz/items.ts` | `QuizItem`, `validateItem` per format, local grading with `pack.normalize`. |
+| `src/core/quiz/json.ts` | Salvages fenced, wrapped or truncated JSON. |
+| `src/core/quiz/grade.ts` | Model grading for written and role-play answers (verdict, one line of feedback, a better version; "uncertain" on failure). |
+| `src/core/quiz/store.ts` | `QuizStore`: one `JsonFile` per quiz under `records/quizzes/`. |
+
+Generation:
+
+1. `startQuiz(spec, model)` sanitizes the spec, resolves the model, gathers material, resolves the level, plans slots, stores a `generating` quiz and returns its view at once; generation continues in the background.
+2. Each model batch is parsed (`json.ts`) and every item goes through `validateItem`: multiple choice needs exactly one key among distinct options (letter answers, option labels and duplicates are repaired; a key missing from four or more options or more than one acceptable option drops the item); cloze needs one gap and an answer; ordering tiles are cut locally from the answer sentence with the language pack and must join back to it; written and role-play need a model answer and a rubric (a default rubric is added).
+3. Unusable slots get one top-up request; too few usable items fail the quiz with a readable error. `cancelQuizGeneration` aborts and deletes the unfinished quiz. A quiz left `generating` by a previous run becomes `failed` on read.
+
+Answering and evidence:
+
+1. `answerQuestion(quizId, questionId, response, model, { reveal? })` grades fixed formats locally (`normalize`, accepted alternatives; cloze also accepts the whole sentence; ordering is exact) and open formats with the model, then returns the view with the key and explanation.
+2. `finishQuiz` scores locally and records one `GrammarObservation` per answered item linked to a grammar point: `origin: "quiz"`, `quizId`, `sessionId: "quiz:<quizId>"`, `messageId` = question id, `assistance: "prompted"`, id from `observationId(questionId, grammarId, span)`, so it is idempotent. Revealed answers are not evidence. Quiz text is never recorded as learner words.
+3. `summarizeGrammar` keeps quiz evidence in `GrammarSummary.quiz` and never lets it make a point independent (section 5.3). `lastConversationVerdicts` skips it, so follow-ups on Today and in the prompt come from conversation only (section 10.1).
+4. `retryMistakes` makes a new quiz from wrong and unsure answers (reshuffled, no model call). `deleteQuiz` deletes the file and its evidence (`deleteObservations({ sessionId })`).
+
+| Method | Purpose |
+|---|---|
+| `quizOptions(language)` | Local counts per source, Anki state, grammar points, library docs, current level, exam systems |
+| `quizChapters(docId)` | Headings of a library document with paragraph ranges |
+| `estimateQuiz(spec)` | Question count, minutes, alignment and provenance (local) |
+| `startQuiz(spec, model)` | Stores a generating quiz and generates in the background |
+| `cancelQuizGeneration(quizId)` | Aborts and deletes the unfinished quiz |
+| `getQuiz(quizId)` | Renderer view (no keys for unanswered questions) |
+| `listQuizzes(language)` | Recent quizzes with local scores (failed ones hidden, removed after a day) |
+| `answerQuestion(quizId, questionId, response, model, opts?)` | Grades one answer, returns the view with the key |
+| `finishQuiz(quizId)` | Scores and records quiz evidence; idempotent |
+| `retryMistakes(quizId)` | New quiz from wrong and unsure answers, no model call |
+| `deleteQuiz(quizId)` | Deletes the quiz and its evidence |
+
+`records/quizzes/<quizId>.json` (`QuizFile` in `store.ts`): `v`, `id`, `language`, `title`, `spec` (`QuizSpec`: `language`, `focus`, `sources`, `level`, `format`, `length`), `status`, `createdAt`, `finishedAt?`, `error?`, `model?`, `alignment` ("HSK 3 (HSK 2.0 levels)"), `provenance` ("… Not official exam material."), `exam?`, `level?`, `items` (`QuizItem`: `id`, `format`, `prompt`, `text?`, `choices?`, `tiles?`, `answer` (the key), `accepted`, `explanation`, `rubric?`, `grammarId?`, `word?`, `correctionId?`, `answered?` (`QuizAnswer`: `response`, `verdict`, `feedback`, `revealed?`, …)), `grammarLabels` (id → pattern, captured at creation), `retryOf?`, `evidenceAt?` (set by `finishQuiz`).
+
+Renderer: `screens/review/QuizzesTab.tsx` (sentence builder, popovers, recent quizzes), `QuizParts.tsx`, `screens/Quiz.tsx`, `styles/quiz.css`. Grammar page: "Open quiz" links and the "In quizzes" line.
+
+### 16.4 Feature builder (S2-10..S2-13)
+
+| File | Contents |
+|---|---|
+| `src/core/builder/index.ts` | `BuilderService` (implements `BuilderApi`): builds, versions, approvals, surfaces, `serveAsset`, `featureCall`, `setTestRunner`, `exportAll`, `abortAll`; per-feature build lock. |
+| `src/core/builder/agent.ts` | `runBuilderLoop`, `builderSystemPrompt`, the eight tools, `MAX_BUILD_ITERATIONS` (25), `BUILD_ANSWER_TOKENS` (16k, plus thinking headroom), checklist `Steps`. |
+| `src/core/builder/kit.ts` | `BuilderKit` (read-only): `KIT_FILES` (`docs/feature-builder.md`, `docs/feature-sdk.d.ts`, `docs/extensions.md`, `src/core/contracts.ts`, `src/core/extensions/index.ts`, `src/shared/records.ts`, `src/shared/lang.ts`), `KIT_DIRS` (`examples/extensions`); root from `kitDir`, `SAYFERN_KIT_DIR` or `findKitRoot`. |
+| `src/core/builder/store.ts` | `FeatureStore`: `feature.json`, version folders (created exclusively), sealing, `approved/<hash>/` read-only copies, `checkId`. |
+| `src/core/builder/paths.ts` | `normalizeFeaturePath` (no traversal, absolute paths, hidden names, reserved `_sdk`/`_test`; allowed text types only), `PACKAGE_LIMITS` (200 KB per file, 1 MB and 40 files per feature), `parseFeatureUrl`, `featureHeaders` (CSP), `featureUrl`, `featureTestUrl`, `importSpecifiers`, `resolveRelative`. |
+| `src/core/builder/manifest.ts` | `readManifest` (surfaces, at most 8), `mainSideFiles`, `checkMainSideCode` (static, in-folder imports only; no `require`, computed `import()`, `eval`, `new Function`, `node:vm`, `process.dlopen`), `fullAccessFiles` (every script outside `ui/`). |
+| `src/core/builder/rpc.ts` | `FeatureRpc`: validates and serves sandbox SDK calls; per-feature `storage.json` and `results.json`. |
+| `src/core/builder/runner.ts` | Test harness (fake SDK with `defaultSeed` data, `test`, `assert`), test page served at `/_test/`, `parseTestOutput`, `runTestsInChildProcess` (`node --permission` fallback), `FeatureTestRunner` type. |
+| `src/main/features.ts` | Electron side: session lockdown, `netSession`, `createElectronTestRunner` (section 6). |
+
+**Build flow.**
+
+1. `buildFeature({ prompt, featureId?, language }, model)` takes the per-feature lock before its first await (a second build of the same feature is refused), creates a new feature or a new draft version, and returns `{ buildId, featureId }`. Several features can build at once.
+2. `runBuilderLoop` streams the learner's model through pi-ai with tools `list_kit`, `read_kit_file`, `list_feature_files`, `read_feature_file`, `write_feature_file`, `delete_feature_file` (draft folder only; writes check the version is still building), `run_tests` and `finish` (refused until `package.json` is valid and tests ran after the last write). "Ask for changes" sends a compact history (earlier prompts and outcomes) plus the file list. One nudge if the model stops without finishing.
+3. Checklist steps come from tool calls (`Steps`); test counts from the runner. Events go out on `evt:builder` and progress is kept in memory so a reopened Customize catches up.
+4. When the loop ends the version is sealed: files hashed (`hashFiles`), state `ready`, `failed` or `stopped`; it is never rewritten. Full-access code is checked again at seal.
+
+| `BuilderEvent.type` | Payload | When |
+|---|---|---|
+| `started` | `feature` | Build accepted |
+| `step` | `step: BuildStep` | A checklist step started, progressed or finished |
+| `text` | `delta` | Streamed builder text |
+| `done` | `feature` | Version sealed |
+| `error` | `message`, `feature \| null` | Build failed or stopped |
+
+Every event carries `buildId` and `featureId`.
+
+**Sandboxed UI, protocol and RPC.**
+
+```
+FeatureFrame (renderer)                      main (default session)                 core
+<iframe sandbox="allow-scripts"              sayfern-feature:// handler ──────────► BuilderService.serveAsset(url)
+  src="sayfern-feature://<id>/v<n>/ui/…">      (GET only)                             parseFeatureUrl → version file,
+  opaque origin, CSP from featureHeaders                                              /_sdk/sayfern-sdk.js, /_sdk/sayfern.css
+  window.sayfern (SDK) ── postMessage ──►    dead proxy, no subframe permissions,
+FeatureFrame host: answers `context`,          WebRTC proxied only, frame navigation
+  checks method ∈ FEATURE_RPC_METHODS,         limited to sayfern-feature:
+  size ≤ 64 KB, ≤ 16 in flight,
+  only from that frame's window
+  ── api.featureCall(ctx, method, args) ──── ipc:featureCall ─────────────────────► FeatureRpc: method, argument shapes and
+                                                                                     sizes, feature/version exist → records,
+                                                                                     Anki, lang, storage.json / results.json
+```
+
+- CSP on every feature response: `default-src 'none'`, scripts only from `sayfern-feature://<id>`, `connect-src 'none'`, no `eval`; `Access-Control-Allow-Origin: *` so module scripts load in the opaque-origin frame. The app page's own CSP allows `frame-src sayfern-feature:`.
+- SDK methods (`FEATURE_RPC_METHODS`): `context`, `anki.words`, `grammar.list`, `words.saved`, `lookup`, `annotate`, `storage.get`, `storage.set` (256 KB per feature), `results.record` (2000 rows, newest kept), `results.list`.
+- In the browser mock, `featureFrame` returns `{ srcdoc }` with the SDK inlined instead of a URL.
+
+**Feature tests.** `run_tests` calls the injected `FeatureTestRunner` with the version's files and test page URL (8 s timeout). In the app, `createElectronTestRunner` loads `sayfern-feature://<id>/v<n>/_test/index.html` (served only on the test session) in a hidden sandboxed window and reads `window.__sayfernResult`; `parseTestOutput` counts passes and failures from per-test lines. Outside Electron, `runTestsInChildProcess` runs the same harness in a `node --permission` child with no file system, child process, worker or addon grants (the network is not restricted, so it is never used in the app).
+
+**Review gate and loading.**
+
+1. A version with main-side code (`"main"` in `package.json`, or `index.js`) shows "Needs your review". `featureFiles(id, version)` returns every file with `fullAccess` flags for the review sheet.
+2. `approveFeature(id, version)` re-hashes the files on disk (refuses if they changed), runs `checkMainSideCode`, copies them to `builder/features/<id>/approved/<hash>/` (read-only), checks the copy has the same hash, and stores `{ version, hash, at }` in the feature's approvals.
+3. At construction `BuilderService` registers itself with `FileExtensionHost.setManagedSource({ list })`, which reports the active version of each feature. `enableFeature` / `rollbackFeature` / `disableFeature` update `feature.json` and reload the host (`extensions.load()`). The host loads managed features after `extensions/`; UI-only features import nothing; main-side code is imported only from `approved/<hash>/` and only when `hashDir` of that folder is in the approvals for that version. Anything else is refused and shown as a load error in Customize.
+
+**Security boundaries.**
+
+| Code | Where it runs | Boundary | Limits |
+|---|---|---|---|
+| Feature UI (`ui/`) | `<iframe sandbox="allow-scripts">` in the app window, from `sayfern-feature://` | Opaque origin; CSP above; no popups or navigation (`will-frame-navigate`); default session on a dead proxy (`127.0.0.1:9`, loopback included in production), WebRTC limited to that proxy, no permissions for sub-frames. SDK calls: allowlist and size cap in the renderer, full validation in core. | Same renderer process as the app (no Node, context isolation on). In dev, loopback is reachable (the dev server needs it). Main's own HTTP uses the separate `sayfern-net` session. |
+| Feature tests (`test.js`) | App: hidden `BrowserWindow`, `sandbox: true`, no preload, in-memory `sayfern-feature-tests` session | Same CSP and network lockdown, no permissions, destroyed after 8 s. | Node fallback (tests, smoke, dev only): `node --permission` child, killed on timeout. A test can fake its own result object; counts measure what the tests claim. `run_tests` also loads main-side modules imported by `test.js`, so code needing `node:` APIs can't be unit-tested by the builder. |
+| Main-side code (`main` / `index.js`) | App main process, full access | Runs only after the learner approves the exact hash; loaded from the frozen read-only copy; static, in-folder imports only. | The static checks are textual and approved code has full access: it can read files or use the network if it says so in plain sight. The review is the boundary. |
+
+Verified headless in real Electron 44 on Linux (section 14). Still to check on macOS: the OS sandbox (the container needed `--no-sandbox`) and font fallback inside frames.
+
+| Method | Purpose |
+|---|---|
+| `listFeatures()` / `getFeature(id)` | Built features, newest first, with status, versions, turns (live progress for a running build) |
+| `buildFeature(req, model)` | Starts a build; progress on `onBuilderEvent` |
+| `abortBuild(buildId)` | Stops a build; the draft is kept as "stopped" |
+| `featureFiles(id, version)` | Every file with `fullAccess` flags, for the review sheet |
+| `approveFeature(id, version)` | Approves this exact version (hash), freezes the approved copy |
+| `enableFeature(id, version?)` / `disableFeature(id)` | On (default: draft, else active; full-access code must be approved) / off |
+| `rollbackFeature(id, version)` | Makes another finished version active, keeping on/off |
+| `discardDraft(id)` | Deletes the draft; null when that was the only version (feature deleted) |
+| `deleteFeature(id)` | Deletes the feature, its versions and its data |
+| `featureSurfaces(language)` | Enabled tabs and activities for the workspace |
+| `featureFrame(id, version, entry)` | `{ url }` (app) or `{ srcdoc }` (mock) for a sandboxed frame |
+| `featureCall(ctx, method, args)` | Sandbox SDK call forwarded by the renderer, validated in core |
+
+`builder/features/<id>/feature.json` (`FeatureRecord` in `store.ts`): `name`, `description`, `language`, `createdAt`, `updatedAt`, `versions` (`n`, `createdAt`, `prompt`, `basedOn?`, `state`, `summary?`, `files`, `hash?` (sha256 of every path and its bytes, set at seal), `tests?`, `surfaces`, `fullAccess`, `error?`), `active?`, `enabled`, `draft?`, `approvals` (`{ version, hash, at }[]`), `turns` (prompt, model, steps, text, status, usage). Feature ids are `f-` plus 8 lowercase characters.
+
+Renderer: `screens/Customize.tsx` (three columns: features, build conversation and checklist, live preview and versions), `components/FeatureReview.tsx`, `FeatureFrame.tsx`, `FeatureNav.tsx` (sidebar tabs, `useFeatureSurfaces`), `FeatureActivities.tsx` (Today tiles), `screens/FeatureHost.tsx`, `styles/builder.css`.
+
+### 16.5 Anki deck generator (S2-14..S2-16)
+
+| File | Contents |
+|---|---|
+| `src/shared/stage2/decks.ts` | `DeckApi` + `DECK_METHODS`, `DeckSpec`, `DeckProjectView`, `DECK_BATCH_SIZE` (25), `DECK_SAMPLE_SIZE` (5), `suggestDeckName`, `sharedDecksUrl`. |
+| `src/core/decks/index.ts` | `DeckService`: options, estimate, projects (`startDeckProject`, `redoDeckSamples`, `approveDeckSamples`, `runDeckBatch`, `stopDeckBatches`), ElevenLabs account, `abortAll`; `sanitizeDeckSpec`. |
+| `src/core/decks/prompts.ts` | Word-list and card prompts (rules condensed from /ankigen's Mandarin and Japanese references), `parseWords`, `parseCards`, `ask`. |
+| `src/core/decks/cards.ts` | `checkCard` (target script, word in sentence incl. conjugated ja, reading checked against the dictionary then the reader, ruby via `src/shared/ruby.ts`), `VOCAB_NOTE_TYPE`, `noteFor`, `rubyHtml`. |
+| `src/core/decks/tts.ts` | `edgeTts` (Edge read-aloud websocket with Sec-MS-GEC, constants from edge-tts 7.2.8), `elevenTts`, `elevenVoices`, `elevenSubscription`, `TtsError` (quota / auth / network). |
+| `src/core/decks/store.ts` | `DeckStore`: `records/decks/<id>.json` (`JsonFile`), audio cache `records/deck-audio/<key>.mp3`. |
+| `src/renderer/src/screens/Decks.tsx` | Form, ElevenLabs connect, project view (progress, samples front/back with audio, batches, latest cards). |
+
+**Flow.**
+
+1. `startDeckProject(spec, model)`: sanitize, resolve the model, check the audio choice, save a `planning` project, then in the background `pickWords` (up to 100 words per request, guided by `spec.request`, the learner's own words for what the deck covers; later requests say how many list items are already taken and continue from the next one; avoid list = chosen words + up to 150 linked Anki words; `checkWords` drops words already in Anki; two empty replies mark the list `exhausted`) and `writeSamples` (5 cards, checked, audio recorded) → `preview`. The renderer polls `getDeckProject` every second.
+2. `redoDeckSamples(id, notes)` stores `guidance` (sent with every later word and card request) and writes new samples. `approveDeckSamples` → `ready`.
+3. `runDeckBatch(id, model, { continuous })` → `generating`. Each batch: ping Anki first (no tokens or credits while it's closed), top up the word list, re-check known words, write cards for words without a sample card (one request, one retry for skipped or unusable words), record audio (4 cards at a time, cached by content hash), `ensureDeck`, `ensureNoteType(Sayfern Vocab)`, `storeMedia` for every clip, `addNotes`. Word statuses, the batch log and the latest 50 cards are saved; `remaining = size - added` (or the words left when exhausted). After the first card is added the deck is appended to `AnkiConfig.decks` for the language, so sync and the tutor see it. Continuous mode repeats until done, a batch adds nothing, a batch fails or `stopDeckBatches`.
+4. A failed batch keeps the project `ready` with `lastError`. A restart mid-job turns `planning` into `preview` or `failed` and `generating` into `ready` on the next `getDeckProject`.
+
+**Audio.** `clip()` tries ElevenLabs when chosen and connected (key from `credentials`, voice from `settings.elevenLabsVoice`, model `eleven_flash_v2_5`, `language_code`); a quota or auth error turns ElevenLabs off for the rest of the batch and counts fallbacks; otherwise or after that the Edge voice for the part (word or sentence) speaks. A clip that fails both ways leaves the card without that audio ("No audio: …" check). Edge runs on Node's global `WebSocket` (undici accepts the `Origin` and cookie headers), not Chromium, so the locked-down app session doesn't apply; ElevenLabs uses `deps.fetch` (`electronFetch`).
+
+## 17. Languages and interface translation (v0.7.0)
+
+**Learning languages.** `Language` (`src/shared/records.ts`) has 11 ids; `LANGUAGE_META` (`src/shared/languages.ts`) is the single table for names, glyph, `fontClass` (`zh`, `ja`, `ko`, `lt` Latin, `cy` Cyrillic), BCP 47 tag, script, level system and levels (HSK, JLPT, TOPIK, CEFR), reading name (zh/ja), AnkiWeb search, variety (Latin American Spanish, Brazilian Portuguese, Northern Vietnamese) and target-language session titles. `languageInfo(id)` turns it into a `LanguageInfo`; `leaksTargetScript(text, target, locale)` catches card prompts that leak the answer's script.
+
+**Interface locales.** `src/shared/locales.ts`: `UiLocale` (en, zh-Hans, zh-Hant, ja, ko, vi, ru, fr, it, es, de, pt-BR), `matchOne` (zh-TW/HK/MO and Hant → zh-Hant, other zh → zh-Hans, any pt → pt-BR), `matchLocale(tags)`, `effectiveLocale(chosen, tags)`. Main passes `app.getPreferredSystemLanguages()` as `SayfernAppDeps.systemLocales`; `SettingsStore.locale()` resolves `Settings.uiLocale` (`"system"` or a locale) against it. `systemLocale()` is on the API for the "Match system" option. Main's menu labels (`MENU_TEXT`) refresh after `setSettings`.
+
+**Translation.** `src/shared/i18n/index.ts`: catalogs keyed by the English text (`CATALOGS`, one file per locale), `translate`, `translatePlural` (Intl.PluralRules; entries are a string or `{ one, few, many, other }`), `translateContext` (key `context\u0004English`), `msg` (marks constants), `translator(locale)` (a `Translator` with `t`, `tn`, `language`, `date`), `learningLanguageName` (Intl.DisplayNames). Renderer: `src/renderer/src/i18n.ts` (`t`, `tn`, `tj`, `tc`, `langName`, `intlLocale`); `AppProvider` calls `setLocale` before rendering and `App` remounts under `<Fragment key={locale}>` when it changes. `errorText()` translates fixed core errors. Core builds learner-visible text with the settings' translator (`translatorFor` / `explanationFor` in `stage2.ts`, `translatorOf` / `explainIn` for the tutor).
+
+**Explanation language.** The interface language is the language the tutor explains in (`explanationBlock` in `agent/prompt.ts`), the target of translations (`ChatMessage.translationLang` invalidates old ones), and the language of quiz feedback, card fronts, deck definitions and builder UI copy. Prompts use `promptName` ("Brazilian Portuguese").
+
+**Keys and the catalog test.** `scripts/i18n-keys.ts` walks `src/renderer/src`, `src/core` and `src/shared` with the TypeScript parser and collects literal arguments of `t`, `tj`, `msg`, `tr` (the `t as tr` alias), `tn` (plural, key = "other" form), `tc`, and sentence-like `new Error("…")` in core. `src/core/i18n-catalogs.test.ts` checks every catalog has every key, no unused keys, matching placeholders, the locale's plural categories, and no em dashes. `I18N_LOCALE=de` limits it to one locale.
+
+**Fonts.** `--ko`, `--lt`, `--cy` tokens and `.ko`, `.lt`, `.cy` classes for learning text; `html:lang(…)` rules swap `--serif` / `--sans` for CJK, Russian and Vietnamese interfaces (Instrument Serif and Geist ship Latin only).
+
+## 18. Stage 3: voice (v0.8.0)
+
+`VoiceService` (`src/core/voice/index.ts`) is bound like a Stage 2 slot (`VOICE_METHODS` from `src/shared/stage3/voice.ts`). It shares one `ElevenLabsAccounts` pool (`Stage2Deps.eleven`) with `DeckService`.
+
+- **Accounts.** `settings.json` → `elevenLabsAccounts: [{ id, label, credential, keyHint, addedAt }]` in the order they are tried; each key is in `credentials.json` under `credential` (`"elevenlabs"` for the first, `"elevenlabs:<id>"` after). A v0.6 key with no list becomes the first account. Benches live in memory only.
+- **speak.** Clean (messages only) → clip to 1,500 characters → cache key `sha(elevenlabs|voice|code|text)` or `sha(edge|voice|text)` → `records/voice-audio/<key>.mp3`. ElevenLabs Flash v2.5 through the pool, Edge (`edgeTts`) as the fallback. Bytes cross IPC; the renderer plays a blob URL (CSP `media-src blob:`).
+- **transcribe.** `elevenStt` posts a hand-built multipart body to `/v1/speech-to-text` (`scribe_v2`, `language_code` = session language, no audio-event tags). Clip length is added to `voiceMs`.
+- **Spoken turns.** `send(…, { spoken: true })` → `ChatMessage.spoken`, model content prefixed with `SPOKEN_MARKER` (`[spoken]`), rule in `FEEDBACK_RULES`.
+- **Voice time.** `addVoiceTime` updates `SessionMeta.voiceMs` and `activity.json` (`voiceMs` on the day's entry); `computeProgress` sums it into `ProgressStats.voiceMs`.
+- **Renderer.** `lib/voice.ts`: status store (`useVoiceStatus`), one player (`play`, `usePlayback`, `stopPlayback`), `Recorder` (MediaRecorder, 2-minute cap), `useAutoSpeak`. `components/Speak.tsx` renders listen and 0.7× buttons. Settings > Voice is `VoiceTab` in `screens/Settings.tsx`.
+

@@ -1,9 +1,9 @@
 {
   "name": "sayfern",
-  "version": "0.4.0",
+  "version": "0.9.1",
   "private": true,
   "description": "Free, open-source, AI-native language learning for macOS",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "type": "module",
   "main": "./out/main/index.js",
   "engines": {

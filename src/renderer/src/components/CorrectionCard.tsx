@@ -3,8 +3,9 @@ import { useState } from "react";
 import type { Correction, GrammarSummary, Language } from "../../../shared/records";
 import type { ModelRef } from "../../../shared/types";
 import { api, errorText } from "../api";
-import { cls, sentenceAt } from "../lib/format";
+import { cls, fontOf, sentenceAt } from "../lib/format";
 import { Icon } from "./icons";
+import { msg, t } from "../i18n";
 
 export interface CorrectionCardProps {
   correction: Correction;
@@ -22,10 +23,10 @@ export interface CorrectionCardProps {
 type Stage = "ask" | "retry" | "dispute";
 
 const KIND_WORD: Record<Correction["kind"], string> = {
-  grammar: "Grammar",
-  vocabulary: "Word choice",
-  phrasing: "Phrasing",
-  style: "Style",
+  grammar: msg("Grammar"),
+  vocabulary: msg("Word choice"),
+  phrasing: msg("Phrasing"),
+  style: msg("Style"),
 };
 
 export function CorrectionCard({ correction: c, language, messageText, grammar, model, onUpdate, onOpenGrammar, variant = "inline" }: CorrectionCardProps) {
@@ -38,7 +39,7 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
   const style = c.kind === "style";
   const done = c.status === "revealed" || c.status === "retried_ok";
   const disputed = c.status === "disputed";
-  const L = language;
+  const L = fontOf(language);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -81,28 +82,28 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
   const after = at >= 0 ? context.slice(at + c.original.length) : "";
 
   const title = disputed
-    ? "Marked as not a mistake"
+    ? t("Marked as not a mistake")
     : style
-      ? "A more natural way to say"
+      ? t("A more natural way to say")
       : done
         ? c.status === "retried_ok"
-          ? "Fixed"
-          : "Here's the fix for"
-        : "One thing to fix in";
+          ? t("Fixed")
+          : t("Here's the fix for")
+        : t("One thing to fix in");
 
   return (
-    <div className={cls("corr", `corr-${variant}`, style && "corr-style", done && "corr-done", disputed && "corr-disputed")} role="group" aria-label={style ? "Suggestion" : "Correction"}>
+    <div className={cls("corr", `corr-${variant}`, style && "corr-style", done && "corr-done", disputed && "corr-disputed")} role="group" aria-label={style ? t("Suggestion") : t("Correction")}>
       <div className="corr-h">
         <Icon name={style ? "spark" : disputed ? "flag" : "pen"} size={15} />
         <span>
           {title} <span className={cls("corr-q", L)}>{c.original}</span>
         </span>
-        <span className="corr-kind">{style ? "Suggestion" : KIND_WORD[c.kind]}</span>
+        <span className="corr-kind">{style ? t("Suggestion") : t(KIND_WORD[c.kind])}</span>
       </div>
 
       {disputed && (
         <>
-          <p>Thanks. This one won't count against you, and the tutor will take your note into account.</p>
+          <p>{t("Thanks. This one won't count against you, and the tutor will take your note into account.")}</p>
           {c.disputeNote && <p className="corr-note">"{c.disputeNote}"</p>}
         </>
       )}
@@ -111,22 +112,22 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
         <>
           <p>
             {style
-              ? "What you wrote works. Want to try a smoother version before I show one?"
+              ? t("What you wrote works. Want to try a smoother version before I show one?")
               : c.status === "retried_wrong"
-                ? "Not quite yet. Have another go, or I can show you."
-                : "Have another go at this part before I show you?"}
+                ? t("Not quite yet. Have another go, or I can show you.")
+                : t("Have another go at this part before I show you?")}
           </p>
-          {feedback && !feedback.ok && <p className="corr-fb bad">{feedback.text}</p>}
+          {feedback && !feedback.ok && <p className="corr-fb bad">{t(feedback.text)}</p>}
           <div className="corr-actions">
             <button className="btn btn-p btn-s" onClick={() => setStage("retry")} disabled={busy}>
-              Try again
+              {t("Try again")}
             </button>
             <button className="btn btn-s" onClick={reveal} disabled={busy}>
-              Show answer
+              {t("Show answer")}
             </button>
             {!style && (
               <button className="linkb" onClick={() => setStage("dispute")} disabled={busy}>
-                Not a mistake?
+                {t("Not a mistake?")}
               </button>
             )}
           </div>
@@ -141,8 +142,8 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
             void check();
           }}
         >
-          <label htmlFor={`retry-${c.id}`}>Rewrite it your way</label>
-          {feedback && !feedback.ok && <p className="corr-fb bad">{feedback.text}</p>}
+          <label htmlFor={`retry-${c.id}`}>{t("Rewrite it your way")}</label>
+          {feedback && !feedback.ok && <p className="corr-fb bad">{t(feedback.text)}</p>}
           <div className="corr-row">
             <input
               id={`retry-${c.id}`}
@@ -157,15 +158,15 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
               }}
             />
             <button className="btn btn-p btn-s tall" type="submit" disabled={busy || !draft.trim() || !model}>
-              {busy ? "Checking…" : "Check"}
+              {busy ? t("Checking…") : t("Check")}
             </button>
           </div>
           <div className="corr-actions">
             <button type="button" className="btn btn-s" onClick={reveal} disabled={busy}>
-              Show answer
+              {t("Show answer")}
             </button>
             <button type="button" className="linkb" onClick={() => setStage("ask")}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </form>
@@ -179,25 +180,25 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
             void dispute();
           }}
         >
-          <label htmlFor={`dispute-${c.id}`}>Why is it right? A few words is enough.</label>
+          <label htmlFor={`dispute-${c.id}`}>{t("Why is it right? A few words is enough.")}</label>
           <div className="corr-row">
             <input
               id={`dispute-${c.id}`}
               className="input"
               autoFocus
               maxLength={200}
-              placeholder="e.g. My textbook uses this form"
+              placeholder={t("e.g. My textbook uses this form")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && setStage("ask")}
             />
             <button className="btn btn-p btn-s tall" type="submit" disabled={busy}>
-              Send note
+              {t("Send note")}
             </button>
           </div>
           <div className="corr-actions">
             <button type="button" className="linkb" onClick={() => setStage("ask")}>
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </form>
@@ -217,14 +218,14 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
               {after}
             </span>
           </div>
-          {feedback?.ok && <p className="corr-fb ok">{feedback.text}</p>}
+          {feedback?.ok && <p className="corr-fb ok">{t(feedback.text)}</p>}
           <p>{c.explanation}</p>
           <div className="corr-actions wrap">
-            {c.status === "retried_ok" && <span className="st st-help">Fixed on retry · logged separately</span>}
+            {c.status === "retried_ok" && <span className="st st-help">{t("Fixed on retry · logged separately")}</span>}
             {c.grammarId && (
               <button className="chip" onClick={() => onOpenGrammar?.(c.grammarId!)}>
                 <Icon name="grammar" size={14} />
-                <span className={L}>{grammar?.point.pattern ?? "See the pattern"}</span>
+                <span className={L}>{grammar?.point.pattern ?? t("See the pattern")}</span>
                 {grammar && <span className="muted">{grammar.point.name}</span>}
               </button>
             )}
@@ -235,7 +236,7 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
       {error && (
         <div className="err">
           <Icon name="alert" size={15} />
-          <span>{error}</span>
+          <span>{t(error)}</span>
         </div>
       )}
     </div>

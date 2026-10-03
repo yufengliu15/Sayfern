@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { priceFor, type BenchConfig } from "./config";
-import type { JudgeResult } from "./judge";
+import { judgeItems, needs, type JudgeResult } from "./judge";
 import { blockKey, type BlockResult } from "./runner";
 import type { Scenario } from "./scenarios";
 import { scoreTurn } from "./score";
@@ -58,6 +58,8 @@ export interface BlockMetrics {
     factsCorrect: number;
     checks: number;
     checksPassed: number;
+    /** Expected verdicts the judge did not return (denominators above still count them). */
+    ungraded: { errors: number; clean: number; facts: number; checks: number };
     error?: string;
   };
   reportedVsWire?: { reported: number; wire: number };
@@ -212,27 +214,40 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
     }, 0);
     if (reported) m.reportedVsWire = { reported, wire: m.promptTokens + m.outputTokens };
 
+    // Denominators come from the scenario's gold items, so both arms are graded out of the same
+    // totals. A verdict the judge failed to return is counted as ungraded, never dropped.
     const j = judge.find((x) => x.block === blockKey(b.arm, b.scenario, b.rep));
-    if (j) {
-      const jm = { errors: 0, flagged: 0, correctFix: 0, cleanTurns: 0, falsePositives: 0, tutorErrors: 0, facts: 0, factsCorrect: 0, checks: 0, checksPassed: 0, ...(j.error ? { error: j.error } : {}) };
-      for (const it of j.items) {
-        for (const e of it.errors ?? []) {
+    if (scenario && !b.skipped && (j || judge.length)) {
+      const jm = { errors: 0, flagged: 0, correctFix: 0, cleanTurns: 0, falsePositives: 0, tutorErrors: 0, facts: 0, factsCorrect: 0, checks: 0, checksPassed: 0,
+        ungraded: { errors: 0, clean: 0, facts: 0, checks: 0 }, ...(j?.error ? { error: j.error } : !j ? { error: "not judged" } : {}) };
+      const got = new Map((j?.items ?? []).map((it) => [it.item, it]));
+      for (const it of j?.items ?? []) jm.tutorErrors += Number(it.tutorErrors ?? 0) || 0;
+      for (const item of judgeItems(b, scenario)) {
+        const n = needs(item);
+        const r = got.get(item.item);
+        for (const id of n.errors) {
           jm.errors++;
-          if (e.flagged) jm.flagged++;
-          if (e.correctFix) jm.correctFix++;
+          const e = r?.errors?.find((x) => x.id === id);
+          if (!e) jm.ungraded.errors++;
+          else {
+            if (e.flagged) jm.flagged++;
+            if (e.correctFix) jm.correctFix++;
+          }
         }
-        if (typeof it.falsePositive === "boolean") {
+        if (n.clean) {
           jm.cleanTurns++;
-          if (it.falsePositive) jm.falsePositives++;
+          if (typeof r?.falsePositive !== "boolean") jm.ungraded.clean++;
+          else if (r.falsePositive) jm.falsePositives++;
         }
-        jm.tutorErrors += Number(it.tutorErrors ?? 0) || 0;
-        if (typeof it.correct === "boolean") {
+        if (n.fact) {
           jm.facts++;
-          if (it.correct) jm.factsCorrect++;
+          if (typeof r?.correct !== "boolean") jm.ungraded.facts++;
+          else if (r.correct) jm.factsCorrect++;
         }
-        if (typeof it.pass === "boolean") {
+        if (n.checks) {
           jm.checks++;
-          if (it.pass) jm.checksPassed++;
+          if (typeof r?.pass !== "boolean") jm.ungraded.checks++;
+          else if (r.pass) jm.checksPassed++;
         }
       }
       m.judge = jm;
@@ -327,23 +342,32 @@ export function renderReport(cfg: BenchConfig, runDir: string, scenarios: Scenar
     L.push(`## Accuracy`, "");
     L.push(`| Metric | ${armLabel(a0)} | ${armLabel(a1)} |`, "|---|---:|---:|");
     const sum = (arm: string, f: (b: BlockMetrics) => number) => good.filter((b) => b.arm === arm).reduce((t, b) => t + f(b), 0);
-    const pair = (name: string, num: (b: BlockMetrics) => number, den: (b: BlockMetrics) => number) =>
-      L.push(`| ${name} | ${pct(sum(a0, num), sum(a0, den))} (${sum(a0, num)}/${sum(a0, den)}) | ${pct(sum(a1, num), sum(a1, den))} (${sum(a1, num)}/${sum(a1, den)}) |`);
+    const cell = (arm: string, num: (b: BlockMetrics) => number, den: (b: BlockMetrics) => number, un?: (b: BlockMetrics) => number) => {
+      const u = un ? sum(arm, un) : 0;
+      return `${pct(sum(arm, num), sum(arm, den))} (${sum(arm, num)}/${sum(arm, den)}${u ? `, ⚠ ${u} ungraded` : ""})`;
+    };
+    const pair = (name: string, num: (b: BlockMetrics) => number, den: (b: BlockMetrics) => number, un?: (b: BlockMetrics) => number) =>
+      L.push(`| ${name} | ${cell(a0, num, den, un)} | ${cell(a1, num, den, un)} |`);
     pair("Grammar errors caught, deterministic (fix shown to the learner)", (b) => b.grammar.flagged, (b) => b.grammar.gold);
     pair("Anki grounding checks passed, deterministic", (b) => b.anki.passed, (b) => b.anki.checks);
     const judged = good.some((b) => b.judge);
     if (judged) {
-      pair("Judge: grammar errors flagged", (b) => b.judge?.flagged ?? 0, (b) => b.judge?.errors ?? 0);
-      pair("Judge: flagged with a correct fix", (b) => b.judge?.correctFix ?? 0, (b) => b.judge?.errors ?? 0);
-      pair("Judge: false alarms on clean messages", (b) => b.judge?.falsePositives ?? 0, (b) => b.judge?.cleanTurns ?? 0);
-      pair("Judge: Anki facts stated correctly", (b) => b.judge?.factsCorrect ?? 0, (b) => b.judge?.facts ?? 0);
-      pair("Judge: behaviour checks passed", (b) => b.judge?.checksPassed ?? 0, (b) => b.judge?.checks ?? 0);
+      pair("Judge: grammar errors flagged", (b) => b.judge?.flagged ?? 0, (b) => b.judge?.errors ?? 0, (b) => b.judge?.ungraded.errors ?? 0);
+      pair("Judge: flagged with a correct fix", (b) => b.judge?.correctFix ?? 0, (b) => b.judge?.errors ?? 0, (b) => b.judge?.ungraded.errors ?? 0);
+      pair("Judge: false alarms on clean messages", (b) => b.judge?.falsePositives ?? 0, (b) => b.judge?.cleanTurns ?? 0, (b) => b.judge?.ungraded.clean ?? 0);
+      pair("Judge: Anki facts stated correctly", (b) => b.judge?.factsCorrect ?? 0, (b) => b.judge?.facts ?? 0, (b) => b.judge?.ungraded.facts ?? 0);
+      pair("Judge: behaviour checks passed", (b) => b.judge?.checksPassed ?? 0, (b) => b.judge?.checks ?? 0, (b) => b.judge?.ungraded.checks ?? 0);
       L.push(`| Judge: tutor's own Mandarin errors (count) | ${sum(a0, (b) => b.judge?.tutorErrors ?? 0)} | ${sum(a1, (b) => b.judge?.tutorErrors ?? 0)} |`);
     } else L.push(`| Judge metrics | not run | not run |`);
+    const ungradedTotal = good.reduce((t, b) => t + (b.judge ? Object.values(b.judge.ungraded).reduce((x, y) => x + y, 0) : 0), 0);
     L.push(`| Tool errors returned to the model | ${sum(a0, (b) => b.toolErrors)} | ${sum(a1, (b) => b.toolErrors)} |`);
     L.push(`| Permission denials (Claude Code) | ${sum(a0, (b) => b.permissionDenials)} | ${sum(a1, (b) => b.permissionDenials)} |`);
     L.push(`| AnkiConnect calls during turns (setup excluded) | ${sum(a0, (b) => b.ankiCallsInTurns)} | ${sum(a1, (b) => b.ankiCallsInTurns)} |`);
     L.push("");
+    if (ungradedTotal) {
+      const which = good.filter((b) => b.judge && Object.values(b.judge.ungraded).some(Boolean)).map((b) => `\`${blockKey(b.arm, b.scenario, b.rep)}\``);
+      L.push(`> ⚠ ${ungradedTotal} judge verdict(s) missing (${which.join(", ")}). Both arms are still scored out of the same totals; ungraded items count as not passed. Run \`npm run bench -- judge <run-id>\` to grade only the missing ones.`, "");
+    }
   }
 
   L.push(`## Plan utilization (rate-limit headers)`, "");

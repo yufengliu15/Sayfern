@@ -18,7 +18,7 @@ npm run bench -- selftest     # offline check of the suite itself (~20 s, no tok
 npm run bench -- doctor       # checks sign-ins, the skill, fixtures (no model calls)
 npm run bench -- run --scenario zh-anki-grounding --reps 1   # first real run (~5 min)
 npm run bench -- run          # everything: 5 scenarios × 2 arms × 2 reps (~45-90 min)
-npm run bench -- judge        # add model-judged accuracy to the latest run (~5 min)
+npm run bench -- judge        # grade the latest run; on a judged run, only verdicts that are missing (--all: re-grade everything)
 ```
 
 The report lands in `bench/results/<run-id>/report.md`. `npm run bench -- report [run-id]` rebuilds it from the saved captures at any time.
@@ -167,6 +167,7 @@ Every run records the Sayfern version, `claude --version`, the skill's content h
 - **Scripted learner.** Messages are fixed, so they may not answer the tutor's exact question. Both arms get the same script; the judge checks look at tutor behaviour, not conversational flow.
 - **Model variance.** Run at least 2 repetitions (default) and read ranges in the per-scenario tables before quoting ratios.
 - **Limit units are an estimate.** Anthropic does not publish how plan limits weigh token kinds. The utilization headers are the direct measurement; use limit units for fine-grained comparisons and headers to confirm direction.
+- **Judge denominators come from the scenarios, not the judge's reply.** Each arm is graded out of the same gold items (errors, clean turns, Anki facts, checks). If the judge skips an item or its reply can't be parsed (after up to three attempts, resending only what is missing), the item counts as ungraded and not passed, and the report flags it with ⚠. Before this, a failed judge call shrank one arm's totals (run 2026-10-01T17-47-57: Anki facts 2/2 vs 3/4).
 - **Deterministic grammar scoring** undercounts fixes phrased differently from the gold strings, equally for both arms. The judge is the complement.
 - **Visible feedback formats differ** (Sayfern correction cards vs prose notes), so the judge can guess the arm. It is still graded against the same gold answers.
 - **Fixture realism.** Synthetic fixtures understate Claude Code's reading costs; use `--fixtures private` for claims about real use.

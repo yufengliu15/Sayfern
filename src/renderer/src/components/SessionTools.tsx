@@ -1,0 +1,68 @@
+// Above the composer: "New topic" (the tutor drops the current topic and opens a fresh one) and
+// the "Go easier / go harder" slider (SessionMeta.difficulty, read by the tutor's next reply).
+import { useEffect, useState } from "react";
+import type { Difficulty } from "../../../shared/records";
+import { cls } from "../lib/format";
+import { msg, t } from "../i18n";
+import { Icon } from "./icons";
+
+const LABELS: Record<Difficulty, string> = {
+  [-2]: msg("Much easier"),
+  [-1]: msg("Easier"),
+  0: msg("Normal"),
+  1: msg("Harder"),
+  2: msg("Much harder"),
+};
+
+export interface SessionToolsProps {
+  difficulty: Difficulty;
+  onDifficulty(d: Difficulty): void;
+  /** Omit to hide the button (reading and placement sessions). */
+  onNewTopic?: () => void;
+  busy: boolean;
+  disabled?: boolean;
+}
+
+export function SessionTools({ difficulty, onDifficulty, onNewTopic, busy, disabled }: SessionToolsProps) {
+  // Local value while dragging; saved on release so one drag is one save.
+  const [value, setValue] = useState<Difficulty>(difficulty);
+  useEffect(() => setValue(difficulty), [difficulty]);
+  const commit = (v: Difficulty) => {
+    if (v !== difficulty) onDifficulty(v);
+  };
+
+  return (
+    <div className="stools">
+      {onNewTopic && (
+        <button
+          className="chip chip-s stools-topic"
+          onClick={onNewTopic}
+          disabled={busy || disabled}
+          title={t("The tutor drops this topic and starts a new one")}
+        >
+          <Icon name="refresh" size={13} />
+          <span>{t("New topic")}</span>
+        </button>
+      )}
+      <label className="stools-diff" title={t("Applies from the tutor's next reply")}>
+        <span className="stools-end">{t("Go easier")}</span>
+        <input
+          type="range"
+          min={-2}
+          max={2}
+          step={1}
+          value={value}
+          disabled={disabled}
+          aria-label={t("Difficulty")}
+          aria-valuetext={t(LABELS[value])}
+          onChange={(e) => setValue(Number(e.target.value) as Difficulty)}
+          onPointerUp={(e) => commit(Number(e.currentTarget.value) as Difficulty)}
+          onKeyUp={(e) => commit(Number(e.currentTarget.value) as Difficulty)}
+          onBlur={(e) => commit(Number(e.currentTarget.value) as Difficulty)}
+        />
+        <span className="stools-end">{t("Go harder")}</span>
+        <span className={cls("stools-val", value < 0 && "easy", value > 0 && "hard")}>{t(LABELS[value])}</span>
+      </label>
+    </div>
+  );
+}

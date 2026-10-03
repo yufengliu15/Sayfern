@@ -76,12 +76,28 @@ export function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallb
   return typeof v === "string" && (allowed as readonly string[]).includes(v.trim()) ? (v.trim() as T) : fallback;
 }
 
+/** Some models send nested tool arguments as JSON text ("[{...}]"): parse those, leave the rest. */
+function jsonish(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  if (!(t.startsWith("[") || t.startsWith("{"))) return v;
+  try {
+    return JSON.parse(t);
+  } catch {
+    return v;
+  }
+}
+
 export function arr(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
+  const p = jsonish(v);
+  if (Array.isArray(p)) return p;
+  // A single object where a list was expected.
+  return p && typeof p === "object" ? [p] : [];
 }
 
 export function obj(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const p = jsonish(v);
+  return p && typeof p === "object" && !Array.isArray(p) ? (p as Record<string, unknown>) : {};
 }
 
 export function plural(n: number, one: string, many = `${one}s`): string {

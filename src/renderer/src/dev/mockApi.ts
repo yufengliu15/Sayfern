@@ -40,6 +40,15 @@ import type {
   WordUsage,
 } from "../../../shared/records";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ProviderInfo, Settings } from "../../../shared/types";
+import { createBuilderMock } from "./mockBuilder";
+import { createDeckMock } from "./mockDecks";
+import { createVoiceMock } from "./mockVoice";
+import { createQuizMock } from "./mockQuiz";
+import { createReviewMock } from "./mockReview";
+import { everyLanguage, type MockSessionRec, type MockWorld } from "./mockWorld";
+import { LANGUAGE_META, languageInfo } from "../../../shared/languages";
+import { matchLocale } from "../../../shared/locales";
+import { LANGUAGES } from "../../../shared/records";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -358,6 +367,10 @@ const isCjk = (ch: string) => /[぀-ヿ㐀-鿿々ー]/.test(ch);
 const isKana = (ch: string) => /[぀-ヿー]/.test(ch);
 
 function segment(language: Language, text: string): Token[] {
+  if (language !== "zh" && language !== "ja") {
+    const seg = new Intl.Segmenter(LANGUAGE_META[language].bcp47, { granularity: "word" });
+    return [...seg.segment(text)].map((s) => ({ text: s.segment, start: s.index, end: s.index + s.segment.length, isWord: !!s.isWordLike }));
+  }
   const dict = language === "zh" ? ZH_DICT : JA_DICT;
   const forms: Record<string, string> = language === "ja" ? JA_FORMS : {};
   const known = (s: string) => !!dict[s] || !!forms[s];
@@ -418,10 +431,7 @@ function toEntry(language: Language, word: string): DictEntry | undefined {
 
 // ---------------------------------------------------------------- static catalogue
 
-const LANGS: LanguageInfo[] = [
-  { id: "zh", name: "Chinese", nativeName: "中文", glyph: "中", fontClass: "zh", levels: ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6"], readingName: "Pinyin" },
-  { id: "ja", name: "Japanese", nativeName: "日本語", glyph: "日", fontClass: "ja", levels: ["N5", "N4", "N3", "N2", "N1"], readingName: "Reading" },
-];
+const LANGS: LanguageInfo[] = LANGUAGES.map(languageInfo);
 
 const MODELS: ModelInfo[] = [
   { provider: "anthropic", id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", reasoning: true, input: ["text", "image"], contextWindow: 200_000 },
@@ -437,7 +447,33 @@ interface Reply {
   tr: string;
 }
 
-const REPLIES: Record<Language, Reply[]> = {
+/** One canned reply for the languages the mock has no rich data for. */
+const MORE_REPLIES: Partial<Record<Language, Reply[]>> = {
+  ko: [{ t: "좋네요! 주말에 또 뭐 했어요?", tr: "Nice! What else did you do on the weekend?" }],
+  en: [{ t: "That sounds great! What else did you do over the weekend?", tr: "That sounds great! What else did you do over the weekend?" }],
+  es: [{ t: "¡Qué bien! ¿Qué más hiciste el fin de semana?", tr: "Great! What else did you do on the weekend?" }],
+  fr: [{ t: "Super ! Qu'est-ce que tu as fait d'autre ce week-end ?", tr: "Great! What else did you do this weekend?" }],
+  de: [{ t: "Toll! Was hast du am Wochenende sonst noch gemacht?", tr: "Great! What else did you do on the weekend?" }],
+  it: [{ t: "Che bello! Cos'altro hai fatto nel fine settimana?", tr: "How nice! What else did you do on the weekend?" }],
+  pt: [{ t: "Que legal! O que mais você fez no fim de semana?", tr: "How cool! What else did you do on the weekend?" }],
+  ru: [{ t: "Здорово! А что ещё ты делал на выходных?", tr: "Great! What else did you do on the weekend?" }],
+  vi: [{ t: "Hay quá! Cuối tuần bạn còn làm gì nữa?", tr: "Great! What else did you do on the weekend?" }],
+};
+
+/** A few reading paragraphs for the same languages. */
+const MORE_PARAS: Partial<Record<Language, string[]>> = {
+  ko: ["가을이 되면 많은 사람들이 산에 올라갑니다.", "산 위에서 보는 경치는 정말 아름답습니다."],
+  en: ["In autumn, lots of people go hiking in the hills.", "The view from the top is beautiful."],
+  es: ["En otoño, mucha gente sube a la montaña.", "La vista desde arriba es preciosa."],
+  fr: ["En automne, beaucoup de gens montent à la montagne.", "La vue d'en haut est magnifique."],
+  de: ["Im Herbst wandern viele Leute auf die Berge.", "Die Aussicht von oben ist wunderschön."],
+  it: ["In autunno, molte persone vanno in montagna.", "La vista dall'alto è bellissima."],
+  pt: ["No outono, muitas pessoas sobem a montanha.", "A vista lá de cima é linda."],
+  ru: ["Осенью многие люди ходят в горы.", "Вид сверху очень красивый."],
+  vi: ["Vào mùa thu, nhiều người đi leo núi.", "Phong cảnh trên đỉnh núi rất đẹp."],
+};
+
+const REPLIES = everyLanguage<Reply[]>({
   zh: [
     { t: "真不错！你们排队排了多久？那家店你会推荐给朋友吗？", tr: "Nice! How long did you queue? Would you recommend that place to friends?" },
     { t: "听起来很好玩。除了烤鸭，你们还点了什么菜？", tr: "Sounds like fun. Besides roast duck, what else did you order?" },
@@ -449,7 +485,7 @@ const REPLIES: Record<Language, Reply[]> = {
     { t: "楽しそうですね。おすすめのラーメン屋はありますか？", tr: "Sounds fun. Is there a ramen shop you'd recommend?" },
     { t: "なるほど。来週の予定は何ですか？", tr: "I see. What are your plans for next week?" },
   ],
-};
+}, (l) => MORE_REPLIES[l] ?? []);
 
 const TRANSLATIONS: Record<string, string> = {
   "欢迎回来！上次你说这个周末想去爬山。你们最后去了吗？": "Welcome back! Last time you said you wanted to go hiking this weekend. Did you end up going?",
@@ -469,13 +505,7 @@ const TRANSLATIONS: Record<string, string> = {
 
 // ---------------------------------------------------------------- mutable world
 
-interface SessionRec {
-  meta: SessionMeta;
-  messages: ChatMessage[];
-  targets: PracticeTarget[];
-  grammarIds: string[];
-  replyIdx: number;
-}
+type SessionRec = MockSessionRec;
 
 export function createMockApi(): SayfernApi {
   const T0 = Date.now();
@@ -630,7 +660,7 @@ export function createMockApi(): SayfernApi {
   ];
 
   // ---- anki
-  const ankiCards: Record<Language, AnkiCard[]> = {
+  const ankiCards = everyLanguage<AnkiCard[]>({
     zh: [
       { cardId: 1, noteId: 11, deck: "Chinese::HSK3", word: "爬山", reading: "pá shān", meaning: "to go hiking", interval: 5, ease: 2500, lapses: 0, reps: 4, lastReviewAt: T0 - 5 * DAY, lastEase: 3 },
       { cardId: 2, noteId: 12, deck: "Chinese::HSK3", word: "烤鸭", reading: "kǎoyā", meaning: "roast duck", interval: 3, ease: 2300, lapses: 1, reps: 12, lastReviewAt: T0 - DAY, lastEase: 3 },
@@ -643,7 +673,7 @@ export function createMockApi(): SayfernApi {
       { cardId: 22, noteId: 32, deck: "Japanese::Core", word: "美味しい", reading: "おいしい", meaning: "delicious", interval: 12, ease: 2600, lapses: 0, reps: 8 },
       { cardId: 23, noteId: 33, deck: "Japanese::Core", word: "予定", reading: "よてい", meaning: "plan", interval: 2, ease: 2200, lapses: 2, reps: 5 },
     ],
-  };
+  }, () => []);
   let ankiConfig: AnkiConfig = {
     enabled: true,
     url: "http://127.0.0.1:8765",
@@ -658,15 +688,17 @@ export function createMockApi(): SayfernApi {
     "Japanese::Core": ["Expression", "Reading", "Meaning", "Sentence"],
     Default: ["Front", "Back"],
   };
-  const ankiSyncedAt: Record<Language, number> = { zh: T0 - 2 * MIN, ja: T0 - 3 * HOUR };
+  const ankiSyncedAt = everyLanguage<number>({ zh: T0 - 2 * MIN, ja: T0 - 3 * HOUR }, () => T0 - HOUR);
   const freshTargets = (l: Language): PracticeTarget[] =>
     ankiCards[l].map((c) => ({ word: c.word, reading: c.reading, meaning: c.meaning, reason: c.lapses > 1 ? "difficult" : "recent", cardId: c.cardId, status: "pending" }));
 
   // ---- dictionaries
-  const dictInstalled: Record<Language, boolean> = { zh: true, ja: false };
+  const dictInstalled = everyLanguage<boolean>({ zh: true, ja: false }, () => false);
   const dictProgressSubs = new Set<(p: DictionaryProgress) => void>();
   const dictStatus = (l: Language): DictionaryStatus =>
-    l === "zh"
+    l !== "zh" && l !== "ja"
+      ? { language: l, name: `WikDict ${LANGUAGE_META[l].name}`, license: "CC BY-SA 3.0", installed: dictInstalled[l], entries: dictInstalled[l] ? 48_000 : undefined, version: "2026-09-01", downloadMb: 12 }
+      : l === "zh"
       ? { language: "zh", name: "CC-CEDICT", license: "CC BY-SA 4.0", installed: dictInstalled.zh, entries: dictInstalled.zh ? 124_312 : undefined, version: "2026-09-01", downloadMb: 9 }
       : { language: "ja", name: "JMdict", license: "CC BY-SA 4.0", installed: dictInstalled.ja, entries: dictInstalled.ja ? 213_004 : undefined, version: "2026-09-15", downloadMb: 22 };
 
@@ -733,7 +765,7 @@ export function createMockApi(): SayfernApi {
     ],
     "doc-ja-me": [[null, "私はコンピューターサイエンスの学生です。"], [null, "山に登るのが好きです。"]],
   };
-  const PARAS: Record<Language, string[]> = {
+  const PARAS = everyLanguage<string[]>({
     zh: IC2_TEXT.map((r) => r[1]),
     ja: [
       "秋になると、たくさんの人が山に登ります。",
@@ -741,7 +773,7 @@ export function createMockApi(): SayfernApi {
       "有名なラーメン屋の前には、長い行列ができていました。",
       "週末の予定を友達と話しました。",
     ],
-  };
+  }, (l) => MORE_PARAS[l] ?? []);
   const paragraphOf = (doc: LibraryDoc, index: number): LibraryParagraph => {
     const rows = TEXTS[doc.id] ?? PARAS[doc.language].map((t): [string | null, string] => [null, t]);
     const exact = doc.paragraphCount <= rows.length;
@@ -949,13 +981,29 @@ export function createMockApi(): SayfernApi {
     const point = grammar.get(gid)!;
     const counts: GrammarCounts = { correct: 0, incorrect: 0, uncertain: 0, unassessed: 0 };
     let lastUsedAt: number | undefined;
+    // Stage 2: quiz evidence is counted apart (see summarizeGrammar in core/records/grammar.ts).
+    const quiz: GrammarCounts = { correct: 0, incorrect: 0, uncertain: 0, unassessed: 0 };
+    let quizAt = 0;
     for (const o of observations) {
       if (o.grammarId !== gid) continue;
+      if (o.origin === "quiz") {
+        quiz[o.verdict]++;
+        quizAt = Math.max(quizAt, o.at);
+        continue;
+      }
       counts[o.verdict]++;
       lastUsedAt = Math.max(lastUsedAt ?? 0, o.at);
     }
     const assessed = counts.correct + counts.incorrect;
-    return { point: clone(point), state: baseState.get(gid)!, counts, rate: assessed ? counts.correct / assessed : null, lastUsedAt };
+    const qa = quiz.correct + quiz.incorrect;
+    return {
+      point: clone(point),
+      state: baseState.get(gid)!,
+      counts,
+      rate: assessed ? counts.correct / assessed : null,
+      lastUsedAt,
+      ...(quizAt ? { quiz: { counts: quiz, rate: qa ? quiz.correct / qa : null, lastAt: quizAt } } : {}),
+    };
   };
 
   const view = (id: string): SessionView => {
@@ -994,7 +1042,7 @@ export function createMockApi(): SayfernApi {
   const emit = (e: ChatEvent) => chatSubs.forEach((cb) => cb(clone(e)));
   const running = new Map<string, { timers: number[]; sessionId: string; text: string; finished: boolean }>();
 
-  const CORRECTION_RULES: Record<Language, { re: RegExp; make(m: RegExpMatchArray): Omit<Correction, "id" | "language" | "sessionId" | "messageId" | "createdAt" | "status" | "retries"> }[]> = {
+  const CORRECTION_RULES = everyLanguage<{ re: RegExp; make(m: RegExpMatchArray): Omit<Correction, "id" | "language" | "sessionId" | "messageId" | "createdAt" | "status" | "retries"> }[]>({
     zh: [
       {
         re: /去了([一-鿿]{2})/,
@@ -1015,7 +1063,7 @@ export function createMockApi(): SayfernApi {
         make: (m) => ({ original: m[0], corrected: `${m[1]}かったです`, explanation: `い-adjectives carry their own past tense: ${m[1]}かった, then です.`, kind: "grammar", grammarId: "ja:i-adj-past" }),
       },
     ],
-  };
+  }, () => []);
 
   const send: SayfernApi["send"] = async (sessionId, input, model) => {
     await wait(40);
@@ -1026,6 +1074,7 @@ export function createMockApi(): SayfernApi {
     const now = Date.now();
     const user = userMsg(sessionId, uid("m"), input.text, now);
     if (input.pastedSpans?.length) user.pastedSpans = input.pastedSpans;
+    if (input.spoken) user.spoken = true;
     s.messages.push(user);
     if (s.meta.title === "New session") s.meta.title = input.text.split(/[，。！？,.!?\n]/)[0].slice(0, 10) || "New session";
     s.meta.updatedAt = now;
@@ -1117,6 +1166,44 @@ export function createMockApi(): SayfernApi {
     return { requestId };
   };
 
+  const NEW_TOPICS = everyLanguage<string[]>({
+    zh: ["换个话题吧！最近你看了什么好看的电影吗？", "我们聊点别的。你周末一般喜欢去哪儿玩？", "说到吃的，你最喜欢做什么菜？"],
+    ja: ["話題を変えましょう！最近、何かいい映画を見ましたか？", "別の話をしましょう。週末はどこへ行くのが好きですか？"],
+  }, () => ["Let's talk about something new. What did you do last weekend?"]);
+
+  const newTopic: SayfernApi["newTopic"] = async (sessionId, model) => {
+    await wait(40);
+    const s = sessions.get(sessionId);
+    if (!s) throw new Error("Session not found");
+    const requestId = uid("r");
+    const list = NEW_TOPICS[s.meta.language];
+    const reply = list[s.replyIdx++ % list.length];
+    const job = { timers: [] as number[], sessionId, text: "", finished: false };
+    running.set(requestId, job);
+    let t = 120;
+    const at = (ms: number, fn: () => void) => job.timers.push(window.setTimeout(fn, (t += ms)));
+    at(0, () => emit({ requestId, sessionId, type: "delta", text: "" }));
+    t += 500;
+    for (const ch of [...reply]) {
+      at(40 + Math.random() * 30, () => {
+        job.text += ch;
+        emit({ requestId, sessionId, type: "delta", text: ch });
+      });
+    }
+    at(200, () => {
+      job.finished = true;
+      running.delete(requestId);
+      const msg = tutorMsg(sessionId, uid("m"), reply, Date.now(), {
+        model: `${model.provider}/${model.id}`,
+        usage: { input: 1100 + s.messages.length * 140, output: reply.length * 5, cost: 0.005 },
+      });
+      s.messages.push(msg);
+      s.meta.updatedAt = Date.now();
+      emit({ requestId, sessionId, type: "done", message: msg, view: view(sessionId) });
+    });
+    return { requestId };
+  };
+
   const abort: SayfernApi["abort"] = async (requestId) => {
     const job = running.get(requestId);
     if (!job || job.finished) return;
@@ -1181,6 +1268,7 @@ export function createMockApi(): SayfernApi {
       language,
       range,
       activeMs: d.reduce((a, x) => a + x.activeMs, 0),
+      voiceMs: fresh ? 0 : k * 11 * 60_000,
       sessions: scale * listFor(language).length * k,
       wordsWritten: scale * Math.round((language === "zh" ? 1286 : 342) * (days / 7)),
       distinctWords: scale * (language === "zh" ? 180 + days * 8 : 60 + days * 3),
@@ -1219,7 +1307,18 @@ export function createMockApi(): SayfernApi {
   const mockWord = (word: string, reading: string, meaning: string, extra: Partial<AnkiWord> = {}): AnkiWord => ({
     word, reading, meaning, status: "known", mature: false, cards: 2, cardIds: [], decks: [], lapses: 0, recentReviews: 0, recentFails: 0, struggle: 0, reasons: [], ...extra,
   });
-  const ankiOverviews: Record<Language, Omit<AnkiOverview, "syncedAt">> = {
+  const emptyOverview = (language: Language): Omit<AnkiOverview, "syncedAt"> => ({
+    language,
+    counts: { known: 0, learning: 0, new: 0, suspended: 0 },
+    mature: 0,
+    young: 0,
+    newRemaining: 0,
+    struggling: 0,
+    reviewedToday: 0,
+    topStruggling: [],
+    nextNew: [],
+  });
+  const ankiOverviews = everyLanguage<Omit<AnkiOverview, "syncedAt">>({
     zh: {
       language: "zh",
       counts: { known: 1204, learning: 36, new: 812, suspended: 5 },
@@ -1255,7 +1354,7 @@ export function createMockApi(): SayfernApi {
       ],
       nextNew: [mockWord("景色", "けしき", "scenery", { status: "new", newPosition: 1 })],
     },
-  };
+  }, (l) => emptyOverview(l));
 
   const EXT_DIR = "~/Library/Application Support/Sayfern/extensions";
   let extensions: ExtensionInfo[] = [
@@ -1279,9 +1378,37 @@ export function createMockApi(): SayfernApi {
   const authSubs = new Set<(e: AuthEventPayload) => void>();
   const promptSubs = new Set<(p: AuthPromptPayload) => void>();
 
+  // Shared with the Stage 2 mock slots.
+  const world: MockWorld = {
+    T0,
+    fresh,
+    ankiOffline,
+    sessions,
+    corrections,
+    grammar,
+    observations,
+    savedWords,
+    docs,
+    ankiCards,
+    ankiConfig: () => ankiConfig,
+    settings: () => settings,
+    extensions: () => extensions,
+    setExtensions: (next) => {
+      extensions = next;
+    },
+    segment,
+  };
+
   const api: SayfernApi = {
+    ...createReviewMock(world),
+    ...createQuizMock(world),
+    ...createBuilderMock(world),
+    ...createDeckMock(world),
+    ...createVoiceMock(),
+
     // settings, providers, auth
     getSettings: async () => clone(settings),
+    systemLocale: async () => matchLocale(navigator.languages),
     setSettings: async (patch) => {
       settings = { ...settings, ...patch };
       return clone(settings);
@@ -1345,6 +1472,12 @@ export function createMockApi(): SayfernApi {
       s.meta.feedbackMode = mode;
       return clone(s.meta);
     },
+    setDifficulty: async (id, difficulty) => {
+      const s = sessions.get(id)!;
+      s.meta.difficulty = difficulty;
+      return clone(s.meta);
+    },
+    newTopic,
     send,
     abort,
     onChatEvent: (cb) => {
@@ -1612,6 +1745,7 @@ export function createMockApi(): SayfernApi {
     openExternal: async (url) => {
       window.open(url, "_blank", "noopener");
     },
+    requestMicrophone: async () => true,
   };
   return api;
 }

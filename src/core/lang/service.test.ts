@@ -119,9 +119,10 @@ function tmp(): string {
 
 test("service: languages, packs, unknown language", () => {
   const svc = new DefaultLanguageService({ dataDir: tmp() });
-  assert.deepEqual(svc.languages().map((l) => l.id), ["zh", "ja"]);
+  assert.deepEqual(svc.languages().map((l) => l.id), ["zh", "ja", "ko", "en", "es", "fr", "de", "it", "pt", "ru", "vi"]);
   assert.equal(svc.pack("zh").info.readingName, "Pinyin");
-  assert.throws(() => svc.pack("ko" as never), /No language pack/);
+  assert.equal(svc.pack("es").info.levels[0], "A1");
+  assert.throws(() => svc.pack("tl" as never), /No language pack/);
 });
 
 test("service: lookup before install says needsDictionary; status reports not installed", async () => {
@@ -275,7 +276,7 @@ test("service: registerPack adds a language", async () => {
   const svc = new DefaultLanguageService({ dataDir: tmp() });
   const zh = svc.pack("zh");
   svc.registerPack({ ...zh, info: { ...zh.info, id: "yue" as never, name: "Cantonese" }, ready: async () => {}, segment: (t: string) => [{ text: t, start: 0, end: t.length, isWord: true }] } as never);
-  assert.equal(svc.languages().length, 3);
+  assert.equal(svc.languages().length, 12);
   assert.deepEqual(await svc.annotate("yue" as never, "你好"), [{ text: "你好", start: 0, end: 2, isWord: true }]);
   const r = await svc.lookup("yue" as never, "你好");
   assert.deepEqual(r, { query: "你好", entries: [] });

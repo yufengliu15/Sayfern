@@ -1,0 +1,10 @@
+.prompt { font-family: var(--zh); font-size: 64px; letter-spacing: 0.06em; display: flex; align-items: baseline; }
+.blank { display: inline-block; min-width: 72px; margin: 0 8px; border-bottom: 3px solid var(--ink); text-align: center; color: var(--fern); }
+.blank.right { border-color: var(--fern); }
+.blank.wrong { border-color: var(--seal); color: var(--seal); }
+.reading { font-size: 13px; color: var(--muted); margin-top: -12px; }
+.sf-choices { max-width: 360px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sf-choice { font-family: var(--zh); }
+.feedback { min-height: 20px; font-size: 13.5px; color: var(--ink-3); text-align: center; }
+.done { font-family: var(--serif); font-size: 40px; }
+.foot-words { font-family: var(--zh); }

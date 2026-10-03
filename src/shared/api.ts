@@ -8,6 +8,7 @@ import type {
   ChatMessage,
   Correction,
   DocKind,
+  Difficulty,
   FeedbackMode,
   GrammarObservation,
   GrammarSummary,
@@ -29,7 +30,12 @@ import type {
   Verdict,
   WordUsage,
 } from "./records";
-import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings } from "./types";
+import { BUILDER_METHODS, DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type BuilderApi, type DeckApi, type QuizApi, type ReviewApi } from "./stage2";
+import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "./types";
+
+export type * from "./stage2";
+import { VOICE_METHODS, type VoiceApi } from "./stage3";
+export type * from "./stage3";
 
 // ---------------------------------------------------------------- views
 
@@ -150,10 +156,16 @@ export type ChatEvent =
 
 // ---------------------------------------------------------------- API
 
-export interface SayfernApi {
+/**
+ * Stage 2 methods live in per-feature slots (src/shared/stage2/: review, quiz, builder, decks) so the
+ * features can grow independently; SayfernApp binds each slot to its core service.
+ */
+export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, VoiceApi {
   // settings, providers, auth
   getSettings(): Promise<Settings>;
   setSettings(patch: Partial<Settings>): Promise<Settings>;
+  /** The interface language matched from the system's preferred languages (used when Settings.uiLocale is unset). */
+  systemLocale(): Promise<UiLocale>;
   listProviders(): Promise<ProviderInfo[]>;
   listModels(): Promise<ModelInfo[]>;
   setApiKey(providerId: string, key: string): Promise<void>;
@@ -175,8 +187,13 @@ export interface SayfernApi {
   renameSession(id: string, title: string): Promise<SessionMeta>;
   deleteSession(id: string): Promise<void>;
   setFeedbackMode(sessionId: string, mode: FeedbackMode): Promise<SessionMeta>;
+  /** "Go easier / go harder": -2..2, applied from the tutor's next reply. */
+  setDifficulty(sessionId: string, difficulty: Difficulty): Promise<SessionMeta>;
+  /** "New topic": the tutor drops the current topic and opens a fresh one. Progress arrives through onChatEvent. */
+  newTopic(sessionId: string, model: ModelRef): Promise<{ requestId: string }>;
   /** Starts a tutor turn. Progress arrives through onChatEvent. */
-  send(sessionId: string, input: { text: string; pastedSpans?: string[] }, model: ModelRef): Promise<{ requestId: string }>;
+  /** `spoken`: the text is a speech-to-text transcript of what the learner said (Stage 3). */
+  send(sessionId: string, input: { text: string; pastedSpans?: string[]; spoken?: boolean }, model: ModelRef): Promise<{ requestId: string }>;
   abort(requestId: string): Promise<void>;
   onChatEvent(cb: (e: ChatEvent) => void): () => void;
   /** S1-08: translate one tutor message (cached on the message). */
@@ -250,6 +267,8 @@ export interface SayfernApi {
   listExtensions(): Promise<ExtensionInfo[]>;
   setExtensionEnabled(id: string, enabled: boolean): Promise<ExtensionInfo[]>;
   openExtensionsFolder(): Promise<void>;
+  /** Stage 3: asks macOS for microphone access (prompts once). True when Sayfern may record. */
+  requestMicrophone(): Promise<boolean>;
 
   openExternal(url: string): Promise<void>;
 }
@@ -263,9 +282,11 @@ export const EVENT_CHANNELS = {
   authEvent: "evt:auth",
   authPrompt: "evt:auth-prompt",
   dictionaryProgress: "evt:dictionary-progress",
+  builder: "evt:builder",
 } as const;
 
-export type ApiMethod = Exclude<keyof SayfernApi, "onAuthEvent" | "onAuthPrompt" | "onChatEvent" | "onDictionaryProgress">;
+/** Every method except event subscriptions (`on*`), which listen on EVENT_CHANNELS instead. */
+export type ApiMethod = Exclude<keyof SayfernApi, `on${string}`>;
 export const ipcChannel = (m: ApiMethod): string => `ipc:${m}`;
 
 /**
@@ -274,8 +295,14 @@ export const ipcChannel = (m: ApiMethod): string => `ipc:${m}`;
  * without listing it here (or listing an unknown one) is a type error.
  */
 const METHOD_TABLE: Record<ApiMethod, true> = {
+  ...REVIEW_METHODS,
+  ...QUIZ_METHODS,
+  ...BUILDER_METHODS,
+  ...DECK_METHODS,
+  ...VOICE_METHODS,
   getSettings: true,
   setSettings: true,
+  systemLocale: true,
   listProviders: true,
   listModels: true,
   setApiKey: true,
@@ -291,6 +318,8 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   renameSession: true,
   deleteSession: true,
   setFeedbackMode: true,
+  setDifficulty: true,
+  newTopic: true,
   send: true,
   abort: true,
   translate: true,
@@ -336,6 +365,7 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   listExtensions: true,
   setExtensionEnabled: true,
   openExtensionsFolder: true,
+  requestMicrophone: true,
   openExternal: true,
 };
 

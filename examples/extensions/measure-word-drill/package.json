@@ -1,0 +1,23 @@
+{
+  "name": "Measure-word drill",
+  "version": "1.0.0",
+  "description": "Shows a noun from your Anki deck; you pick the right measure word.",
+  "type": "module",
+  "sayfern": {
+    "surfaces": [
+      {
+        "kind": "tab",
+        "title": "Measure words",
+        "entry": "ui/index.html",
+        "languages": ["zh"]
+      },
+      {
+        "kind": "activity",
+        "title": "Measure-word drill",
+        "description": "Ten nouns from your Anki, pick the measure word",
+        "entry": "ui/index.html",
+        "languages": ["zh"]
+      }
+    ]
+  }
+}

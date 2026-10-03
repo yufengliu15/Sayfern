@@ -1,6 +1,7 @@
-// Splits a token + reading into ruby segments: kana okurigana stays unannotated (ja), and
-// pinyin is spread over characters when it splits cleanly into one syllable per character (zh).
-import type { Language } from "../../../shared/records";
+// Splits a token + reading into ruby segments: kana okurigana stays unannotated (ja), and pinyin
+// is spread over characters when it splits cleanly into one syllable per character (zh). Shared by
+// the renderer (hover text) and core (Anki deck cards).
+import type { Language } from "./records";
 
 export interface RubySeg {
   text: string;

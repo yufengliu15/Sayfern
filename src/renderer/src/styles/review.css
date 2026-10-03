@@ -1,0 +1,139 @@
+/* Stage 2 · review. Use the tokens defined at the top of ../styles.css. */
+
+/* ================================================================ toolbar */
+.rv { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+.rv-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.rv-bar2 { gap: 10px; }
+.rv-bar2 .search .input { width: 280px; height: 36px; font-size: 13.5px; border-radius: 9px; background: var(--white); }
+.rv-bar2 select.input { width: auto; max-width: 260px; background-color: var(--white); }
+.rv-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rv-chips button {
+  height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid #d9d2c3; background: transparent;
+  font-size: 13px; color: var(--ink-3); font-weight: 500; white-space: nowrap;
+}
+.rv-chips button:hover { border-color: #b9b19f; color: var(--ink); }
+.rv-chips button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rv-chips button span { opacity: 0.6; margin-left: 5px; font-family: var(--mono); font-size: 11.5px; }
+.rv-tools { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.rv-switch { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.rv-selall { margin-left: auto; }
+
+/* ================================================================ list */
+.rv-body { display: flex; align-items: flex-start; gap: 22px; min-width: 0; }
+.rv-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.rv-item {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 18px 20px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line); animation: fade-up 0.18s ease-out;
+}
+.rv-item.selecting { grid-template-columns: 24px minmax(0, 1fr); }
+.rv-item.sel { border-color: var(--fern); box-shadow: 0 0 0 1px var(--fern) inset; }
+.rv-item.disputed { background: transparent; border-style: dashed; }
+.rv-item.disputed .rv-o, .rv-item.disputed .rv-n { opacity: 0.6; }
+.rv-item.skel { min-height: 120px; animation: none; }
+.rv-check input { width: 20px; height: 20px; accent-color: var(--fern); margin: 4px 0 0; cursor: pointer; }
+.rv-check input:disabled { cursor: default; opacity: 0.4; }
+.rv-main { min-width: 0; }
+.rv-o { font-size: 17px; color: var(--muted); line-height: 1.5; user-select: text; overflow-wrap: anywhere; }
+.rv-o s { color: var(--ink-3); text-decoration-color: var(--seal); text-decoration-thickness: 1.5px; }
+.rv-n { font-size: 19px; color: var(--ink); margin-top: 2px; line-height: 1.5; user-select: text; overflow-wrap: anywhere; }
+.rv-n b { font-weight: 600; color: var(--fern); background: rgba(46, 91, 69, 0.1); border-radius: 4px; padding: 0 3px; }
+.rv-why { font-size: 13.5px; color: var(--ink-2); margin-top: 8px; line-height: 1.5; user-select: text; }
+.rv-fb { font-size: 13px; font-weight: 500; margin-top: 6px; }
+.rv-fb.ok { color: var(--fern); }
+.rv-fb.bad { color: var(--seal); }
+.rv-retry { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.rv-retry .input { flex: 1; height: 40px; font-size: 14px; }
+.rv-retry .input.zh, .rv-retry .input.ja { font-size: 16px; }
+.rv-retry .btn.tall { height: 40px; }
+.rv-dispute { margin-top: 8px; font-size: 13px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; user-select: text; }
+.rv-ctx { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; row-gap: 6px; }
+.rv-kind { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+.k-g { background: #d3e0d5; color: var(--fern-dark); }
+.k-v { background: #f2ddc9; color: #7a3a15; }
+.k-p { background: #e6e0d2; color: var(--ink-3); }
+.rv-link { background: none; border: 0; padding: 0; font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 4px; }
+.rv-link.zh, .rv-link.ja { font-size: 13px; }
+.rv-link:hover { color: var(--fern); text-decoration: underline; text-underline-offset: 3px; }
+.rv-gram span { font-size: 13px; }
+.rv-st { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+.rv-st-ok { background: var(--fern-soft); border-color: var(--fern-line); color: var(--fern-dark); }
+.rv-st-bad { border-color: var(--seal-line); color: var(--seal); }
+.rv-st-anki { border-color: var(--fern-line); color: var(--fern); }
+.rv-acts { margin-left: auto; display: inline-flex; gap: 14px; }
+.rv-acts .linkb { font-size: 12px; }
+.rv-none { padding: 30px 4px; color: var(--muted); font-size: 14px; }
+.rv-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 40px 0; max-width: 520px; }
+.rv-empty h2 { font-size: 40px; line-height: 1.05; }
+.rv-empty p { font-size: 15px; line-height: 1.55; margin-bottom: 6px; }
+
+/* ================================================================ Anki export panel (dark) */
+.ank {
+  width: 380px; flex-shrink: 0; position: sticky; top: 0; max-height: calc(100vh - 70px); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 22px;
+  border-radius: 22px; background: var(--ink); color: #ede8dc; box-shadow: 0 30px 60px -36px rgba(28, 30, 27, 0.7);
+  animation: fade-up 0.18s ease-out;
+}
+.ank-h { display: flex; align-items: center; gap: 10px; }
+.ank-t { font-size: 15px; font-weight: 600; flex: 1; }
+.ank-n { font-size: 12px; color: #a9c8b2; }
+.ank-x { width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; color: rgba(237, 232, 220, 0.6); display: inline-flex; align-items: center; justify-content: center; }
+.ank-x:hover { background: rgba(237, 232, 220, 0.08); color: #fff; }
+.ank .seg { background: rgba(237, 232, 220, 0.08); align-self: flex-start; }
+.ank .seg button { color: rgba(237, 232, 220, 0.75); }
+.ank .seg button:hover { color: #fff; }
+.ank .seg button.on { background: #ede8dc; color: var(--ink); }
+.ank .field label { font-size: 12.5px; color: rgba(237, 232, 220, 0.7); font-weight: 500; }
+.ank > .field .input { background: rgba(237, 232, 220, 0.06); border-color: rgba(237, 232, 220, 0.2); color: #ede8dc; height: 40px; }
+.ank > .field .input.zh, .ank > .field .input.ja { font-size: 15px; }
+.ank > .field .input:focus { outline-color: rgba(169, 200, 178, 0.5); border-color: #a9c8b2; }
+.ank-empty { font-size: 13.5px; line-height: 1.55; color: rgba(237, 232, 220, 0.75); }
+.ank-note { font-size: 12.5px; line-height: 1.5; color: rgba(237, 232, 220, 0.7); display: flex; gap: 6px; }
+.ank-note svg { flex-shrink: 0; margin-top: 2px; }
+.ank-warn { font-size: 12.5px; color: #e6b64a; line-height: 1.5; }
+.ank-link { background: none; border: 0; padding: 0; color: #ede8dc; text-decoration: underline; text-underline-offset: 3px; font-size: 12.5px; }
+.ank-error { font-size: 13px; color: #f0a48f; display: flex; gap: 6px; line-height: 1.45; user-select: text; }
+.ank-error svg { flex-shrink: 0; margin-top: 2px; }
+.ank-done { display: flex; gap: 8px; font-size: 13px; line-height: 1.5; color: #a9c8b2; background: rgba(169, 200, 178, 0.1); border-radius: 10px; padding: 10px 12px; }
+.ank-done svg { flex-shrink: 0; margin-top: 3px; }
+.ank-done.bad { color: #f0a48f; background: rgba(240, 164, 143, 0.1); }
+.ank-fail { color: #f0a48f; margin-top: 2px; }
+.ank-nav { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: rgba(237, 232, 220, 0.6); }
+.ank-nav > span { flex: 1; text-align: center; }
+.ank-arrow { width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(237, 232, 220, 0.2); background: transparent; color: #ede8dc; display: inline-flex; align-items: center; justify-content: center; }
+.ank-arrow:hover:not(:disabled) { border-color: rgba(237, 232, 220, 0.5); }
+.ank-arrow:disabled { opacity: 0.3; }
+.ank-edit { background: none; border: 0; padding: 0; color: rgba(237, 232, 220, 0.85); font-size: 12.5px; text-decoration: underline; text-decoration-color: rgba(237, 232, 220, 0.35); text-underline-offset: 3px; }
+.ank-edit:hover { color: #fff; }
+.ank-go { margin-top: 4px; background: #ede8dc; color: var(--ink); border-color: #ede8dc; }
+.ank-go:hover:not(:disabled) { background: #fff; border-color: #fff; }
+.ank-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--fern); animation: rv-spin 0.8s linear infinite; }
+@keyframes rv-spin { to { transform: rotate(360deg); } }
+
+/* the card preview (light, like an Anki card) */
+.acard { background: var(--white); color: var(--ink); border-radius: 14px; padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 10px; user-select: text; }
+.acard-wait { flex-direction: row; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-3); min-height: 120px; justify-content: center; }
+.acard-q { font-size: 22px; line-height: 1.6; overflow-wrap: anywhere; }
+.acard .gap {
+  display: inline-block; min-width: 92px; border-bottom: 2px solid var(--fern); margin: 0 4px; text-align: center;
+  color: var(--fern); font-size: 14px; font-family: var(--sans); vertical-align: 4px; line-height: 1.4; padding: 0 4px;
+}
+.acard-sit { font-size: 16px; line-height: 1.5; }
+.acard-rule { height: 1px; background: var(--line-3); }
+.acard-a { font-size: 20px; line-height: 1.5; overflow-wrap: anywhere; }
+.acard-a b { color: var(--fern); font-weight: 600; }
+.acard-why { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+.acard-src { font-size: 11.5px; color: var(--muted); }
+.acard-err { font-size: 12.5px; color: var(--seal); display: flex; align-items: center; gap: 6px; }
+.acard-form { display: flex; flex-direction: column; gap: 10px; }
+.acard-form .field { gap: 5px; min-width: 0; flex: 1; }
+.acard-form .field label { font-size: 12px; color: var(--ink-3); }
+.acard-form .input { height: 36px; font-size: 13.5px; border-radius: 9px; }
+.acard-form .input.zh, .acard-form .input.ja { font-size: 16px; }
+.acard-form textarea.input.ta { min-height: 0; height: auto; padding: 8px 12px; font-size: 13.5px; }
+.acard-row { display: flex; gap: 8px; }
+
+/* narrow windows: the panel takes less room */
+@media (max-width: 1240px) {
+  .ank { width: 320px; padding: 18px; }
+  .rv-bar2 .search .input { width: 220px; }
+  .rv-tools { margin-left: 0; }
+}

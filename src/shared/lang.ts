@@ -26,7 +26,8 @@ export interface DictEntry {
   variants?: string[];
   reading: string;
   senses: DictSense[];
-  source: "CC-CEDICT" | "JMdict";
+  /** Dictionary name: "CC-CEDICT", "JMdict", "WikDict", "Kengdic", "Wiktionary". */
+  source: string;
   /** Common/frequent word marker where the dictionary provides it. */
   common?: boolean;
 }
@@ -38,8 +39,10 @@ export interface LookupResult {
   anki?: AnkiCard;
   /** First time the learner used this word in writing, if ever. */
   firstUsedAt?: number;
-  /** Dictionary not installed yet: UI should offer to install. */
+  /** Dictionary not installed yet: UI should offer to install. With entries, they come from a fallback (English glosses). */
   needsDictionary?: boolean;
+  /** No dictionary exists for this language (with this interface language) yet. */
+  noDictionary?: boolean;
 }
 
 export interface DictionaryStatus {
@@ -71,10 +74,14 @@ export interface LanguageInfo {
   nativeName: string;
   /** Single glyph for the language picker: "中", "日". */
   glyph: string;
-  /** CSS font class used in the renderer: "zh" | "ja". */
+  /** CSS font class used in the renderer: "zh" | "ja" | "ko" | "lt" (Latin) | "cy" (Cyrillic). */
   fontClass: string;
   /** Ordered level scale, easiest first: HSK 1..HSK 6, N5..N1. */
   levels: string[];
-  /** Name of the reading system shown in lookups: "Pinyin", "Reading". */
+  /** Name of the reading system shown in lookups: "Pinyin", "Reading". Empty when the app shows no reading. */
   readingName: string;
+  /** BCP-47 tag: "zh-Hans", "pt-BR". */
+  bcp47?: string;
+  script?: import("./languages").Script;
+  levelSystem?: import("./languages").LevelSystem;
 }

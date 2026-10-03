@@ -1,11 +1,12 @@
 // Anki tools (S1-14, F-05): what the learner knows, is learning, will learn next, and
 // struggles with. Offered only when Anki is on and the language has a snapshot. Results
 // are compact word lines and always say when the snapshot was synced.
+import { msg } from "../../shared/i18n";
 import { StringEnum, Type } from "@earendil-works/pi-ai";
 import type { TutorTool } from "../contracts";
 import type { AnkiCard, AnkiOverview, AnkiWord, AnkiWordStatus } from "../../shared/records";
 import { cardStage, cardStatus } from "../anki/words";
-import type { TutorDeps } from "./deps";
+import { translatorOf, type TutorDeps } from "./deps";
 import { arr, obj, plural, str, truncate } from "./text";
 
 export const ANKI_DEFAULT_LIMIT = 20;
@@ -72,8 +73,9 @@ function ankiOverview(deps: TutorDeps): TutorTool {
     recordingOnly: false,
     async execute(_args, ctx) {
       const o = await ctx.anki.overview(ctx.language);
-      if (!o) return { content: NOT_SYNCED, activity: "Read Anki overview (not synced)" };
-      return { content: overviewText(o, deps.now()), activity: "Read Anki overview" };
+      const tr = await translatorOf(deps);
+      if (!o) return { content: NOT_SYNCED, activity: tr.t("Read Anki overview (not synced)") };
+      return { content: overviewText(o, deps.now()), activity: tr.t("Read Anki overview") };
     },
   };
 }
@@ -92,10 +94,11 @@ function ankiStruggling(deps: TutorDeps): TutorTool {
       const args = obj(rawArgs);
       const deck = str(args.deck);
       const page = await ctx.anki.words(ctx.language, { status: "struggling", limit: limitOf(args.limit), ...(deck ? { deck } : {}) });
-      if (page.syncedAt === null) return { content: NOT_SYNCED, activity: "Read struggling Anki words (not synced)" };
+      const tr = await translatorOf(deps);
+      if (page.syncedAt === null) return { content: NOT_SYNCED, activity: tr.t("Read struggling Anki words (not synced)") };
       const head = `${syncedLine(page.syncedAt, deps.now())}\n${plural(page.total, "struggling word")}${deck ? ` in ${deck}` : ""}; showing the ${page.items.length} hardest.`;
       const content = page.items.length ? `${head}\n${page.items.map(wordLine).join("\n")}` : `${head}\nNone: nothing stands out as hard right now.`;
-      return { content, activity: `Read ${plural(page.items.length, "struggling Anki word")}` };
+      return { content, activity: tr.tn(page.items.length, "Read {count} struggling Anki word", "Read {count} struggling Anki words") };
     },
   };
 }
@@ -107,6 +110,16 @@ const ORDER_NOTE: Record<VocabStatus, string> = {
   struggling: "hardest first",
   suspended: "hardest first",
   all: "learning, known, new, suspended",
+};
+
+/** Inspector labels for anki_vocabulary (translated where used). */
+const VOCAB_LABEL: Record<VocabStatus, string> = {
+  known: msg("known Anki words"),
+  learning: msg("learning Anki words"),
+  new: msg("new Anki words"),
+  struggling: msg("struggling Anki words"),
+  suspended: msg("suspended Anki words"),
+  all: msg("all Anki words"),
 };
 
 function ankiVocabulary(deps: TutorDeps): TutorTool {
@@ -127,14 +140,17 @@ function ankiVocabulary(deps: TutorDeps): TutorTool {
       const search = str(args.search);
       const offset = Math.max(0, Math.floor(Number(args.offset)) || 0);
       const page = await ctx.anki.words(ctx.language, { status, limit: limitOf(args.limit), offset, ...(search ? { search } : {}) });
-      const label = `${status} Anki words`;
-      if (page.syncedAt === null) return { content: NOT_SYNCED, activity: `Listed ${label} (not synced)` };
+      const tr = await translatorOf(deps);
+      const label = tr.t(VOCAB_LABEL[status]);
+      if (page.syncedAt === null) return { content: NOT_SYNCED, activity: tr.t("Listed {label} (not synced)", { label }) };
       const what = `${status === "all" ? "Words" : `${status[0].toUpperCase()}${status.slice(1)} words`}${search ? ` matching "${search}"` : ""}`;
       const range = page.items.length ? `showing ${offset + 1}–${offset + page.items.length}` : "none on this page";
       const lines = [syncedLine(page.syncedAt, deps.now()), `${what}: ${n(page.total)} (${ORDER_NOTE[status]}); ${range}.`, ...page.items.map(wordLine)];
       const next = offset + page.items.length;
       if (page.items.length && next < page.total) lines.push(`More: offset ${next}.`);
-      const activity = search ? `Searched ${label}: ${search} (${page.total})` : `Listed ${page.items.length} ${label}`;
+      const activity = search
+        ? tr.t("Searched {label}: {search} ({n})", { label, search, n: page.total })
+        : tr.t("Listed {n} {label}", { n: page.items.length, label });
       return { content: lines.join("\n"), activity };
     },
   };
@@ -160,9 +176,10 @@ function ankiCheckWords(deps: TutorDeps): TutorTool {
     async execute(rawArgs, ctx) {
       const all = arr(obj(rawArgs).words).map(str).filter(Boolean);
       const asked = [...new Set(all)].slice(0, ANKI_MAX_CHECK);
-      if (!asked.length) return { content: "Give at least one word.", activity: "Checked 0 words in Anki" };
+      const tr = await translatorOf(deps);
+      if (!asked.length) return { content: "Give at least one word.", activity: tr.tn(0, "Checked {count} word in Anki", "Checked {count} words in Anki") };
       const snap = await ctx.anki.snapshot(ctx.language);
-      if (!snap) return { content: NOT_SYNCED, activity: `Checked ${plural(asked.length, "word")} in Anki (not synced)` };
+      if (!snap) return { content: NOT_SYNCED, activity: tr.tn(asked.length, "Checked {count} word in Anki (not synced)", "Checked {count} words in Anki (not synced)") };
       const result = await ctx.anki.checkWords(ctx.language, asked);
       const lines = [syncedLine(snap.syncedAt, deps.now())];
       for (const g of CHECK_GROUPS) {
@@ -171,7 +188,7 @@ function ankiCheckWords(deps: TutorDeps): TutorTool {
       }
       const dropped = new Set(all).size - asked.length;
       if (dropped > 0) lines.push(`(${plural(dropped, "word")} over the ${ANKI_MAX_CHECK}-word limit not checked.)`);
-      return { content: lines.join("\n"), activity: `Checked ${plural(asked.length, "word")} in Anki` };
+      return { content: lines.join("\n"), activity: tr.tn(asked.length, "Checked {count} word in Anki", "Checked {count} words in Anki") };
     },
   };
 }
@@ -210,7 +227,8 @@ function ankiLookup(deps: TutorDeps): TutorTool {
     recordingOnly: false,
     async execute(rawArgs, ctx) {
       const word = str(obj(rawArgs).word);
-      const activity = `Checked Anki: ${word || "(empty)"}`;
+      const tr = await translatorOf(deps);
+      const activity = tr.t("Checked Anki: {word}", { word: word || tr.t("(empty)") });
       if (!word) return { content: "Give a word.", activity };
       const [card, snap] = await Promise.all([ctx.anki.findCard(ctx.language, word), ctx.anki.snapshot(ctx.language)]);
       if (!card) return { content: "Not in the learner's Anki decks.", activity };

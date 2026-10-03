@@ -4,8 +4,9 @@ import { memo, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, 
 import type { Token } from "../../../shared/lang";
 import type { Language, SourceRef } from "../../../shared/records";
 import { annotateCached, peekAnnotation } from "../lib/cache";
-import { cls, sentenceAt } from "../lib/format";
-import { rubySegments } from "../lib/ruby";
+import { cls, sentenceAt, fontOf } from "../lib/format";
+import { t as tr } from "../i18n";
+import { rubySegments } from "../../../shared/ruby";
 import { openWordPopover, scheduleCloseWordPopover, useWordPopover, closeWordPopover, cancelCloseWordPopover } from "./WordPopover";
 
 export interface AnnotatedTextProps {
@@ -68,7 +69,7 @@ export const AnnotatedText = memo(function AnnotatedText({
 
   if (plain || !tokens) {
     return (
-      <Tag className={cls("atext", language, className)}>
+      <Tag className={cls("atext", fontOf(language), className)}>
         {text}
         {children}
       </Tag>
@@ -76,7 +77,7 @@ export const AnnotatedText = memo(function AnnotatedText({
   }
 
   return (
-    <Tag className={cls("atext", language, ruby && "has-ruby", className)}>
+    <Tag className={cls("atext", fontOf(language), ruby && "has-ruby", className)}>
       {tokens.map((t, i) => {
         if (!t.isWord) return <span key={i}>{t.text}</span>;
         const key = `${id}:${t.start}`;
@@ -87,7 +88,7 @@ export const AnnotatedText = memo(function AnnotatedText({
             key={i}
             role="button"
             tabIndex={0}
-            aria-label={`${t.text}${t.reading ? `, ${t.reading}` : ""}${isTarget ? ", Anki word" : ""}`}
+            aria-label={`${t.text}${t.reading ? `, ${t.reading}` : ""}${isTarget ? `, ${tr("Anki word")}` : ""}`}
             aria-expanded={selected}
             className={cls("w", isTarget && "anki", selected && "sel")}
             onPointerEnter={(e) => {

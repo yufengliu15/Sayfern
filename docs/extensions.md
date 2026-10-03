@@ -2,11 +2,21 @@
 
 Extensions add tools the tutor can call, extra paragraphs for the tutor's system prompt, and whole language packs. They are plain JavaScript ES modules: no build step, no Sayfern SDK to install.
 
-A working example lives in [`examples/extensions/chengyu-of-the-day`](../examples/extensions/chengyu-of-the-day/). The host is `FileExtensionHost` in `src/core/extensions/index.ts`; the `ExtensionApi` and `ExtensionToolInput` types there are the authoritative API.
+Two working examples: [`examples/extensions/chengyu-of-the-day`](../examples/extensions/chengyu-of-the-day/) (a tutor tool and a prompt addition) and [`examples/extensions/measure-word-drill`](../examples/extensions/measure-word-drill/) (a sandboxed tab and Today activity). The host is `FileExtensionHost` in `src/core/extensions/index.ts`; the `ExtensionApi` and `ExtensionToolInput` types there are the authoritative API.
+
+There are two ways to get an extension:
+
+- **Build it in Customize** (Stage 2, S2-10..S2-13). Describe a feature; the builder (your chosen model) reads [`feature-builder.md`](feature-builder.md), the SDK reference [`feature-sdk.d.ts`](feature-sdk.d.ts) and the examples, writes the files, runs the tests and shows a live preview. See [Built features](#built-features-customize).
+- **Install a folder by hand** (below).
 
 ## Security
 
-**Extensions run inside the app with full privileges.** They can read and write any file your user account can, use the network, and read your learning records. There is no sandbox. Only install extensions you wrote yourself or whose source you have read and trust.
+Two kinds of code, two levels of trust:
+
+- **Sandboxed UI** (`sayfern.surfaces` in `package.json`): pages shown in `<iframe sandbox="allow-scripts">` (opaque origin) from the `sayfern-feature://` protocol, with a strict Content Security Policy (no network, scripts only from the feature itself, no `eval`) and no popups or navigation. The app window's session sends all web traffic to a dead proxy (loopback included, except in dev), restricts WebRTC to that proxy (no STUN/TURN), and grants frames no permissions; main's own downloads use a separate session. Pages reach Sayfern only through the SDK (`window.sayfern`), whose calls are allowlisted and checked in the renderer and again in core. A built feature with only surfaces can be turned on directly.
+- **Main-side code** (`activate(api)` in `main` / `index.js`): runs in the app with full privileges, as described next. For built features it only runs after you read and approve that exact version (see [Review gate](#review-gate)).
+
+**Main-side extensions run inside the app with full privileges.** They can read and write any file your user account can, use the network, and read your learning records. There is no sandbox. Only install extensions you wrote yourself or whose source you have read and trust.
 
 ## Install
 
@@ -107,3 +117,47 @@ export function activate(api) {
   );
 }
 ```
+
+## Built features (Customize)
+
+A built feature is an extension folder with versions, kept under `<userData>/builder/`:
+
+```
+builder/features/<id>/feature.json          name, description, versions, approvals, the builder conversation
+builder/features/<id>/versions/<n>/…        one extension folder per version
+builder/data/<id>/storage.json              what the feature saved with sayfern.storage
+builder/data/<id>/results.json              practice results from sayfern.results.record
+builder/features/<id>/approved/<hash>/…      read-only copy of an approved full-access version (what the host loads)
+```
+
+- **Versions.** Each build (a new feature or "Ask for changes") writes a new version folder, starting as a copy of the previous one. When the build ends the version is sealed: its files are hashed (`hashFiles`: sha256 over sorted path + bytes) and never written again. Every version is kept; turn any finished one on, or roll back to it. "Discard" deletes the draft (the newest version that was never turned on).
+- **Apart from the app.** Features live in your user data, never in the app bundle, so updates never overwrite them. "Erase all data" keeps `builder/features/` (like `extensions/`) and removes `builder/data/`.
+- **Loading.** The feature builder registers its features with the extension host (`setManagedSource`). The active version of each feature loads from its version folder after the hand-installed extensions, on every (re)load. A hand-installed folder with the same id wins. `list()` returns hand-installed extensions only; `managedList()` the built ones.
+- **UI-only features** (no `main` and no `index.js`) import nothing in the app: the host lists them without loading code.
+
+### Surfaces
+
+```json
+"sayfern": {
+  "surfaces": [
+    { "kind": "tab", "title": "Measure words", "entry": "ui/index.html", "languages": ["zh"] },
+    { "kind": "activity", "title": "Measure-word drill", "description": "Ten nouns from your Anki", "entry": "ui/index.html" }
+  ]
+}
+```
+
+- `tab`: a sidebar entry under the main navigation (route `feature/<id>/<index>`).
+- `activity`: a tile under "Your activities" on Today, opening the same full-size host.
+- `languages` limits the surface to those workspaces. At most 8 surfaces.
+- Statistics widgets, dictionary sources, importers and integrations are not surfaces yet (follow-ups).
+- Only built features show surfaces. A hand-installed folder with a `sayfern` block loads its `main` code as usual; its surfaces are ignored for now.
+
+Pages load `/_sdk/sayfern-sdk.js` and `/_sdk/sayfern.css` (served by Sayfern) and their own files by relative URL. The SDK and its limits are documented in [`feature-builder.md`](feature-builder.md) and typed in [`feature-sdk.d.ts`](feature-sdk.d.ts). Sandboxed code can read Anki words, grammar, saved words, look up and segment text, keep up to 256 KB of JSON and record practice results. It can't write grammar evidence or anything else in your records.
+
+### Tests
+
+`test.js` is unapproved code, so it never runs in the app process. In the app it runs where the UI runs: a hidden, sandboxed, preload-less window on its own in-memory session (same dead proxy, WebRTC limit and no permissions) loads `sayfern-feature://<id>/v<n>/_test/index.html` (served only to that session; CSP `connect-src 'none'`, no `eval`), with a fake SDK holding sample data. The window is destroyed after the result is read or after 8 s. Without Electron (unit tests, smoke, dev), a child process under Node's permission model (no file system, child process, worker or addon access) runs the tests instead; Node's permission model does not restrict the network, so that fallback is not used in the app. Pass and fail counts are counted by Sayfern from the per-test results, never reported by the model.
+
+### Review gate
+
+If a version has main-side code (`"main"` in `package.json`, or an `index.js`), turning it on needs your approval: Customize shows every file, flags those that run with full access, and offers "I've read this code, turn it on". The approval stores the version's hash and freezes a read-only copy of exactly those files in `builder/features/<id>/approved/<hash>/`; the host loads main-side code only from that copy, never from `versions/`, which builds write to. The host computes the copy's hash again at every load and refuses code you didn't approve (for example if a file changed on disk); the feature then shows a load error in Customize. Main-side code must import only the version's own files with literal relative paths (or `node:` built-ins) and may not use `require`, computed `import()`, `eval`, `new Function`, `node:vm` or `process.dlopen`; a version that breaks these rules can't finish building or be approved. In the review sheet, every script outside `ui/` is flagged as full access. Hand-installed extensions in `extensions/` are not affected.

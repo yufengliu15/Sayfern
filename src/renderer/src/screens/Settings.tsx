@@ -1,4 +1,4 @@
-// Settings: models, languages and level, profile, Anki, dictionaries, preferences, data, extensions.
+// Settings: models, languages and level, profile, Anki, voice, dictionaries, preferences, data, extensions.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AnkiStatus, ExtensionInfo } from "../../../shared/api";
 import type { DictionaryProgress, DictionaryStatus, LanguageInfo } from "../../../shared/lang";
@@ -9,8 +9,16 @@ import { Icon, type IconName } from "../components/icons";
 import { Switch } from "../components/ui";
 import { useApp } from "../context";
 import { clearLookups } from "../lib/cache";
-import { cls, fmtAgo, fmtNumber, fmtShortDate } from "../lib/format";
-import { replaceRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
+import { cls, fmtAgo, fmtNumber, fmtShortDate, fontOf } from "../lib/format";
+import { deckRoute, replaceRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
+import { sharedDecksUrl } from "../../../shared/stage2";
+import { uiLocaleInfo } from "../../../shared/locales";
+import { LocalePicker } from "../components/LocalePicker";
+import { GOAL_PLACEHOLDER } from "../lib/samples";
+import { langName, msg, t, tj } from "../i18n";
+import { SpeakButtons } from "../components/Speak";
+import { loadVoiceStatus, setVoiceStatus, useVoiceStatus, VOICE_SAMPLES } from "../lib/voice";
+import { VOICE_RATES, type VoiceStatus } from "../../../shared/stage3";
 
 export interface SettingsScreenProps {
   language: Language;
@@ -18,28 +26,29 @@ export interface SettingsScreenProps {
   tab?: string;
 }
 
-type Tab = "models" | "languages" | "about" | "anki" | "dictionaries" | "preferences" | "data" | "extensions";
+type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "preferences" | "data" | "extensions";
 const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string }[] = [
-  { id: "models", label: "Models", icon: "spark", title: "Models", sub: "Connect the model you already pay for. Your provider bills you directly." },
-  { id: "languages", label: "Language & level", icon: "globe", title: "Language & level", sub: "What you're learning and where you are. The tutor pitches everything to these." },
-  { id: "about", label: "About you", icon: "user", title: "About you", sub: "A few lines the tutor keeps in mind, so conversations are about your life." },
-  { id: "anki", label: "Anki", icon: "cards", title: "Anki", sub: "The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use." },
-  { id: "dictionaries", label: "Dictionaries", icon: "library", title: "Dictionaries", sub: "Hover lookups use free dictionaries stored on this Mac." },
-  { id: "preferences", label: "Preferences", icon: "settings", title: "Preferences", sub: "Defaults for new sessions. You can change them in any session." },
-  { id: "data", label: "Data", icon: "database", title: "Your data", sub: "Everything Sayfern records is stored on this Mac, in plain files you can export." },
-  { id: "extensions", label: "Extensions", icon: "tool", title: "Extensions", sub: "Add tools, prompt additions and language packs." },
+  { id: "models", label: msg("Models"), icon: "spark", title: msg("Models"), sub: msg("Connect the model you already pay for. Your provider bills you directly.") },
+  { id: "languages", label: msg("Language & level"), icon: "globe", title: msg("Language & level"), sub: msg("What you're learning and where you are. The tutor pitches everything to these.") },
+  { id: "about", label: msg("About you"), icon: "user", title: msg("About you"), sub: msg("A few lines the tutor keeps in mind, so conversations are about your life.") },
+  { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
+  { id: "voice", label: msg("Voice"), icon: "speaker", title: msg("Voice"), sub: msg("Listen to the tutor and to words, and talk instead of typing.") },
+  { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Hover lookups use free dictionaries stored on this Mac.") },
+  { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
+  { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this Mac, in plain files you can export.") },
+  { id: "extensions", label: msg("Extensions"), icon: "tool", title: msg("Extensions"), sub: msg("Add tools, prompt additions and language packs.") },
 ];
-const SKILL_LABEL: Record<Skill, string> = { reading: "Reading", recognition: "Recognition", writing: "Writing" };
-const BY_LABEL: Record<LevelEstimate["by"], string> = { self: "Set by you", placement: "Placement chat", observed: "Seen in your writing" };
+const SKILL_LABEL: Record<Skill, string> = { reading: msg("Reading"), recognition: msg("Recognition"), writing: msg("Writing") };
+const BY_LABEL: Record<LevelEstimate["by"], string> = { self: msg("Set by you"), placement: msg("Placement chat"), observed: msg("Seen in your writing") };
 
 export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps) {
-  const tab: Tab = (TABS.find((t) => t.id === routeTab)?.id ?? "models") as Tab;
-  const info = TABS.find((t) => t.id === tab)!;
+  const tab: Tab = (TABS.find((x) => x.id === routeTab)?.id ?? "models") as Tab;
+  const info = TABS.find((x) => x.id === tab)!;
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const select = (t: Tab) => replaceRoute(settingsRoute(t));
   const onKey = (e: KeyboardEvent) => {
-    const i = TABS.findIndex((t) => t.id === tab);
+    const i = TABS.findIndex((x) => x.id === tab);
     const next = e.key === "ArrowDown" ? TABS[(i + 1) % TABS.length] : e.key === "ArrowUp" ? TABS[(i - 1 + TABS.length) % TABS.length] : null;
     if (!next) return;
     e.preventDefault();
@@ -49,26 +58,26 @@ export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps)
 
   return (
     <main className="main set">
-      <nav className="set-nav" aria-label="Settings sections">
+      <nav className="set-nav" aria-label={t("Settings sections")}>
         <div className="set-drag drag" />
-        <h1 className="set-title">Settings</h1>
+        <h1 className="set-title">{t("Settings")}</h1>
         <div role="tablist" aria-orientation="vertical" onKeyDown={onKey}>
-          {TABS.map((t) => (
+          {TABS.map((x) => (
             <button
-              key={t.id}
+              key={x.id}
               ref={(el) => {
-                tabRefs.current[t.id] = el;
+                tabRefs.current[x.id] = el;
               }}
               role="tab"
-              id={`tab-${t.id}`}
-              aria-selected={tab === t.id}
+              id={`tab-${x.id}`}
+              aria-selected={tab === x.id}
               aria-controls="set-panel"
-              tabIndex={tab === t.id ? 0 : -1}
-              className={cls("set-tab", tab === t.id && "on")}
-              onClick={() => select(t.id)}
+              tabIndex={tab === x.id ? 0 : -1}
+              className={cls("set-tab", tab === x.id && "on")}
+              onClick={() => select(x.id)}
             >
-              <Icon name={t.icon} size={17} />
-              {t.label}
+              <Icon name={x.icon} size={17} />
+              {t(x.label)}
             </button>
           ))}
         </div>
@@ -76,14 +85,15 @@ export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps)
       <div className="set-body" id="set-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         <div className="set-drag drag" />
         <div className="set-in" key={tab}>
-          <h2 className="set-h">{info.title}</h2>
-          <p className="set-sub">{info.sub}</p>
+          <h2 className="set-h">{t(info.title)}</h2>
+          <p className="set-sub">{t(info.sub)}</p>
           {tab === "models" && <ModelsTab />}
           {tab === "languages" && <LanguagesTab navigate={navigate} />}
           {tab === "about" && <AboutTab navigate={navigate} />}
-          {tab === "anki" && <AnkiTab />}
+          {tab === "anki" && <AnkiTab navigate={navigate} />}
+          {tab === "voice" && <VoiceTab />}
           {tab === "dictionaries" && <DictionariesTab />}
-          {tab === "preferences" && <PreferencesTab />}
+          {tab === "preferences" && <PreferencesTab navigate={navigate} />}
           {tab === "data" && <DataTab />}
           {tab === "extensions" && <ExtensionsTab />}
         </div>
@@ -129,7 +139,7 @@ function ModelsTab() {
     <>
       {app.models.length > 0 && (
         <Group>
-          <Row label="Default model" hint="Used for new messages. Change it any time from the message box." htmlFor="def-model">
+          <Row label={t("Default model")} hint={t("Used for new messages. Change it any time from the message box.")} htmlFor="def-model">
             <select
               id="def-model"
               className="input select"
@@ -154,9 +164,9 @@ function ModelsTab() {
       )}
       <section className="sgroup">
         <div className="sgroup-h">
-          <h3>Providers</h3>
+          <h3>{t("Providers")}</h3>
           <span className="muted small">
-            <Icon name="lock" size={13} /> Keys are encrypted with your Mac's Keychain
+            <Icon name="lock" size={13} /> {t("Keys are encrypted with your Mac's Keychain")}
           </span>
         </div>
         <Connect compact providers={app.providers} onChanged={app.refreshAuth} />
@@ -177,7 +187,7 @@ function LanguagesTab({ navigate }: { navigate: Navigate }) {
   };
   return (
     <>
-      <Group title="Languages you're learning">
+      <Group title={t("Languages you're learning")}>
         <div className="langpick">
           {app.allLanguages.map((l) => {
             const on = enabled.includes(l.id);
@@ -186,7 +196,7 @@ function LanguagesTab({ navigate }: { navigate: Navigate }) {
                 <input type="checkbox" checked={on} disabled={on && enabled.length === 1} onChange={(e) => toggle(l.id, e.target.checked)} />
                 <span className={cls("g", l.fontClass)}>{l.glyph}</span>
                 <span className="t">
-                  <b>{l.name}</b>
+                  <b>{langName(l.id)}</b>
                   <small className={l.fontClass}>{l.nativeName}</small>
                 </span>
                 <span className="check" aria-hidden="true">
@@ -248,11 +258,11 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
   const history = [...(data?.history ?? [])].sort((a, b) => b.at - a.at);
   return (
     <Group
-      title={`${info.name} level`}
+      title={t("{language} level", { language: langName(info.id) })}
       aside={
         history.length > 0 && (
           <button className="linkb" aria-expanded={showHistory} onClick={() => setShowHistory(!showHistory)}>
-            {showHistory ? "Hide history" : `History (${history.length})`}
+            {showHistory ? t("Hide history") : t("History ({n})", { n: history.length })}
           </button>
         )
       }
@@ -262,17 +272,17 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
           const e = data?.current[s];
           return (
             <div key={s} className="lvlcell">
-              <span className="lvl-s">{SKILL_LABEL[s]}</span>
-              <b className={cls(!e && "none")}>{e ? e.level : "Not yet"}</b>
+              <span className="lvl-s">{t(SKILL_LABEL[s])}</span>
+              <b className={cls(!e && "none")}>{e ? e.level : t("Not yet")}</b>
               {e ? (
                 <>
                   <span className="lvl-by">
-                    {BY_LABEL[e.by]} · {fmtShortDate(e.at)}
+                    {t(BY_LABEL[e.by])} · {fmtShortDate(e.at)}
                   </span>
-                  <span className="lvl-ev">{e.evidence}</span>
+                  <span className="lvl-ev">{t(e.evidence)}</span>
                 </>
               ) : (
-                <span className="lvl-by">No estimate yet</span>
+                <span className="lvl-by">{t("No estimate yet")}</span>
               )}
             </div>
           );
@@ -283,33 +293,33 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
           {history.map((h, i) => (
             <li key={i}>
               <span className="mono">{fmtShortDate(h.at)}</span>
-              <span>{SKILL_LABEL[h.skill]}</span>
+              <span>{t(SKILL_LABEL[h.skill])}</span>
               <b>{h.level}</b>
-              <span className="muted">{BY_LABEL[h.by]}</span>
+              <span className="muted">{t(BY_LABEL[h.by])}</span>
             </li>
           ))}
         </ul>
       )}
       <div className="lvl-actions">
         <label htmlFor={`self-${info.id}`} className="srow-l">
-          I'd say I'm at
+          {t("I'd say I'm at")}
         </label>
         <select id={`self-${info.id}`} className="input select sm" value={self} onChange={(e) => void rate(e.target.value)} disabled={busy === "self"}>
-          <option value="">Choose a level</option>
+          <option value="">{t("Choose a level")}</option>
           {info.levels.map((lv) => (
             <option key={lv} value={lv}>
               {lv}
             </option>
           ))}
         </select>
-        <span className="lvl-or">or</span>
+        <span className="lvl-or">{t("or")}</span>
         <button className="btn btn-f btn-s" onClick={() => void place()} disabled={busy === "place"}>
           <Icon name="compass" size={15} />
-          {busy === "place" ? "Starting…" : "Find my level"}
+          {busy === "place" ? t("Starting…") : t("Find my level")}
         </button>
-        <span className="muted small">A 5-minute chat, no test.</span>
+        <span className="muted small">{t("A 5-minute chat, no test.")}</span>
       </div>
-      {error && <p className="err">{error}</p>}
+      {error && <p className="err">{t(error)}</p>}
     </Group>
   );
 }
@@ -357,42 +367,42 @@ function AboutTab({ navigate }: { navigate: Navigate }) {
   return (
     <>
       <div className={cls("autosave", state)} role="status" aria-live="polite">
-        {state === "saving" && "Saving…"}
+        {state === "saving" && t("Saving…")}
         {state === "saved" && (
           <>
-            <Icon name="check" size={13} stroke={2.4} /> Saved
+            <Icon name="check" size={13} stroke={2.4} /> {t("Saved")}
           </>
         )}
-        {state === "error" && "Couldn't save. Your changes are still here."}
+        {state === "error" && t("Couldn't save. Your changes are still here.")}
       </div>
       <Group>
         <div className="sform">
           <div className="field">
-            <label htmlFor="pf-name">What should the tutor call you?</label>
-            <input id="pf-name" className="input" value={p.name ?? ""} maxLength={60} placeholder="Your name" onChange={(e) => change({ name: e.target.value })} />
+            <label htmlFor="pf-name">{t("What should the tutor call you?")}</label>
+            <input id="pf-name" className="input" value={p.name ?? ""} maxLength={60} placeholder={t("Your name")} onChange={(e) => change({ name: e.target.value })} />
           </div>
           <div className="field">
-            <label htmlFor="pf-about">About you</label>
+            <label htmlFor="pf-about">{t("About you")}</label>
             <textarea
               id="pf-about"
               className="input ta"
               rows={5}
               value={p.about}
               maxLength={2000}
-              placeholder="What you do, what you like, what you want to talk about. Write in any language."
+              placeholder={t("What you do, what you like, what you want to talk about. Write in any language.")}
               onChange={(e) => change({ about: e.target.value })}
             />
-            <span className="note">Shared across languages. The tutor reads it at the start of every session.</span>
+            <span className="note">{t("Shared across languages. The tutor reads it at the start of every session.")}</span>
           </div>
           {app.languages.map((l) => (
             <div className="field" key={l.id}>
-              <label htmlFor={`pf-goal-${l.id}`}>Your goal for {l.name}</label>
+              <label htmlFor={`pf-goal-${l.id}`}>{t("Your goal for {language}", { language: langName(l.id) })}</label>
               <input
                 id={`pf-goal-${l.id}`}
                 className="input"
                 value={p.goals[l.id] ?? ""}
                 maxLength={200}
-                placeholder={l.id === "zh" ? "e.g. Pass HSK 4 by June" : "e.g. Read a novel without a dictionary"}
+                placeholder={t(GOAL_PLACEHOLDER[l.id])}
                 onChange={(e) => change({ goals: { [l.id]: e.target.value } })}
               />
             </div>
@@ -402,9 +412,9 @@ function AboutTab({ navigate }: { navigate: Navigate }) {
       <div className="tipcard">
         <Icon name="file" size={18} />
         <p>
-          Have more to share, like a journal or a CV? Add it to your Library as <b>About me</b> and the tutor can draw on it.{" "}
+          {t("Have more to share, like a journal or a CV? Add it to your Library as About me and the tutor can draw on it.")}{" "}
           <button className="linkb" onClick={() => navigate("library")}>
-            Open Library
+            {t("Open Library")}
           </button>
         </p>
       </div>
@@ -414,7 +424,7 @@ function AboutTab({ navigate }: { navigate: Navigate }) {
 
 // ---------------------------------------------------------------- anki
 
-function AnkiTab() {
+function AnkiTab({ navigate }: { navigate: Navigate }) {
   const app = useApp();
   const [st, setSt] = useState<AnkiStatus | null>(app.anki);
   const [decks, setDecks] = useState<string[]>([]);
@@ -475,44 +485,57 @@ function AnkiTab() {
     <>
       <Group>
         <Row
-          label="Use Anki"
+          label={t("Use Anki")}
           hint={
             on ? (
               <span className={cls("anki-st", st.connected ? "ok" : "warn")}>
                 <i />
-                {st.connected ? `Connected${st.version ? ` · AnkiConnect v${st.version}` : ""}` : (st.error ?? "Can't reach Anki right now")}
+                {st.connected ? `${t("Connected")}${st.version ? ` · AnkiConnect v${st.version}` : ""}` : st.error ? t(st.error) : t("Can't reach Anki right now")}
               </span>
             ) : (
-              "Off. Sessions won't mention your cards."
+              t("Off. Sessions won't mention your cards.")
             )
           }
         >
-          <Switch checked={on} onChange={(v) => void save({ enabled: v })} label="Use Anki" />
+          <Switch checked={on} onChange={(v) => void save({ enabled: v })} label={t("Use Anki")} />
         </Row>
         {on && !st.connected && Object.keys(st.snapshots).length > 0 && (
-          <p className="srow-note">Until Anki is back, the tutor uses your last synced snapshot.</p>
+          <p className="srow-note">{t("Until Anki is back, the tutor uses your last synced snapshot.")}</p>
         )}
       </Group>
 
       {on && !st.connected && <AnkiTroubleshoot st={st} busy={busy === "test"} onTest={() => void test()} />}
 
-      <Group title="Set up">
+      <Group title={t("Get a deck")}>
+        <Row label={t("Make a deck with your model")} hint={t("Words at your level, checked with the dictionary, audio, added straight to Anki. Big decks run in batches of 25.")}>
+          <button className="btn btn-s btn-f" onClick={() => navigate(deckRoute())}>
+            <Icon name="spark" size={14} /> {t("Make a deck")}
+          </button>
+        </Row>
+        <Row label={t("Use a shared deck")} hint={t("Free decks from other learners on AnkiWeb. Import one into Anki, then pick it below.")}>
+          <button className="btn btn-s" onClick={() => void api.openExternal(sharedDecksUrl(app.language))}>
+            {t("Browse AnkiWeb")} <Icon name="external" size={13} />
+          </button>
+        </Row>
+      </Group>
+
+      <Group title={t("Set up")}>
         <ol className="steps">
           <li>
             <span className="n">1</span>
             <div>
-              <b>Install the AnkiConnect add-on.</b>
+              <b>{t("Install the AnkiConnect add-on.")}</b>
               <p>
-                In Anki, choose Tools, Add-ons, Get Add-ons, and paste this code:{" "}
+                {t("In Anki, choose Tools, Add-ons, Get Add-ons, and paste this code:")}{" "}
                 <button
                   className="codechip"
                   onClick={() => {
                     void navigator.clipboard?.writeText("2055492159").then(() => setCopied(true));
                     window.setTimeout(() => setCopied(false), 1500);
                   }}
-                  aria-label="Copy add-on code 2055492159"
+                  aria-label={t("Copy add-on code {code}", { code: "2055492159" })}
                 >
-                  2055492159 <span>{copied ? "Copied" : "Copy"}</span>
+                  2055492159 <span>{copied ? t("Copied") : t("Copy")}</span>
                 </button>
               </p>
             </div>
@@ -520,15 +543,15 @@ function AnkiTab() {
           <li>
             <span className="n">2</span>
             <div>
-              <b>Restart Anki and keep it open while you practise.</b>
-              <p>Sayfern talks to it at {st.config.url}. Nothing leaves your Mac.</p>
+              <b>{t("Restart Anki and keep it open while you practise.")}</b>
+              <p>{t("Sayfern talks to it at {url}. Nothing leaves your Mac.", { url: st.config.url })}</p>
             </div>
           </li>
           <li>
             <span className="n">3</span>
             <div>
-              <b>Pick a deck for each language below.</b>
-              <p>Tell Sayfern which field holds the word, so the tutor knows which words you know, are learning and find hard.</p>
+              <b>{t("Pick a deck for each language below.")}</b>
+              <p>{t("Tell Sayfern which field holds the word, so the tutor knows which words you know, are learning and find hard.")}</p>
             </div>
           </li>
         </ol>
@@ -541,16 +564,23 @@ function AnkiTab() {
             info={l}
             decks={decks}
             mapping={st.config.decks.find((d) => d.language === l.id)}
+            extra={st.config.decks.filter((d) => d.language === l.id).slice(1)}
             snapshot={st.snapshots[l.id]}
             connected={st.connected}
             syncing={busy === l.id}
-            onChange={(m) => void save({ decks: [...st.config.decks.filter((d) => d.language !== l.id), ...(m ? [m] : [])] })}
+            onChange={(m) => {
+              // Only the first mapping is edited here; other decks for the language (e.g. decks Sayfern made) stay.
+              const first = st.config.decks.find((d) => d.language === l.id);
+              const rest = st.config.decks.filter((d) => d !== first);
+              void save({ decks: first ? (m ? st.config.decks.map((d) => (d === first ? m : d)) : rest) : [...rest, ...(m ? [m] : [])] });
+            }}
+            onUnfollow={(deck) => void save({ decks: st.config.decks.filter((d) => !(d.language === l.id && d.deck === deck)) })}
             onSync={() => void sync(l.id)}
           />
         ))}
       {error && (
         <p className="err" role="alert">
-          <Icon name="alert" size={15} /> {error}
+          <Icon name="alert" size={15} /> {t(error)}
         </p>
       )}
     </>
@@ -561,15 +591,20 @@ function DeckMapping({
   info,
   decks,
   mapping,
+  extra,
   snapshot,
   connected,
   syncing,
   onChange,
   onSync,
+  onUnfollow,
 }: {
   info: LanguageInfo;
   decks: string[];
   mapping?: AnkiDeckMapping;
+  /** More decks followed for this language (decks Sayfern generated are added here). */
+  extra: AnkiDeckMapping[];
+  onUnfollow(deck: string): void;
   snapshot?: AnkiStatus["snapshots"][Language];
   connected: boolean;
   syncing: boolean;
@@ -634,7 +669,7 @@ function DeckMapping({
         disabled={!mapping?.deck}
         onChange={(e) => mapping && onChange({ ...mapping, [key]: e.target.value || undefined })}
       >
-        <option value="">{optional ? "None" : "Choose a field"}</option>
+        <option value="">{optional ? t("None") : t("Choose a field")}</option>
         {fieldOptions(mapping?.[key]).map((f) => (
           <option key={f} value={f}>
             {f}
@@ -646,17 +681,17 @@ function DeckMapping({
 
   return (
     <Group
-      title={`${info.name} deck`}
+      title={t("{language} deck", { language: langName(info.id) })}
       aside={
         <button className="btn btn-s" onClick={onSync} disabled={!mapping?.deck || !connected || syncing}>
           <Icon name="refresh" size={14} />
-          {syncing ? "Syncing…" : "Sync now"}
+          {syncing ? t("Syncing…") : t("Sync now")}
         </button>
       }
     >
       <div className="deckgrid">
         <div className="field">
-          <label htmlFor={`${id}-deck`}>Deck</label>
+          <label htmlFor={`${id}-deck`}>{t("Deck")}</label>
           <select
             id={`${id}-deck`}
             className="input select"
@@ -664,7 +699,7 @@ function DeckMapping({
             disabled={!connected && !mapping}
             onChange={(e) => onChange(e.target.value ? { language: info.id, deck: e.target.value, wordField: "" } : null)}
           >
-            <option value="">{connected ? "Choose a deck" : "Open Anki to list decks"}</option>
+            <option value="">{connected ? t("Choose a deck") : t("Open Anki to list decks")}</option>
             {deckOptions.map((d) => (
               <option key={d} value={d}>
                 {d}
@@ -672,15 +707,29 @@ function DeckMapping({
             ))}
           </select>
         </div>
-        {fieldSel("wordField", "Word field", false)}
-        {fieldSel("readingField", `${info.readingName} field`, true)}
-        {fieldSel("meaningField", "Meaning field", true)}
+        {fieldSel("wordField", t("Word field"), false)}
+        {fieldSel("readingField", info.readingName ? t("{name} field", { name: t(info.readingName) }) : t("Reading field"), true)}
+        {fieldSel("meaningField", t("Meaning field"), true)}
       </div>
+      {extra.map((m) => (
+        <p className="dk-follow" key={m.deck}>
+          <Icon name="cards" size={14} />{" "}
+          {tj("Also following {deck} (word field {field})", { deck: <b className={info.fontClass}>{m.deck}</b>, field: m.wordField })}
+          <button className="linkb" onClick={() => onUnfollow(m.deck)}>
+            {t("Stop following")}
+          </button>
+        </p>
+      ))}
       {overview && <AnkiWords overview={overview} language={info.id} />}
       <p className="srow-note">
         {snapshot
-          ? `Last synced ${fmtAgo(snapshot.syncedAt)} · ${fmtNumber(snapshot.cards)} cards · ${fmtNumber(snapshot.matureCount)} mature · ${snapshot.reviewedToday} reviewed today`
-          : "Not synced yet."}
+          ? t("Last synced {ago} · {cards} cards · {mature} mature · {today} reviewed today", {
+              ago: fmtAgo(snapshot.syncedAt),
+              cards: snapshot.cards,
+              mature: snapshot.matureCount,
+              today: snapshot.reviewedToday,
+            })
+          : t("Not synced yet.")}
       </p>
     </Group>
   );
@@ -689,10 +738,10 @@ function DeckMapping({
 /** Word counts from the snapshot and the hardest words, collapsible. */
 function AnkiWords({ overview: o, language }: { overview: AnkiOverview; language: Language }) {
   const parts: [number, string][] = [
-    [o.counts.known, "known"],
-    [o.counts.learning, "learning"],
-    [o.newRemaining, "still new"],
-    [o.struggling, "struggling"],
+    [o.counts.known, t("known")],
+    [o.counts.learning, t("learning")],
+    [o.newRemaining, t("still new")],
+    [o.struggling, t("struggling")],
   ];
   return (
     <div className="anki-words">
@@ -708,14 +757,14 @@ function AnkiWords({ overview: o, language }: { overview: AnkiOverview; language
         <details className="anki-hard">
           <summary>
             <Icon name="chevR" size={13} />
-            Hardest right now
+            {t("Hardest right now")}
           </summary>
           <ul>
             {o.topStruggling.map((w) => (
               <li key={w.word}>
-                <span className={cls("w", language)}>{w.word}</span>
+                <span className={cls("w", fontOf(language))}>{w.word}</span>
                 <span className="m">{[w.reading, w.meaning].filter(Boolean).join(" · ")}</span>
-                <span className="r">{w.reasons.join(", ")}</span>
+                <span className="r">{w.reasons.map((r) => t(r)).join(", ")}</span>
               </li>
             ))}
           </ul>
@@ -752,7 +801,13 @@ function DictionariesTab() {
     }
   };
 
-  const PHASE: Record<DictionaryProgress["phase"], string> = { download: "Downloading", parse: "Reading entries", index: "Building the index", done: "Done", error: "Failed" };
+  const PHASE: Record<DictionaryProgress["phase"], string> = {
+    download: t("Downloading"),
+    parse: t("Reading entries"),
+    index: t("Building the index"),
+    done: t("Done"),
+    error: t("Failed"),
+  };
 
   return (
     <>
@@ -760,7 +815,7 @@ function DictionariesTab() {
         const s = status[l.id];
         const p = progress[l.id];
         return (
-          <Group key={l.id} title={l.name}>
+          <Group key={l.id} title={langName(l.id)}>
             {!s ? (
               <div className="skel-row" />
             ) : (
@@ -772,18 +827,20 @@ function DictionariesTab() {
                   <b>{s.name}</b>
                   <span>
                     {s.installed
-                      ? `${s.entries ? `${fmtNumber(s.entries)} entries` : "Installed"}${s.version ? ` · version ${s.version}` : ""}`
-                      : `Not installed · about ${s.downloadMb} MB`}
+                      ? `${s.entries ? t("{n} entries", { n: s.entries }) : t("Installed")}${s.version ? ` · ${t("version {v}", { v: s.version })}` : ""}`
+                      : s.downloadMb > 0
+                        ? t("Not installed · about {mb} MB", { mb: s.downloadMb })
+                        : t("No dictionary for this language in your interface language yet.")}
                   </span>
-                  <span className="lic">License: {s.license}</span>
+                  {s.license && <span className="lic">{t("License: {license}", { license: s.license })}</span>}
                 </div>
-                {!s.installed && !p && (
+                {!s.installed && !p && s.downloadMb > 0 && (
                   <button className="btn btn-f btn-s" onClick={() => void install(l.id)}>
                     <Icon name="download" size={15} />
-                    Install
+                    {t("Install")}
                   </button>
                 )}
-                {s.installed && <span className="badge">Ready for lookups</span>}
+                {s.installed && <span className="badge">{t("Ready for lookups")}</span>}
               </div>
             )}
             {p && (
@@ -792,14 +849,14 @@ function DictionariesTab() {
                   {PHASE[p.phase]}
                   {p.fraction != null && ` · ${Math.round(p.fraction * 100)}%`}
                 </span>
-                <div className="bar" role="progressbar" aria-label={`Installing ${s?.name ?? "dictionary"}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((p.fraction ?? 0) * 100)}>
+                <div className="bar" role="progressbar" aria-label={t("Installing {name}", { name: s?.name ?? t("dictionary") })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((p.fraction ?? 0) * 100)}>
                   <i style={{ width: `${Math.round((p.fraction ?? 0) * 100)}%` }} />
                 </div>
               </div>
             )}
             {(errors[l.id] || s?.error) && (
               <p className="err">
-                <Icon name="alert" size={15} /> {errors[l.id] ?? s?.error}
+                <Icon name="alert" size={15} /> {t(errors[l.id] ?? s?.error ?? "")}
               </p>
             )}
           </Group>
@@ -811,24 +868,263 @@ function DictionariesTab() {
 
 // ---------------------------------------------------------------- preferences
 
-function PreferencesTab() {
+function PreferencesTab({ navigate }: { navigate: Navigate }) {
   const app = useApp();
   const mode = app.settings.feedbackMode ?? "inline";
   return (
-    <Group>
-      <Row label="Corrections" hint={mode === "inline" ? "Shown under your message as you go." : "Saved and shown when you end the session."}>
-        <div className="seg" role="radiogroup" aria-label="When to show corrections">
-          {(["inline", "end"] as const).map((m) => (
-            <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => void app.updateSettings({ feedbackMode: m })}>
-              {m === "inline" ? "Inline" : "After session"}
+    <>
+      <Group>
+        <Row
+          label={t("Interface language")}
+          hint={t("Sayfern's menus and buttons, and the language the tutor explains grammar and corrections in.")}
+          htmlFor="pref-locale"
+        >
+          <LocalePicker id="pref-locale" withLabel={false} />
+        </Row>
+      </Group>
+      <Group>
+        <Row label={t("Corrections")} hint={mode === "inline" ? t("Shown under your message as you go.") : t("Saved and shown when you end the session.")}>
+          <div className="seg" role="radiogroup" aria-label={t("When to show corrections")}>
+            {(["inline", "end"] as const).map((m) => (
+              <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => void app.updateSettings({ feedbackMode: m })}>
+                {m === "inline" ? t("Inline") : t("After session")}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row
+          label={t("Translate the tutor automatically")}
+          hint={t("Adds a line in {language} under each tutor message. Uses a small extra model call per message.", { language: uiLocaleInfo(app.locale).nativeName })}
+        >
+          <Switch checked={!!app.settings.autoTranslate} onChange={(v) => void app.updateSettings({ autoTranslate: v })} label={t("Translate the tutor automatically")} />
+        </Row>
+      </Group>
+      {import.meta.env.DEV && (
+        <Group title={t("Debug")}>
+          <Row label={t("Welcome page")} hint={t("Only in dev builds. Opens the first-run welcome page again. Finishing it saves its choices like a real first run.")}>
+            <button className="btn btn-s" onClick={() => navigate("onboarding")}>
+              {t("Show welcome page")}
             </button>
-          ))}
-        </div>
-      </Row>
-      <Row label="Translate the tutor automatically" hint="Adds an English line under each tutor message. Uses a small extra model call per message.">
-        <Switch checked={!!app.settings.autoTranslate} onChange={(v) => void app.updateSettings({ autoTranslate: v })} label="Translate the tutor automatically" />
-      </Row>
-    </Group>
+          </Row>
+        </Group>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- voice (Stage 3)
+
+function VoiceTab() {
+  const app = useApp();
+  const st = useVoiceStatus();
+  const [adding, setAdding] = useState(false);
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadVoiceStatus(true);
+  }, []);
+
+  const run = async (fn: () => Promise<VoiceStatus>): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      setVoiceStatus(await fn());
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const add = async () => {
+    if (!key.trim()) return;
+    if (await run(() => api.addElevenLabsAccount(key, label))) {
+      setKey("");
+      setLabel("");
+      setAdding(false);
+    }
+  };
+
+  if (!st) return <div className="pop-skel" aria-label={t("Loading")}><i style={{ width: "60%" }} /></div>;
+  const accounts = st.accounts;
+  const lang = app.settings.language;
+
+  return (
+    <>
+      <Group
+        title={t("ElevenLabs accounts")}
+        aside={
+          <button className="iconb sm" aria-label={t("Add an ElevenLabs account")} title={t("Add an ElevenLabs account")} onClick={() => setAdding(true)} disabled={adding}>
+            <Icon name="plus" size={16} />
+          </button>
+        }
+      >
+        {accounts.length === 0 && !adding && (
+          <Row
+            label={t("No account connected")}
+            hint={t("Speech input and the most natural voices use ElevenLabs. A free account includes 10,000 credits a month. Without one, Sayfern reads aloud with Microsoft's free voices.")}
+          >
+            <button className="btn btn-s btn-f" onClick={() => setAdding(true)}>
+              <Icon name="plus" size={14} />
+              {t("Add account")}
+            </button>
+          </Row>
+        )}
+        {accounts.map((a, i) => (
+          <div className="srow vc-acct" key={a.id}>
+            <div className="srow-t">
+              <span className="srow-l">
+                <span className={cls("anki-st", a.state === "ok" ? "ok" : "warn")}>
+                  <i />
+                </span>
+                {a.label} <span className="mono muted small">{a.keyHint}</span>
+                {i === 0 && accounts.length > 1 && <span className="chip chip-s">{t("Used first")}</span>}
+              </span>
+              <span className="srow-h">
+                {a.creditsLeft != null
+                  ? t("{left} of {limit} credits left this month", { left: fmtNumber(a.creditsLeft), limit: fmtNumber(a.creditLimit ?? 0) })
+                  : t("Credits unknown (the key can't read your subscription)")}
+                {a.resetsAt ? ` · ${t("resets {date}", { date: fmtShortDate(a.resetsAt) })}` : ""}
+                {a.error ? ` · ${t(a.error)}` : ""}
+              </span>
+            </div>
+            <div className="srow-c vc-acct-c">
+              <button className="iconb sm" aria-label={t("Use earlier")} title={t("Use earlier")} disabled={busy || i === 0} onClick={() => void run(() => api.moveElevenLabsAccount(a.id, -1))}>
+                <Icon name="chevUp" size={15} />
+              </button>
+              <button
+                className="iconb sm"
+                aria-label={t("Use later")}
+                title={t("Use later")}
+                disabled={busy || i === accounts.length - 1}
+                onClick={() => void run(() => api.moveElevenLabsAccount(a.id, 1))}
+              >
+                <Icon name="chev" size={15} />
+              </button>
+              <button className="iconb sm" aria-label={t("Remove {name}", { name: a.label })} title={t("Remove")} disabled={busy} onClick={() => void run(() => api.removeElevenLabsAccount(a.id))}>
+                <Icon name="trash" size={15} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {adding && (
+          <div className="srow vc-add">
+            <div className="srow-t">
+              <span className="srow-l">{accounts.length ? t("Add another account") : t("Add account")}</span>
+              <span className="srow-h">
+                {t(
+                  "In ElevenLabs, open Developers, API keys and create a key with Text to Speech, Speech to Text and Voices read (add User read to see your credits). It's stored encrypted on this Mac. With several accounts, Sayfern uses them in order and moves on when one runs out of credits.",
+                )}{" "}
+                <button className="linkb" onClick={() => void api.openExternal("https://elevenlabs.io/app/settings/api-keys")}>
+                  {t("Open ElevenLabs")}
+                </button>
+              </span>
+              <div className="vc-add-f">
+                <input className="input sm" value={label} maxLength={40} placeholder={t("Name (optional)")} aria-label={t("Account name")} onChange={(e) => setLabel(e.target.value)} />
+                <input
+                  className="input sm"
+                  type="password"
+                  autoFocus
+                  value={key}
+                  placeholder={t("ElevenLabs API key")}
+                  aria-label={t("ElevenLabs API key")}
+                  onChange={(e) => setKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void add();
+                    if (e.key === "Escape") setAdding(false);
+                  }}
+                />
+                <button className="btn btn-s btn-f" onClick={() => void add()} disabled={busy || !key.trim()}>
+                  {busy ? t("Checking…") : t("Connect")}
+                </button>
+                <button className="linkb" onClick={() => setAdding(false)} disabled={busy}>
+                  {t("Cancel")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Group>
+      {error && (
+        <p className="err" role="alert">
+          <Icon name="alert" size={15} /> {error}
+        </p>
+      )}
+
+      <Group title={t("Reading aloud")}>
+        <Row
+          label={t("Voices")}
+          hint={
+            st.prefs.tts === "elevenlabs" && st.speaking === "edge"
+              ? accounts.length
+                ? t("No ElevenLabs account can speak right now, so Sayfern uses the free voices.")
+                : t("Add an ElevenLabs account above, or use the free voices.")
+              : st.prefs.tts === "elevenlabs"
+                ? t("Your ElevenLabs accounts. If they run out of credits, the free voices take over.")
+                : t("Microsoft's free online voices. No account and no credits.")
+          }
+        >
+          <div className="seg" role="radiogroup" aria-label={t("Voices")}>
+            {(["elevenlabs", "edge"] as const).map((v) => (
+              <button key={v} role="radio" aria-checked={st.prefs.tts === v} className={st.prefs.tts === v ? "on" : ""} onClick={() => void run(() => api.setVoicePrefs({ tts: v }))}>
+                {v === "elevenlabs" ? "ElevenLabs" : t("Free Microsoft voices")}
+              </button>
+            ))}
+          </div>
+        </Row>
+        {st.prefs.tts === "elevenlabs" && st.voices.length > 0 && (
+          <Row label={t("ElevenLabs voice")} hint={t("Premade voices work with every account.")} htmlFor="vc-voice">
+            <select id="vc-voice" className="input sm" value={st.voiceId ?? ""} disabled={busy} onChange={(e) => void run(() => api.setVoicePrefs({ voiceId: e.target.value }))}>
+              {st.voices.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                  {v.category && v.category !== "premade" ? ` (${v.category})` : ""}
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
+        <Row label={t("Speed")} hint={t("The slow button always plays at 0.7×.")}>
+          <div className="seg" role="radiogroup" aria-label={t("Speed")}>
+            {VOICE_RATES.map((r) => (
+              <button key={r} role="radio" aria-checked={st.prefs.rate === r} className={st.prefs.rate === r ? "on" : ""} onClick={() => void run(() => api.setVoicePrefs({ rate: r }))}>
+                {r}×
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row label={t("Read tutor replies aloud")} hint={t("Each new reply plays as soon as it arrives. Every message also has a listen button.")}>
+          <Switch checked={st.prefs.autoSpeak} onChange={(v) => void run(() => api.setVoicePrefs({ autoSpeak: v }))} label={t("Read tutor replies aloud")} />
+        </Row>
+        <Row label={t("Try it")} hint={t("Plays a short sentence in {language}.", { language: langName(lang) })}>
+          <SpeakButtons id={`sample:${lang}`} text={VOICE_SAMPLES[lang]} language={lang} kind="sentence" />
+        </Row>
+      </Group>
+
+      <Group title={t("Talking")}>
+        <Row
+          label={t("Speech input")}
+          hint={
+            st.canTranscribe
+              ? t("Click the mic under the message box, or hold it and release. ElevenLabs Scribe writes down what you said; Sayfern keeps the text, not the recording.")
+              : t("Needs an ElevenLabs account whose key may use Speech to Text.")
+          }
+        >
+          <span className={cls("anki-st", st.canTranscribe ? "ok" : "warn")}>
+            <i />
+            {st.canTranscribe ? t("Ready") : t("Not set up")}
+          </span>
+        </Row>
+        <Row label={t("Send right after transcribing")} hint={t("Off: the text waits in the box so you can check it. On: it is sent at once, for a spoken conversation.")}>
+          <Switch checked={st.prefs.autoSend} onChange={(v) => void run(() => api.setVoicePrefs({ autoSend: v }))} label={t("Send right after transcribing")} />
+        </Row>
+      </Group>
+    </>
   );
 }
 
@@ -857,43 +1153,43 @@ function DataTab() {
           <li>
             <Icon name="sessions" size={17} />
             <span>
-              <b>Sessions and messages</b>, with corrections and the tutor's notes on each
+              {tj("{what}, with corrections and the tutor's notes on each", { what: <b>{t("Sessions and messages")}</b> })}
             </span>
           </li>
           <li>
             <Icon name="grammar" size={17} />
             <span>
-              <b>Grammar, words and levels</b>, counted on this Mac, never by a model
+              {tj("{what}, counted on this Mac, never by a model", { what: <b>{t("Grammar, words and levels")}</b> })}
             </span>
           </li>
           <li>
             <Icon name="library" size={17} />
             <span>
-              <b>Your library</b>, reading positions and saved words
+              {tj("{what}, reading positions and saved words", { what: <b>{t("Your library")}</b> })}
             </span>
           </li>
           <li>
             <Icon name="lock" size={17} />
             <span>
-              <b>Model keys</b>, encrypted with the Keychain and never exported
+              {tj("{what}, encrypted with the Keychain and never exported", { what: <b>{t("Model keys")}</b> })}
             </span>
           </li>
         </ul>
-        <p className="srow-note">Only the messages you send go to your model provider, along with the context the tutor needs for that reply.</p>
+        <p className="srow-note">{t("Only the messages you send go to your model provider, along with the context the tutor needs for that reply.")}</p>
       </Group>
-      <Group title="Export">
-        <Row label="Export everything" hint="One JSON file with all your records. Good for backups or taking your data elsewhere.">
+      <Group title={t("Export")}>
+        <Row label={t("Export everything")} hint={t("One JSON file with all your records. Good for backups or taking your data elsewhere.")}>
           <button className="btn btn-s" onClick={() => void exportNow()} disabled={busy}>
             <Icon name="download" size={15} />
-            {busy ? "Exporting…" : "Export"}
+            {busy ? t("Exporting…") : t("Export")}
           </button>
         </Row>
         {path && (
           <p className="saved-path" role="status">
-            <Icon name="check" size={14} stroke={2.4} /> Saved to <span className="mono">{path}</span>
+            <Icon name="check" size={14} stroke={2.4} /> {tj("Saved to {path}", { path: <span className="mono">{path}</span> })}
           </p>
         )}
-        {error && <p className="err">{error}</p>}
+        {error && <p className="err">{t(error)}</p>}
       </Group>
       <EraseGroup />
     </>
@@ -936,27 +1232,27 @@ function EraseGroup() {
   };
 
   return (
-    <Group title="Start over">
+    <Group title={t("Start over")}>
       <Row
-        label="Erase all data"
-        hint="Deletes every session, correction, grammar record, saved word and level, your library, your settings and the Anki link. Dictionaries and extensions stay. This can't be undone."
+        label={t("Erase all data")}
+        hint={t(
+          "Deletes every session, correction, grammar record, saved word and level, your library, your settings and the Anki link. Dictionaries and extensions stay. This can't be undone.",
+        )}
       >
         {!open && (
           <button className="btn btn-s btn-danger-o" onClick={() => setOpen(true)}>
             <Icon name="trash" size={15} />
-            Erase…
+            {t("Erase…")}
           </button>
         )}
       </Row>
       {open && (
         <div className="erase">
-          <Row label="Keep model sign-ins" hint="Stay signed in to your model providers and keep API keys." htmlFor="erase-keep">
-            <Switch id="erase-keep" checked={keepSignIns} onChange={setKeepSignIns} label="Keep model sign-ins" disabled={busy} />
+          <Row label={t("Keep model sign-ins")} hint={t("Stay signed in to your model providers and keep API keys.")} htmlFor="erase-keep">
+            <Switch id="erase-keep" checked={keepSignIns} onChange={setKeepSignIns} label={t("Keep model sign-ins")} disabled={busy} />
           </Row>
           <div className="erase-confirm">
-            <label htmlFor="erase-word">
-              Type <b className="mono">{ERASE_WORD}</b> to confirm
-            </label>
+            <label htmlFor="erase-word">{tj("Type {word} to confirm", { word: <b className="mono">{ERASE_WORD}</b> })}</label>
             <input
               id="erase-word"
               className="input sm"
@@ -974,17 +1270,17 @@ function EraseGroup() {
             />
             <div className="erase-actions">
               <button className="btn btn-s" onClick={cancel} disabled={busy}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button className="btn btn-s btn-danger" onClick={() => void erase()} disabled={!armed || busy}>
                 <Icon name="trash" size={15} />
-                {busy ? "Erasing…" : "Erase everything"}
+                {busy ? t("Erasing…") : t("Erase everything")}
               </button>
             </div>
           </div>
           {error && (
             <p className="err" role="alert">
-              <Icon name="alert" size={15} /> {error}
+              <Icon name="alert" size={15} /> {t(error)}
             </p>
           )}
         </div>
@@ -1015,18 +1311,18 @@ function ExtensionsTab() {
   return (
     <>
       <Group
-        title="Installed"
+        title={t("Installed")}
         aside={
           <button className="btn btn-s" onClick={() => void api.openExtensionsFolder()}>
             <Icon name="folder" size={15} />
-            Open extensions folder
+            {t("Open extensions folder")}
           </button>
         }
       >
         {list === null ? (
           <div className="skel-row" />
         ) : list.length === 0 ? (
-          <p className="srow-note">No extensions yet. Drop a folder with a package.json and index.js into the extensions folder, then reopen Sayfern.</p>
+          <p className="srow-note">{t("No extensions yet. Drop a folder with a package.json and index.js into the extensions folder, then reopen Sayfern.")}</p>
         ) : (
           <ul className="extlist">
             {list.map((x) => (
@@ -1041,35 +1337,36 @@ function ExtensionsTab() {
                   </div>
                   <p>{x.description}</p>
                   <div className="ext-c">
-                    {x.contributes.tools.map((t) => (
-                      <span key={t} className="tag mono">
-                        tool · {t}
+                    {x.contributes.tools.map((name) => (
+                      <span key={name} className="tag mono">
+                        {t("tool · {name}", { name })}
                       </span>
                     ))}
-                    {x.contributes.languages.map((t) => (
-                      <span key={t} className="tag mono">
-                        language · {t}
+                    {x.contributes.languages.map((name) => (
+                      <span key={name} className="tag mono">
+                        {t("language · {name}", { name })}
                       </span>
                     ))}
                   </div>
                   {x.error && (
                     <p className="err">
-                      <Icon name="alert" size={14} /> {x.error}
+                      <Icon name="alert" size={14} /> {t(x.error)}
                     </p>
                   )}
                 </div>
-                <Switch checked={x.enabled} onChange={(v) => void toggle(x.id, v)} label={`Enable ${x.name}`} />
+                <Switch checked={x.enabled} onChange={(v) => void toggle(x.id, v)} label={t("Enable {name}", { name: x.name })} />
               </li>
             ))}
           </ul>
         )}
-        {error && <p className="err">{error}</p>}
+        {error && <p className="err">{t(error)}</p>}
       </Group>
       <div className="tipcard">
         <Icon name="customize" size={18} />
         <p>
-          Extensions are plain JavaScript folders. The API is documented in <span className="mono">docs/extensions.md</span>. A builder that makes them
-          for you from a description arrives in Stage 2.
+          {tj("Extensions are plain JavaScript folders. The API is documented in {file}. Or describe what you want in Customize and Sayfern builds it for you.", {
+            file: <span className="mono">docs/extensions.md</span>,
+          })}
         </p>
       </div>
     </>
@@ -1090,46 +1387,48 @@ function AnkiTroubleshoot({ st, busy, onTest }: { st: AnkiStatus; busy: boolean;
     window.setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <Group title="Troubleshoot">
+    <Group title={t("Troubleshoot")}>
       <div className="anki-help">
         {st.reason === "timeout" ? (
           <>
             <p>
-              <b>Anki is open but asleep.</b> macOS App Nap pauses Anki when another app is in front, and AnkiConnect
-              stops answering. Turn App Nap off for Anki: paste this into Terminal, then quit and reopen Anki.
+              <b>{t("Anki is open but asleep.")}</b>{" "}
+              {t("macOS App Nap pauses Anki when another app is in front, and AnkiConnect stops answering. Turn App Nap off for Anki: paste this into Terminal, then quit and reopen Anki.")}
             </p>
             <pre className="anki-cmd">{APP_NAP_FIX}</pre>
             <button className="btn btn-s" onClick={() => copy(APP_NAP_FIX)}>
-              {copied ? "Copied" : "Copy commands"}
+              {copied ? t("Copied") : t("Copy commands")}
             </button>
           </>
         ) : st.reason === "refused" ? (
           <p>
-            <b>Nothing is listening at {st.url ?? st.config.url}.</b> Check that Anki is open. After installing
-            AnkiConnect, Anki must be restarted once before the add-on starts. In Anki, Tools, Add-ons should list
-            AnkiConnect as enabled.
+            <b>{t("Nothing is listening at {url}.", { url: st.url ?? st.config.url })}</b>{" "}
+            {t("Check that Anki is open. After installing AnkiConnect, Anki must be restarted once before the add-on starts. In Anki, Tools, Add-ons should list AnkiConnect as enabled.")}
           </p>
         ) : st.reason === "forbidden" ? (
           <p>
-            <b>AnkiConnect blocked Sayfern.</b> In Anki, open Tools, Add-ons, AnkiConnect, Config, and make sure{" "}
-            <code>webCorsOriginList</code> contains <code>"http://localhost"</code> (the default).
+            <b>{t("AnkiConnect blocked Sayfern.")}</b>{" "}
+            {tj("In Anki, open Tools, Add-ons, AnkiConnect, Config, and make sure {key} contains {value} (the default).", {
+              key: <code>webCorsOriginList</code>,
+              value: <code>"http://localhost"</code>,
+            })}
           </p>
         ) : st.reason === "not_ankiconnect" ? (
           <p>
-            <b>Another app is using port 8765.</b> Quit it, or change AnkiConnect's <code>webBindPort</code> and the
-            address Sayfern uses.
+            <b>{t("Another app is using port 8765.")}</b>{" "}
+            {tj("Quit it, or change AnkiConnect's {key} and the address Sayfern uses.", { key: <code>webBindPort</code> })}
           </p>
         ) : (
-          <p>{st.error ?? "Can't reach Anki right now."}</p>
+          <p>{st.error ? t(st.error) : t("Can't reach Anki right now.")}</p>
         )}
         <p className="srow-note">
-          Quick check outside Sayfern: in Terminal run{" "}
-          <code>curl -s {st.url ?? st.config.url} -X POST -d '{"{"}"action":"version","version":6{"}"}'</code>. It should
-          print a version number.
+          {tj("Quick check outside Sayfern: in Terminal run {command}. It should print a version number.", {
+            command: <code>{`curl -s ${st.url ?? st.config.url} -X POST -d '{"action":"version","version":6}'`}</code>,
+          })}
         </p>
-        {st.detail && <p className="srow-note mono">Details: {st.detail}</p>}
+        {st.detail && <p className="srow-note mono">{t("Details: {detail}", { detail: st.detail })}</p>}
         <button className="btn btn-s" disabled={busy} onClick={onTest}>
-          {busy ? "Checking…" : "Test connection"}
+          {busy ? t("Checking…") : t("Test connection")}
         </button>
       </div>
     </Group>

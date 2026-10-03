@@ -5,7 +5,7 @@ import type { SessionView } from "../../../shared/api";
 import type { ChatMessage, Correction, GrammarSummary } from "../../../shared/records";
 import { api } from "../api";
 import { useApp } from "../context";
-import { dismissStreamError, onSessionView, retryLast, sendMessage, useStream, type SendInput, type StreamState } from "./chatStream";
+import { dismissStreamError, onSessionView, requestNewTopic, retryLast, sendMessage, useStream, type SendInput, type StreamState } from "./chatStream";
 
 export interface ChatState {
   /** undefined while loading, null when the session doesn't exist. */
@@ -25,6 +25,8 @@ export interface ChatState {
   onCorrectionUpdate(c: Correction): void;
   /** Returns false when no model is connected. */
   send(input: SendInput): boolean;
+  /** "New topic": the tutor opens a fresh topic. Returns false when no model is connected. */
+  newTopic(): boolean;
   retry(): void;
 }
 
@@ -101,6 +103,13 @@ export function useChat(id: string | undefined, onTurnDone?: (v: SessionView) =>
     [id],
   );
 
+  const newTopic = useCallback(() => {
+    const model = appRef.current.model;
+    if (!id || !model) return false;
+    void requestNewTopic(id, model);
+    return true;
+  }, [id]);
+
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const retry = useCallback(() => {
     const model = appRef.current.model;
@@ -121,6 +130,7 @@ export function useChat(id: string | undefined, onTurnDone?: (v: SessionView) =>
     loadedActiveMs,
     onCorrectionUpdate,
     send,
+    newTopic,
     retry,
   };
 }

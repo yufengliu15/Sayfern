@@ -1,8 +1,9 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { isCjk, joinLines, SENTENCE_END, type ParsedDoc, type ParsedParagraph } from "./text";
+import { msg } from "../../shared/i18n";
 
-export const NO_TEXT_LAYER_WARNING = "No text layer found: scanned PDFs need OCR, which isn't supported yet.";
+export const NO_TEXT_LAYER_WARNING = msg("No text layer found: scanned PDFs need OCR, which isn't supported yet.");
 
 type PdfJs = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 let pdfjsPromise: Promise<{ pdfjs: PdfJs; assets: { cMapUrl?: string; standardFontDataUrl?: string } }> | null = null;

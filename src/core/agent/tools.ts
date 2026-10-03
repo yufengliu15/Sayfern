@@ -14,7 +14,7 @@ import type {
   Verdict,
 } from "../../shared/records";
 import { ankiTools } from "./anki-tools";
-import type { TutorDeps } from "./deps";
+import { translatorOf, type TutorDeps } from "./deps";
 import { arr, canonicalGrammarId, findOriginal, obj, oneOf, plural, str, truncate } from "./text";
 
 /** Per-turn state the core tools read and write. */
@@ -46,7 +46,7 @@ const RecordEvidenceParams = Type.Object({
       Type.Object({
         original: Type.String({ description: "Exact substring of the learner's latest message that has the problem." }),
         corrected: Type.String({ description: "Replacement for `original`." }),
-        explanation: Type.String({ description: "One short English sentence." }),
+        explanation: Type.String({ description: "One short sentence in the explanation language named in the system prompt." }),
         kind: enumOf(CORRECTION_KINDS, "\"style\" = improvement, not an error."),
         grammar_id: Type.Optional(Type.String()),
       }),
@@ -57,7 +57,7 @@ const RecordEvidenceParams = Type.Object({
       Type.Object({
         grammar_id: Type.String({ description: "\"<lang>:<ascii-slug>\"; reuse catalogue ids." }),
         pattern: Type.String({ description: "Surface pattern, e.g. 除了…还…" }),
-        name: Type.String({ description: "Short English name." }),
+        name: Type.String({ description: "Short name in the explanation language named in the system prompt." }),
         span: Type.String({ description: "The learner's text that attempts the pattern." }),
         verdict: enumOf(VERDICTS),
         assistance: enumOf(ASSISTANCE),
@@ -103,8 +103,25 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
       const { records } = ctx;
       const language = ctx.language;
       const pack = ctx.lang.pack(language);
+      const tr = await translatorOf(deps);
+      // `done`/`skipped` go to the model (English); `doneL`/`skippedL` to the inspector (interface language).
       const done: string[] = [];
       const skipped: string[] = [];
+      const doneL: string[] = [];
+      const skippedL: string[] = [];
+      const logDone = (en: string, local: string, first = false) => {
+        if (first) {
+          done.unshift(en);
+          doneL.unshift(local);
+        } else {
+          done.push(en);
+          doneL.push(local);
+        }
+      };
+      const logSkip = (en: string, local: string) => {
+        skipped.push(en);
+        skippedL.push(local);
+      };
 
       // taught → grammar points (introduced).
       let taughtCount = 0;
@@ -128,12 +145,13 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
         });
         taughtCount++;
       }
-      if (taughtCount) done.push(`taught ${plural(taughtCount, "point")}`);
+      if (taughtCount) logDone(`taught ${plural(taughtCount, "point")}`, tr.tn(taughtCount, "taught {count} point", "taught {count} points"));
 
       // observations → grammar points (if unknown) + observations.
       const obsInputs: ObservationInput[] = [];
       const obsItems = arr(args.observations).map(obj);
-      if (obsItems.length && !ctx.userMessageId) skipped.push(`${plural(obsItems.length, "observation")} (no learner message)`);
+      if (obsItems.length && !ctx.userMessageId)
+        logSkip(`${plural(obsItems.length, "observation")} (no learner message)`, tr.tn(obsItems.length, "{count} observation (no learner message)", "{count} observations (no learner message)"));
       else {
         for (const item of obsItems) {
           const id = canonicalGrammarId(item.grammar_id, language, item.name);
@@ -160,15 +178,16 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
       }
       if (obsInputs.length) {
         const added = await records.recordObservations(language, obsInputs);
-        if (added.length) done.push(plural(added.length, "observation"));
+        if (added.length) logDone(plural(added.length, "observation"), tr.tn(added.length, "{count} observation", "{count} observations"));
         const repeats = obsInputs.length - added.length;
-        if (repeats) skipped.push(`${plural(repeats, "repeated observation")}`);
+        if (repeats) logSkip(`${plural(repeats, "repeated observation")}`, tr.tn(repeats, "{count} repeated observation", "{count} repeated observations"));
       }
 
       // corrections → stored + announced.
       const corrItems = arr(args.corrections).map(obj);
       let corrCount = 0;
-      if (corrItems.length && !ctx.userMessageId) skipped.push(`${plural(corrItems.length, "correction")} (no learner message)`);
+      if (corrItems.length && !ctx.userMessageId)
+        logSkip(`${plural(corrItems.length, "correction")} (no learner message)`, tr.tn(corrItems.length, "{count} correction (no learner message)", "{count} corrections (no learner message)"));
       else {
         const learnerText = turn.userText ?? "";
         let notFound = 0;
@@ -196,9 +215,13 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
             corrCount++;
           }
         }
-        if (notFound) skipped.push(`${plural(notFound, "correction")} (text not found in the learner's message)`);
+        if (notFound)
+          logSkip(
+            `${plural(notFound, "correction")} (text not found in the learner's message)`,
+            tr.tn(notFound, "{count} correction (text not found in your message)", "{count} corrections (text not found in your message)"),
+          );
       }
-      if (corrCount) done.unshift(plural(corrCount, "correction"));
+      if (corrCount) logDone(plural(corrCount, "correction"), tr.tn(corrCount, "{count} correction", "{count} corrections"), true);
 
       // level → estimates (invalid levels dropped).
       let levelCount = 0;
@@ -223,11 +246,14 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
         });
         levelCount++;
       }
-      if (levelCount) done.push(plural(levelCount, "level estimate"));
-      if (badLevels) skipped.push(`${plural(badLevels, "level estimate")} (not on the ${scale[0]}…${scale[scale.length - 1]} scale)`);
+      if (levelCount) logDone(plural(levelCount, "level estimate"), tr.tn(levelCount, "{count} level estimate", "{count} level estimates"));
+      if (badLevels) {
+        const range = `${scale[0]}…${scale[scale.length - 1]}`;
+        logSkip(`${plural(badLevels, "level estimate")} (not on the ${range} scale)`, tr.tn(badLevels, "{count} level estimate (not on the {range} scale)", "{count} level estimates (not on the {range} scale)", { range }));
+      }
 
-      let activity = done.length ? `Logged ${done.join(", ")}` : "Nothing new to log";
-      if (skipped.length) activity += `; skipped ${skipped.join(", ")}`;
+      let activity = doneL.length ? tr.t("Logged {items}", { items: doneL.join(", ") }) : tr.t("Nothing new to log");
+      if (skippedL.length) activity += tr.t("; skipped {items}", { items: skippedL.join(", ") });
       const content = skipped.length ? `Recorded. Skipped ${skipped.join(", ")}.` : "Recorded.";
       return { content, activity };
     },
@@ -242,7 +268,7 @@ export function matchLevel(level: string, scale: readonly string[]): string | nu
   return scale.find((s) => key(s) === k) ?? null;
 }
 
-function searchLibrary(turn: TurnState): TutorTool {
+function searchLibrary(deps: TutorDeps, turn: TurnState): TutorTool {
   return {
     name: "search_library",
     description:
@@ -255,14 +281,15 @@ function searchLibrary(turn: TurnState): TutorTool {
     async execute(rawArgs, ctx) {
       const args = obj(rawArgs);
       const query = str(args.query);
-      if (!query) return { content: "Give a non-empty query.", activity: "Searched library: (empty query)" };
+      const tr = await translatorOf(deps);
+      if (!query) return { content: "Give a non-empty query.", activity: tr.t("Searched library: (empty query)") };
       const limit = Math.min(8, Math.max(1, Math.floor(Number(args.limit)) || 4));
       const hits = await ctx.library.search(ctx.language, query, limit);
       for (const h of hits) {
         if (turn.sources.some((s) => s.kind === "library" && s.docId === h.docId && s.paragraph === h.paragraph)) continue;
         turn.sources.push({ kind: "library", docId: h.docId, paragraph: h.paragraph, title: h.title, quote: truncate(h.text, 80) });
       }
-      const activity = `Searched library: ${query} (${plural(hits.length, "hit")})`;
+      const activity = tr.tn(hits.length, "Searched library: {query} ({count} hit)", "Searched library: {query} ({count} hits)", { query });
       if (hits.length === 0) return { content: "No matches in the learner's library.", activity };
       const content = hits.map((h) => `[doc ${h.docId} ¶${h.paragraph}] ${h.title} — ${h.text}`).join("\n");
       return { content, activity };
@@ -270,7 +297,7 @@ function searchLibrary(turn: TurnState): TutorTool {
   };
 }
 
-function updateCheckpoint(session: SessionMeta): TutorTool {
+function updateCheckpoint(deps: TutorDeps, session: SessionMeta): TutorTool {
   return {
     name: "update_checkpoint",
     description: "Move the learner's reading checkpoint to a paragraph (the ¶ number) once they have clearly finished the previous one.",
@@ -281,7 +308,8 @@ function updateCheckpoint(session: SessionMeta): TutorTool {
       if (!session.docId) throw new Error("This is not a reading session.");
       if (!Number.isFinite(paragraph)) throw new Error("paragraph must be a whole number.");
       await ctx.library.setCheckpoint(session.docId, paragraph, 0);
-      return { content: `Checkpoint saved at ¶${paragraph}.`, activity: `Moved reading checkpoint to ¶${paragraph}` };
+      const tr = await translatorOf(deps);
+      return { content: `Checkpoint saved at ¶${paragraph}.`, activity: tr.t("Moved reading checkpoint to ¶{n}", { n: paragraph }) };
     },
   };
 }
@@ -291,9 +319,9 @@ function updateCheckpoint(session: SessionMeta): TutorTool {
  * sessions; the Anki tools only when Anki is on and the language has a snapshot.
  */
 export function turnTools(deps: TutorDeps, turn: TurnState, opts: { anki?: boolean } = {}): TutorTool[] {
-  const tools: TutorTool[] = [recordEvidence(deps, turn), searchLibrary(turn)];
+  const tools: TutorTool[] = [recordEvidence(deps, turn), searchLibrary(deps, turn)];
   if (opts.anki) tools.push(...ankiTools(deps));
-  if (turn.session.kind === "reading" && turn.session.docId) tools.push(updateCheckpoint(turn.session));
+  if (turn.session.kind === "reading" && turn.session.docId) tools.push(updateCheckpoint(deps, turn.session));
   const names = new Set(tools.map((t) => t.name));
   for (const t of deps.extensions?.tools() ?? []) {
     if (names.has(t.name)) continue; // core tools win on name clashes

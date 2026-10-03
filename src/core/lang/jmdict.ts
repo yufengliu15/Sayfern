@@ -1,4 +1,6 @@
-// JMdict (Japanese-English), CC BY-SA 4.0 (EDRDG), via scriptin/jmdict-simplified releases.
+// JMdict (Japanese with English, German, Russian, Spanish, French or Dutch glosses), CC BY-SA 4.0
+// (EDRDG), via scriptin/jmdict-simplified releases. English uses the "common words" file; the
+// other gloss languages use their full files (much smaller, since fewer entries are translated).
 import { gunzipSync } from "node:zlib";
 import JSZip from "jszip";
 import type { DictEntry } from "../../shared/lang";
@@ -6,7 +8,10 @@ import { download, StoredDictionary, type FetchFn, type ProgressFn } from "./dic
 import { toHiragana } from "./text";
 
 export const JMDICT_RELEASE_API = "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
-const ASSET = /^jmdict-eng-common-.*\.json\.(zip|tgz)$/;
+/** jmdict-simplified gloss language codes (ISO 639-2/B) by interface language. */
+export const JMDICT_GLOSS: Record<string, string> = { en: "eng", de: "ger", ru: "rus", es: "spa", fr: "fre", nl: "dut" };
+const assetPattern = (gloss: string): RegExp =>
+  gloss === "eng" ? /^jmdict-eng-common-.*\.json\.(zip|tgz)$/ : new RegExp(`^jmdict-${gloss}-\\d.*\\.json\\.(zip|tgz)$`);
 
 // Subset of the jmdict-simplified JSON format that we use.
 interface JmWord {
@@ -24,7 +29,7 @@ interface JmFile {
 /** Persisted row: [headword, variants, reading, common 0|1, senses [glosses, tags]]. */
 export type JmdictRow = [string, string[], string, 0 | 1, [string[], string[]][]];
 
-export function jmWordToRow(w: JmWord): JmdictRow | null {
+export function jmWordToRow(w: JmWord, gloss = "eng"): JmdictRow | null {
   const kanji = w.kanji ?? [];
   const kana = w.kana ?? [];
   if (!kanji.length && !kana.length) return null;
@@ -35,7 +40,7 @@ export function jmWordToRow(w: JmWord): JmdictRow | null {
   const common = kanji.some((k) => k.common) || kana.some((k) => k.common) ? 1 : 0;
   const senses: [string[], string[]][] = [];
   for (const s of w.sense ?? []) {
-    const glosses = (s.gloss ?? []).filter((g) => !g.lang || g.lang === "eng").map((g) => g.text);
+    const glosses = (s.gloss ?? []).filter((g) => (!g.lang && gloss === "eng") || g.lang === gloss).map((g) => g.text);
     if (!glosses.length) continue;
     senses.push([glosses, [...(s.partOfSpeech ?? []), ...(s.misc ?? [])]]);
   }
@@ -43,12 +48,12 @@ export function jmWordToRow(w: JmWord): JmdictRow | null {
   return [headword, variants, reading, common, senses];
 }
 
-export function parseJmdict(json: string): { version?: string; rows: JmdictRow[] } {
+export function parseJmdict(json: string, gloss = "eng"): { version?: string; rows: JmdictRow[] } {
   const data = JSON.parse(json) as JmFile;
   if (!Array.isArray(data.words)) throw new Error("Unexpected JMdict format: no words array");
   const rows: JmdictRow[] = [];
   for (const w of data.words) {
-    const row = jmWordToRow(w);
+    const row = jmWordToRow(w, gloss);
     if (row) rows.push(row);
   }
   const version = [data.version, data.dictDate].filter(Boolean).join(" ") || undefined;
@@ -90,12 +95,18 @@ export function readTarFile(tar: Uint8Array, match: (name: string) => boolean): 
 
 export class JmdictProvider extends StoredDictionary<JmdictRow> {
   private readonly apiUrl: string;
+  private readonly gloss: string;
   private rows: JmdictRow[] = [];
   private byForm = new Map<string, number[]>();
 
-  constructor(opts: { dir: string; fetch?: FetchFn; releaseApiUrl?: string }) {
-    super(opts.dir, { language: "ja", name: "JMdict (common words)", license: "CC BY-SA 4.0 (EDRDG)", downloadMb: 4 }, "jmdict.json", opts.fetch);
+  /** `gloss`: jmdict-simplified language code ("eng", "ger", "rus", "spa", "fre"). */
+  constructor(opts: { dir: string; fetch?: FetchFn; releaseApiUrl?: string; gloss?: string; glossName?: string }) {
+    const gloss = opts.gloss ?? "eng";
+    const name = gloss === "eng" ? "JMdict (common words)" : `JMdict (${opts.glossName ?? gloss})`;
+    const mb = { eng: 4, ger: 8, rus: 4, spa: 2, fre: 1, dut: 4 }[gloss] ?? 4;
+    super(opts.dir, { language: "ja", name, license: "CC BY-SA 4.0 (EDRDG)", downloadMb: mb }, "jmdict.json", opts.fetch);
     this.apiUrl = opts.releaseApiUrl ?? JMDICT_RELEASE_API;
+    this.gloss = gloss;
   }
 
   protected async fetchRows(onProgress: ProgressFn) {
@@ -103,9 +114,10 @@ export class JmdictProvider extends StoredDictionary<JmdictRow> {
     const res = await this.fetchFn(this.apiUrl, { headers: { Accept: "application/vnd.github+json", "User-Agent": "Sayfern" } });
     if (!res.ok) throw new Error(`Could not read JMdict release info (${res.status} ${res.statusText})`);
     const release = (await res.json()) as { tag_name?: string; assets?: { name: string; browser_download_url: string }[] };
-    const assets = (release.assets ?? []).filter((a) => ASSET.test(a.name));
+    const pattern = assetPattern(this.gloss);
+    const assets = (release.assets ?? []).filter((a) => pattern.test(a.name));
     const asset = assets.find((a) => a.name.endsWith(".zip")) ?? assets[0];
-    if (!asset) throw new Error("No jmdict-eng-common JSON asset in the latest jmdict-simplified release");
+    if (!asset) throw new Error(`No jmdict-${this.gloss} JSON asset in the latest jmdict-simplified release`);
     const bytes = await download(this.fetchFn, asset.browser_download_url, (fraction) =>
       onProgress({ language: "ja", phase: "download", fraction, message: asset.name }),
     );
@@ -122,7 +134,7 @@ export class JmdictProvider extends StoredDictionary<JmdictRow> {
       json = new TextDecoder().decode(data);
     }
     onProgress({ language: "ja", phase: "parse", message: "Parsing JMdict" });
-    const parsed = parseJmdict(json);
+    const parsed = parseJmdict(json, this.gloss);
     if (!parsed.rows.length) throw new Error("JMdict download contained no entries");
     return { version: parsed.version ?? release.tag_name, rows: parsed.rows };
   }

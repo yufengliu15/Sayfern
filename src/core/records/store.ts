@@ -257,7 +257,7 @@ export class JsonRecordsStore implements RecordsStore {
       else s.messages.push(msg);
       s.meta.updatedAt = now;
       if (msg.role === "user" && !hadUserMessage && s.meta.title === DEFAULT_TITLES[s.meta.language]) {
-        const title = titleFrom(msg.text);
+        const title = titleFrom(msg.text, s.meta.language);
         if (title) s.meta.title = title;
       }
     });
@@ -306,6 +306,22 @@ export class JsonRecordsStore implements RecordsStore {
       const entry = log.find((e) => e.date === date && e.sessionId === sessionId);
       if (entry) entry.ms += ms;
       else log.push({ date, language, sessionId, ms });
+    });
+  }
+
+  async addVoiceTime(sessionId: string, ms: number, at?: number): Promise<void> {
+    if (!Number.isFinite(ms) || ms <= 0) return;
+    const file = await this.sessionFile(sessionId);
+    if (!file) return;
+    const language = await file.update((s) => {
+      s.meta.voiceMs = (s.meta.voiceMs ?? 0) + ms;
+      return s.meta.language;
+    });
+    const date = localDate(at ?? this.now());
+    await this.activityFile.update((log) => {
+      const entry = log.find((e) => e.date === date && e.sessionId === sessionId);
+      if (entry) entry.voiceMs = (entry.voiceMs ?? 0) + ms;
+      else log.push({ date, language, sessionId, ms: 0, voiceMs: ms });
     });
   }
 
@@ -414,6 +430,8 @@ export class JsonRecordsStore implements RecordsStore {
           at: input.at ?? now,
         };
         if (input.note) o.note = input.note;
+        if (input.origin) o.origin = input.origin;
+        if (input.quizId) o.quizId = input.quizId;
         list.push(o);
         added.push(o);
       }
@@ -435,6 +453,15 @@ export class JsonRecordsStore implements RecordsStore {
       )
       .sort((a, b) => a.at - b.at)
       .map(clone);
+  }
+
+  /** Stage 2: removes the observations of one pseudo-session (a quiz: "quiz:<id>"). Returns how many. */
+  async deleteObservations(filter: { sessionId: string }): Promise<number> {
+    return this.observationsFile.update((list) => {
+      const before = list.length;
+      removeWhere(list, (o) => o.sessionId === filter.sessionId);
+      return before - list.length;
+    });
   }
 
   async disputeObservation(id: string, verdict: Verdict, note: string): Promise<GrammarObservation> {

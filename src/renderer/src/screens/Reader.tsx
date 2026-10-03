@@ -11,10 +11,11 @@ import { ModelPicker } from "../components/ModelPicker";
 import { KIND_NAME, Switch } from "../components/ui";
 import { useApp } from "../context";
 import { stopStream } from "../lib/chatStream";
-import { cjkClass, cls, sentenceAt } from "../lib/format";
+import { cjkClass, cls, fontOf, hasReadings, sentenceAt } from "../lib/format";
 import { useActivityTracker, useStoredFlag } from "../lib/hooks";
 import { useChat } from "../lib/useChat";
 import { grammarRoute, readerRoute, sessionRoute, type Navigate } from "../router";
+import { t } from "../i18n";
 
 export interface ReaderScreenProps {
   language: Language;
@@ -249,10 +250,13 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
 
   const ask = (kind: "ask" | "translate") => {
     if (!sel) return;
-    if (!app.model) return setNotice("Connect a model in Settings to ask the tutor.");
-    const q = `「${sel.text}」`;
+    if (!app.model) return setNotice(t("Connect a model in Settings to ask the tutor."));
+    const q = L === "zh" || L === "ja" ? `「${sel.text}」` : `“${sel.text}”`;
+    // The learner's own message to the tutor, in the interface language.
     const text =
-      kind === "ask" ? `About ${q} in paragraph ${sel.paragraph + 1}: what does this mean here, and why is it written this way?` : `Could you translate ${q} for me?`;
+      kind === "ask"
+        ? t("About {quote} in paragraph {n}: what does this mean here, and why is it written this way?", { quote: q, n: sel.paragraph + 1 })
+        : t("Could you translate {quote} for me?", { quote: q });
     chat.send({ text, pastedSpans: [sel.text] });
     stickPane.current = true;
     clearSel();
@@ -300,11 +304,11 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
       <main className="main">
         <header className="hdr drag" />
         <div className="placeholder">
-          <div className="eyebrow">Reader</div>
-          <h1>This book isn't in your library anymore.</h1>
-          <p className="muted ph-p">It may have been removed.</p>
+          <div className="eyebrow">{t("Reader")}</div>
+          <h1>{t("This book isn't in your library anymore.")}</h1>
+          <p className="muted ph-p">{t("It may have been removed.")}</p>
           <button className="btn btn-p" onClick={() => navigate("library")}>
-            Back to Library
+            {t("Back to Library")}
           </button>
         </div>
       </main>
@@ -313,7 +317,8 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
 
   const cp = doc?.checkpoint?.paragraph;
   const pct = doc && doc.paragraphCount && cp != null ? Math.round((cp / doc.paragraphCount) * 100) : 0;
-  const readingName = L === "ja" ? "Furigana" : "Pinyin";
+  const readingName = L === "ja" ? t("Furigana") : t("Pinyin");
+  const F = fontOf(L);
 
   return (
     <>
@@ -322,33 +327,33 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
           <div className="title">
             <div className="crumb eyebrow">
               <button className="crumb-b" onClick={() => navigate("library")}>
-                Library
+                {t("Library")}
               </button>
               <span aria-hidden="true">/</span>
             </div>
             <div className="title-row">
-              <h1 className={cls("name rd-name", cjkClass(doc?.title ?? "", L))}>{doc?.title ?? ""}</h1>
-              {doc && <span className="rd-kind">{KIND_NAME[doc.kind]}</span>}
+              <h1 className={cls("name rd-name", cjkClass(doc?.title ?? "", F))}>{doc?.title ?? ""}</h1>
+              {doc && <span className="rd-kind">{t(KIND_NAME[doc.kind])}</span>}
             </div>
           </div>
-          <label className="ruby-tg">
-            <span>{readingName}</span>
-            <Switch checked={ruby} onChange={setRuby} label={`Show ${readingName.toLowerCase()} above words`} />
-          </label>
+          {hasReadings(L) && (
+            <label className="ruby-tg">
+              <span>{readingName}</span>
+              <Switch checked={ruby} onChange={setRuby} label={L === "ja" ? t("Show furigana above words") : t("Show pinyin above words")} />
+            </label>
+          )}
           {doc && doc.paragraphCount > 0 && (
             <button
               className="chip chip-toggle cp-chip"
               onClick={() => cp != null && void jumpTo(cp)}
               disabled={cp == null}
-              title={cp != null ? "Go to where you stopped" : "Click the margin next to a paragraph to mark your place"}
+              title={cp != null ? t("Go to where you stopped") : t("Click the margin next to a paragraph to mark your place")}
             >
               <Icon name="bookmark" size={15} />
               {cp != null ? (
-                <span>
-                  ¶{cp + 1} of {doc.paragraphCount} · {pct}%
-                </span>
+                <span>{t("¶{n} of {total} · {pct}%", { n: cp + 1, total: doc.paragraphCount, pct })}</span>
               ) : (
-                <span>No bookmark yet</span>
+                <span>{t("No bookmark yet")}</span>
               )}
             </button>
           )}
@@ -357,8 +362,8 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
         {notice && (
           <div className="banner bad floating" role="status">
             <Icon name="alert" size={15} />
-            <span>{notice}</span>
-            <button className="iconb sm" aria-label="Dismiss" onClick={() => setNotice(null)}>
+            <span>{t(notice)}</span>
+            <button className="iconb sm" aria-label={t("Dismiss")} onClick={() => setNotice(null)}>
               <Icon name="x" size={14} />
             </button>
           </div>
@@ -369,14 +374,14 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
             <div ref={topSentinel} className="sentinel" />
             {first > 0 && paras.length > 0 && (
               <div className="rd-more" aria-live="polite">
-                {loading === "before" ? "Loading earlier pages…" : `¶1 to ¶${first} above`}
+                {loading === "before" ? t("Loading earlier pages…") : t("¶1 to ¶{n} above", { n: first })}
               </div>
             )}
             {doc && doc.paragraphCount === 0 && (
               <div className="rd-empty">
                 <Icon name="alert" size={20} />
-                <h2>Nothing to read here yet.</h2>
-                <p>{doc.warnings[0] ?? "This file had no text Sayfern could read."}</p>
+                <h2>{t("Nothing to read here yet.")}</h2>
+                <p>{doc.warnings[0] ? t(doc.warnings[0]) : t("This file had no text Sayfern could read.")}</p>
               </div>
             )}
             {paras.map((p, i) => {
@@ -385,11 +390,11 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
               const read = cp != null && p.index < cp;
               return (
                 <Fragment key={p.index}>
-                  {showHeading && <h2 className={cls("rd-h", L)}>{p.heading}</h2>}
+                  {showHeading && <h2 className={cls("rd-h", F)}>{p.heading}</h2>}
                   {cp === p.index && p.index > 0 && (
-                    <div className="stop" aria-label="You stopped here">
+                    <div className="stop" aria-label={t("You stopped here")}>
                       <span>
-                        <Icon name="bookmark" size={12} stroke={2} /> You stopped here
+                        <Icon name="bookmark" size={12} stroke={2} /> {t("You stopped here")}
                       </span>
                     </div>
                   )}
@@ -397,8 +402,8 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
                     <button
                       className="rd-mark"
                       onClick={() => void setCheckpoint(p.index)}
-                      aria-label={`Pick up from paragraph ${p.index + 1} next time`}
-                      title="Pick up here next time"
+                      aria-label={t("Pick up from paragraph {n} next time", { n: p.index + 1 })}
+                      title={t("Pick up here next time")}
                     >
                       <span className="rd-n">{p.index + 1}</span>
                       <Icon name="bookmark" size={14} />
@@ -409,8 +414,8 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
               );
             })}
             <div ref={bottomSentinel} className="sentinel" />
-            {doc && paras.length > 0 && end >= doc.paragraphCount && <div className="rd-end">The end · {doc.title}</div>}
-            {doc && paras.length > 0 && end < doc.paragraphCount && <div className="rd-more">{loading === "after" ? "Loading…" : " "}</div>}
+            {doc && paras.length > 0 && end >= doc.paragraphCount && <div className="rd-end">{t("The end · {title}", { title: doc.title })}</div>}
+            {doc && paras.length > 0 && end < doc.paragraphCount && <div className="rd-more">{loading === "after" ? t("Loading…") : " "}</div>}
           </article>
         </div>
 
@@ -419,35 +424,35 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
             ref={toolbar}
             className="seltool"
             role="toolbar"
-            aria-label="Selected text"
+            aria-label={t("Selected text")}
             style={{ left: Math.max(260, Math.min(sel.x, window.innerWidth - 560)), top: Math.max(86, sel.y - 52) }}
             onPointerDown={(e) => e.preventDefault()}
           >
             <button onClick={() => ask("ask")}>
               <Icon name="sessions" size={15} />
-              Ask tutor
+              {t("Ask tutor")}
             </button>
             <button onClick={() => ask("translate")}>
               <Icon name="translate" size={15} />
-              Translate
+              {t("Translate")}
             </button>
             <button onClick={() => void savePhrase()} disabled={savedPhrase !== "idle"}>
               <Icon name={savedPhrase === "saved" ? "check" : "bookmark"} size={15} stroke={savedPhrase === "saved" ? 2.4 : 1.6} />
-              {savedPhrase === "saved" ? "Saved" : savedPhrase === "saving" ? "Saving…" : "Save phrase"}
+              {savedPhrase === "saved" ? t("Saved") : savedPhrase === "saving" ? t("Saving…") : t("Save phrase")}
             </button>
           </div>
         )}
       </main>
 
-      <aside className="rpane" aria-label="Reading with your tutor">
+      <aside className="rpane" aria-label={t("Reading with your tutor")}>
         <div className="rpane-h">
           <span className="av">
             <Fern size={15} />
           </span>
-          <b>Reading with your tutor</b>
+          <b>{t("Reading with your tutor")}</b>
           {sessionId && (
             <button className="linkb" onClick={() => navigate(sessionRoute(sessionId))}>
-              Open as session
+              {t("Open as session")}
             </button>
           )}
         </div>
@@ -461,7 +466,7 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
         >
           {paneError ? (
             <p className="err">
-              <Icon name="alert" size={15} /> {paneError}
+              <Icon name="alert" size={15} /> {t(paneError)}
             </p>
           ) : chat.view ? (
             <MessageList
@@ -481,13 +486,13 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
               onRetry={chat.retry}
               empty={
                 <div className="rpane-empty">
-                  <p>Ask about anything on the page.</p>
-                  <p className="muted small">Select a passage to quote it, translate it or save it.</p>
+                  <p>{t("Ask about anything on the page.")}</p>
+                  <p className="muted small">{t("Select a passage to quote it, translate it or save it.")}</p>
                 </div>
               }
             />
           ) : (
-            <div className="thinking" aria-label="Opening the reading session">
+            <div className="thinking" aria-label={t("Opening the reading session")}>
               <i />
               <i />
               <i />
@@ -500,12 +505,13 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
             language={L}
             busy={chat.busy}
             disabled={!app.model || !sessionId}
-            disabledReason={!app.model ? "Connect a model in Settings to start" : "Opening…"}
+            disabledReason={!app.model ? t("Connect a model in Settings to start") : t("Opening…")}
             onSend={(input) => {
               stickPane.current = true;
               chat.send(input);
             }}
             onStop={() => sessionId && stopStream(sessionId)}
+            sessionId={sessionId ?? undefined}
             hint={false}
             left={<ModelPicker />}
           />

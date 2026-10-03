@@ -79,15 +79,30 @@ export function charLength(s: string): number {
 
 /**
  * Decodes file bytes: UTF-8 (with or without BOM), UTF-16 with BOM, and
- * falls back to GB18030 / Shift_JIS for legacy Chinese / Japanese files.
+ * falls back to the legacy encodings common for the language (GB18030 / Shift_JIS / EUC-KR /
+ * Windows-1251 / Windows-1258 / Windows-1252).
  */
+const LEGACY_ENCODINGS: Record<string, string[]> = {
+  zh: ["gb18030", "big5", "shift_jis"],
+  ja: ["shift_jis", "euc-jp", "gb18030"],
+  ko: ["euc-kr"],
+  ru: ["windows-1251", "koi8-r"],
+  vi: ["windows-1258"],
+  en: ["windows-1252"],
+  es: ["windows-1252"],
+  fr: ["windows-1252"],
+  de: ["windows-1252"],
+  it: ["windows-1252"],
+  pt: ["windows-1252"],
+};
+
 export function decodeText(bytes: Uint8Array, language?: string): string {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes.subarray(2));
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes.subarray(2));
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
   } catch {
-    const fallbacks = language === "ja" ? ["shift_jis", "euc-jp", "gb18030"] : ["gb18030", "big5", "shift_jis"];
+    const fallbacks = LEGACY_ENCODINGS[language ?? ""] ?? ["gb18030", "big5", "shift_jis"];
     for (const enc of fallbacks) {
       try {
         return new TextDecoder(enc, { fatal: true }).decode(bytes);

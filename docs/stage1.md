@@ -4,6 +4,8 @@ Stage 1 = text learning for Chinese and Japanese. Built in v0.1.0 to v0.3.1. Sou
 
 Deep reference: [`architecture.md`](architecture.md). Next work and known gaps: [`roadmap.md`](roadmap.md).
 
+Later changes to Stage 1 features (Review in the sidebar moves Progress to ⌘5, built features run sandboxed, export includes quizzes and built features) are noted in [`stage2.md`](stage2.md).
+
 ## Modules
 
 ```

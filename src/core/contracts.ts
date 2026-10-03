@@ -103,6 +103,8 @@ export interface RecordsStore {
   setTranscript(sessionId: string, transcript: Message[]): Promise<void>;
   addUsage(sessionId: string, usage: { input: number; output: number; cost: number }): Promise<void>;
   addActiveTime(sessionId: string, ms: number, at?: number): Promise<void>;
+  /** S3-04: voice practice time (speaking and listening), kept apart from text practice. */
+  addVoiceTime(sessionId: string, ms: number, at?: number): Promise<void>;
 
   // corrections
   /** Idempotent per (messageId, original): returns the existing record on a repeat (S1-27). */
@@ -255,7 +257,44 @@ export interface AnkiService {
    * the highest struggle scores, skipping words the learner already uses a lot (usageCount(word) >= 3).
    */
   selectTargets(language: Language, count: number, usageCount: (word: string) => Promise<number>): Promise<PracticeTarget[]>;
+
+  // Note creation (Stage 2, S2-03: corrections → Anki cards).
+  /** Creates the note type unless one with this name exists. True when it was created. */
+  ensureNoteType(type: AnkiNoteType): Promise<boolean>;
+  /** Creates the deck if needed (AnkiConnect createDeck is a no-op for an existing deck). */
+  ensureDeck(deck: string): Promise<void>;
+  /**
+   * Adds notes, never duplicates: checks them first (canAddNotesWithErrorDetail, or canAddNotes on
+   * older AnkiConnect), then adds the rest with addNotes. One result per input note, in order.
+   * Throws AnkiUnreachableError when Anki can't be reached.
+   */
+  addNotes(notes: AnkiNoteInput[]): Promise<AnkiAddResult[]>;
+  /**
+   * Stores a file in Anki's media folder (AnkiConnect storeMediaFile) and returns the name Anki
+   * used. Reference it from a field as `[sound:<name>]`. Throws AnkiUnreachableError when Anki can't be reached.
+   */
+  storeMedia(filename: string, base64: string): Promise<string>;
 }
+
+/** An Anki note type (AnkiConnect createModel). */
+export interface AnkiNoteType {
+  name: string;
+  /** In order; the first field is what Anki checks for duplicates. */
+  fields: string[];
+  isCloze: boolean;
+  css: string;
+  templates: { Name: string; Front: string; Back: string }[];
+}
+
+export interface AnkiNoteInput {
+  deckName: string;
+  modelName: string;
+  /** Field name → HTML. */
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export type AnkiAddResult = { status: "added"; noteId: number } | { status: "duplicate" } | { status: "failed"; error: string };
 
 // ================================================================ tutor (agent loop)
 
@@ -269,10 +308,15 @@ export interface TurnInput {
   sessionId: string;
   text: string;
   pastedSpans?: string[];
+  /** The learner spoke this message; `text` is the speech-to-text transcript (Stage 3). */
+  spoken?: boolean;
   model: import("@earendil-works/pi-ai").Model<import("@earendil-works/pi-ai").Api>;
   signal: AbortSignal;
   onEvent(e: TutorEvent): void;
 }
+
+/** A tutor turn with no learner message. */
+export type OpeningInput = Omit<TurnInput, "text" | "pastedSpans" | "spoken"> & { newTopic?: boolean };
 
 export interface Tutor {
   /**
@@ -281,8 +325,11 @@ export interface Tutor {
    * carries `error` on failure/abort instead of throwing, after saving it).
    */
   runTurn(input: TurnInput): Promise<ChatMessage>;
-  /** Reading/practice/placement sessions: the tutor speaks first. Same events, no learner message. */
-  runOpening(input: Omit<TurnInput, "text" | "pastedSpans">): Promise<ChatMessage>;
+  /**
+   * Reading/practice/placement sessions: the tutor speaks first. Same events, no learner message.
+   * With `newTopic`, mid-session: the learner pressed "New topic" and the tutor opens a fresh one.
+   */
+  runOpening(input: OpeningInput): Promise<ChatMessage>;
   translate(sessionId: string, messageId: string, model: TurnInput["model"]): Promise<string>;
   checkRetry(correctionId: string, text: string, model: TurnInput["model"]): Promise<import("../shared/api").RetryResult>;
   endSession(sessionId: string): Promise<import("../shared/api").EndSummary>;

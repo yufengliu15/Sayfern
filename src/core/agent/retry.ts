@@ -1,12 +1,13 @@
 // Correction retries (S1-06, S1-18): a cheap local check first, then a strict-JSON model check.
+import { msg } from "../../shared/i18n";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { RetryResult } from "../../shared/api";
 import type { Correction } from "../../shared/records";
-import type { TutorDeps } from "./deps";
+import { explainIn, type TutorDeps } from "./deps";
 import { requestOptions } from "./options";
 
-const LOCAL_OK_FEEDBACK = "Nice, that's right now.";
-const GENERIC_WRONG_FEEDBACK = "Not quite yet. Have another look at the highlighted part.";
+const LOCAL_OK_FEEDBACK = msg("Nice, that's right now.");
+const GENERIC_WRONG_FEEDBACK = msg("Not quite yet. Have another look at the highlighted part.");
 
 /**
  * Local check: the retry contains the corrected text and (once the corrected
@@ -46,6 +47,7 @@ export async function checkRetry(deps: TutorDeps, correctionId: string, text: st
   const correction = await records.getCorrection(correctionId);
   if (!correction) throw new Error(`Correction not found: ${correctionId}`);
   const pack = deps.lang.pack(correction.language);
+  const explain = await explainIn(deps);
   await pack.ready();
   const normalize = (s: string) => pack.normalize(s);
 
@@ -62,7 +64,7 @@ export async function checkRetry(deps: TutorDeps, correctionId: string, text: st
       model,
       {
         systemPrompt:
-          'You check a language learner\'s retry after a correction. Judge only whether the retry fixes the problem; other wording changes are fine if correct. Reply with strict JSON only: {"ok": boolean, "feedback": "one short sentence in English, no answer reveal"}.',
+          `You check a language learner's retry after a correction. Judge only whether the retry fixes the problem; other wording changes are fine if correct. Reply with strict JSON only: {"ok": boolean, "feedback": "one short sentence in ${explain}, no answer reveal"}.`,
         messages: [
           {
             role: "user",

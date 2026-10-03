@@ -1,14 +1,18 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { WordPopoverHost } from "./components/WordPopover";
 import { AppProvider, useApp } from "./context";
 import { navigate, parseRoute, useRoute, type Route } from "./router";
 import { CustomizeScreen } from "./screens/Customize";
+import { DecksScreen } from "./screens/Decks";
+import { FeatureScreen } from "./screens/FeatureHost";
 import { GrammarScreen } from "./screens/Grammar";
 import { LibraryScreen } from "./screens/Library";
 import { OnboardingScreen } from "./screens/Onboarding";
 import { ProgressScreen } from "./screens/Progress";
+import { QuizScreen } from "./screens/Quiz";
 import { ReaderScreen } from "./screens/Reader";
+import { ReviewScreen } from "./screens/Review";
 import { SessionScreen } from "./screens/Session";
 import { SettingsScreen } from "./screens/Settings";
 import { TodayScreen } from "./screens/Today";
@@ -16,20 +20,30 @@ import { TodayScreen } from "./screens/Today";
 export function App() {
   return (
     <AppProvider fallback={<div className="app" />}>
-      <Shell />
-      <WordPopoverHost />
+      <Localized />
     </AppProvider>
   );
 }
 
-const NAV_KEYS: Record<string, Route> = { "1": "today", "2": "library", "3": "grammar", "4": "progress" };
+/** Remounts the whole UI when the interface language changes, so every t() call re-runs. */
+function Localized() {
+  const { locale } = useApp();
+  return (
+    <Fragment key={locale}>
+      <Shell />
+      <WordPopoverHost />
+    </Fragment>
+  );
+}
+
+const NAV_KEYS: Record<string, Route> = { "1": "today", "2": "library", "3": "grammar", "4": "review", "5": "progress" };
 
 function Shell() {
   const app = useApp();
   const route = parseRoute(useRoute());
   const { language } = app;
 
-  // F-10: ⌘N new session, ⌘1..4 navigation.
+  // F-10: ⌘N new session, ⌘1..5 navigation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
@@ -75,6 +89,18 @@ function Shell() {
       break;
     case "customize":
       screen = <CustomizeScreen language={language} navigate={navigate} />;
+      break;
+    case "review":
+      screen = <ReviewScreen key={language} tab={route.tab} language={language} navigate={navigate} />;
+      break;
+    case "quiz":
+      screen = <QuizScreen key={route.id} id={route.id} language={language} navigate={navigate} />;
+      break;
+    case "feature":
+      screen = <FeatureScreen key={route.id} id={route.id} language={language} navigate={navigate} />;
+      break;
+    case "decks":
+      screen = <DecksScreen key={`${language}:${route.id ?? ""}`} id={route.id} language={language} navigate={navigate} />;
       break;
     default:
       screen = <TodayScreen key={language} language={language} navigate={navigate} />;

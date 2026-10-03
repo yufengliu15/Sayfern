@@ -1,9 +1,10 @@
 // The tutor "brain" (docs/stage1.md: agent/): system prompt, tools, streaming
 // turn loop, translation, correction retries, end-of-session summaries.
+import { translator } from "../../shared/i18n";
 import { randomUUID } from "node:crypto";
 import type { RetryResult, EndSummary } from "../../shared/api";
 import type { ChatMessage } from "../../shared/records";
-import type { Tutor, TurnInput } from "../contracts";
+import type { OpeningInput, Tutor, TurnInput } from "../contracts";
 import type { TutorDeps, TutorOptions } from "./deps";
 import { checkRetry } from "./retry";
 import { endSession, translate } from "./session";
@@ -22,6 +23,8 @@ export class SayfernTutor implements Tutor {
       now: opts.now ?? Date.now,
       newId: opts.newId ?? randomUUID,
       ankiEnabled: opts.ankiEnabled ?? (async () => (await opts.anki.getConfig()).enabled),
+      explanationLanguage: opts.explanationLanguage ?? (async () => "English"),
+      translator: opts.translator ?? (async () => translator("en")),
     };
   }
 
@@ -29,7 +32,7 @@ export class SayfernTutor implements Tutor {
     return runTurn(this.deps, input);
   }
 
-  runOpening(input: Omit<TurnInput, "text" | "pastedSpans">): Promise<ChatMessage> {
+  runOpening(input: OpeningInput): Promise<ChatMessage> {
     return runOpening(this.deps, input);
   }
 
