@@ -49,6 +49,8 @@ import { everyLanguage, type MockSessionRec, type MockWorld } from "./mockWorld"
 import { LANGUAGE_META, languageInfo } from "../../../shared/languages";
 import { matchLocale } from "../../../shared/locales";
 import { LANGUAGES } from "../../../shared/records";
+import { buildCourseView, findUnit } from "../../../shared/course";
+import { t } from "../i18n";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -1026,7 +1028,7 @@ export function createMockApi(): SayfernApi {
     const id = uid("s");
     const now = Date.now();
     const rec: SessionRec = {
-      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, feedbackMode: settings.feedbackMode ?? "inline" }),
+      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, ...(opts.unitId ? { unitId: opts.unitId } : {}), feedbackMode: settings.feedbackMode ?? "inline" }),
       messages: [],
       targets: ankiConfig.enabled ? freshTargets(opts.language) : [],
       grammarIds: opts.focusGrammarId ? [opts.focusGrammarId] : [],
@@ -1454,6 +1456,7 @@ export function createMockApi(): SayfernApi {
     },
     newSession: async (opts) => {
       await wait(120);
+      if (opts.kind === "practice" && opts.unitId) return api.startUnit(opts.unitId);
       if (opts.kind === "practice" && opts.focusGrammarId) return api.practiseGrammar(opts.focusGrammarId);
       if (opts.kind === "reading" && opts.docId) return api.openReading(opts.docId);
       if (opts.kind === "placement") return api.startPlacement(opts.language);
@@ -1618,6 +1621,23 @@ export function createMockApi(): SayfernApi {
           ? "我们来聊聊你的爱好吧。除了看电影，你平时还喜欢做什么？"
           : "まず五分ぐらい話しましょう。週末はよく何をしますか？";
       return createSession({ language: g.language, kind: "practice", focusGrammarId: grammarId }, `练习 ${g.pattern}`, opener);
+    },
+
+    getCourse: async (language) => {
+      await wait(100);
+      const opened = new Set([...sessions.values()].map((s) => s.meta.unitId).filter((u): u is string => !!u));
+      const cur: Partial<Record<Skill, LevelEstimate>> = {};
+      for (const l of levels.filter((x) => x.language === language)) cur[l.skill] = l;
+      const list = [...grammar.values()].filter((g) => g.language === language).map((g) => summarize(g.id));
+      return clone(buildCourseView(language, LANGUAGE_META[language].levels, list, cur, opened));
+    },
+    startUnit: async (unitId) => {
+      await wait(150);
+      const found = findUnit(unitId);
+      if (!found) throw new Error("Unknown course unit.");
+      const { course, unit } = found;
+      const opener = "我们来练习这个单元吧。先聊聊你今天做了什么？";
+      return createSession({ language: course.language, kind: "practice", unitId }, `练习 · ${t(unit.title)}`, opener);
     },
 
     // library

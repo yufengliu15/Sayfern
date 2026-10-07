@@ -9,10 +9,11 @@ import { Fern, Icon, type IconName } from "./icons";
 
 const NAV: { route: Route; name: ParsedRoute["name"]; label: string; icon: IconName; key: string }[] = [
   { route: "today", name: "today", label: msg("Today"), icon: "today", key: "1" },
-  { route: "library", name: "library", label: msg("Library"), icon: "library", key: "2" },
-  { route: "grammar", name: "grammar", label: msg("Grammar"), icon: "grammar", key: "3" },
-  { route: "review", name: "review", label: msg("Review"), icon: "review", key: "4" },
-  { route: "progress", name: "progress", label: msg("Progress"), icon: "progress", key: "5" },
+  { route: "course", name: "course", label: msg("Course"), icon: "course", key: "2" },
+  { route: "library", name: "library", label: msg("Library"), icon: "library", key: "3" },
+  { route: "grammar", name: "grammar", label: msg("Grammar"), icon: "grammar", key: "4" },
+  { route: "review", name: "review", label: msg("Review"), icon: "review", key: "5" },
+  { route: "progress", name: "progress", label: msg("Progress"), icon: "progress", key: "6" },
 ];
 
 /** ⌘ on Mac, Ctrl elsewhere (the mock dev server runs in any browser). */

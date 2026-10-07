@@ -10,6 +10,7 @@ Both use the same model, the same learner messages, the same Anki cards, the sam
 1. **Context and plan-limit usage.** Tokens per request, fixed overhead, peak context, cache behaviour, and an estimate of subscription-limit usage.
 2. **Tool-calling accuracy.** Whether Anki-dependent answers are grounded in the deck, and how many tool calls, round trips and tool errors it took.
 3. **Grammar accuracy.** Whether real learner errors were caught with a correct fix, and whether correct sentences were wrongly "corrected".
+4. **Conversation quality (Mandarin).** Whether the chat is engaging, whether the tutor moves on when a topic is exhausted (and stays when the learner is invested), and whether its questions and wording fit the learner's level.
 
 ## Quick start
 
@@ -17,7 +18,7 @@ Both use the same model, the same learner messages, the same Anki cards, the sam
 npm run bench -- selftest     # offline check of the suite itself (~20 s, no tokens)
 npm run bench -- doctor       # checks sign-ins, the skill, fixtures (no model calls)
 npm run bench -- run --scenario zh-anki-grounding --reps 1   # first real run (~5 min)
-npm run bench -- run          # everything: 5 scenarios × 2 arms × 2 reps (~45-90 min)
+npm run bench -- run          # everything: 7 scenarios × 2 arms × 2 reps (~60-120 min)
 npm run bench -- judge        # grade the latest run; on a judged run, only verdicts that are missing (--all: re-grade everything)
 ```
 
@@ -81,6 +82,24 @@ All token numbers come from the wire, summed over the model requests of a block 
 | Grammar caught (deterministic) | A gold error counts as caught when any accepted fix or key fragment appears in what the learner saw (reply + correction cards), punctuation and spaces ignored. Exact and reproducible, but misses fixes phrased differently. |
 | Anki grounding (deterministic) | Replies must name at least `min` of the expected words (e.g. the 5 struggling words) and none of the forbidden ones (known words). |
 | Judge metrics (optional) | A blinded `claude -p` grader (outside the proxy) scores: errors flagged, fix correct, false alarms on clean messages, Anki facts correct, behaviour checks, and the tutor's own Mandarin errors. |
+| Judge: engagement / pacing / level (1-5) | Per session with `rate`, over the whole transcript (opening and all turns, not the end-of-session wrap-up). Mean per arm, with n. Anchors below. Judge-only. |
+| Judge: moved on when it should | Turns with `gold.moveOn` where the judge returns `movedOn: true`: the reply, or an earlier reply in the same stretch on that topic, changed topic, opened a new angle or raised the challenge. Passes ÷ `moveOn` turns. |
+| Judge: stayed when it should | Turns with `gold.stay` where the judge returns `stayed: true`: the reply answers what the learner asked and engages with what they raised, without changing the subject, dragging back to an old topic or leaving the question open. Passes ÷ `stay` turns. |
+| Mean reply length | Characters per tutor reply to a learner turn in chat sessions, counted in code. Two numbers: Han characters only, and all characters. Feedback cards are not counted. |
+| Mean question marks per reply | `？` and `?` per reply, counted in code. |
+| Replies with exactly one question | Share of replies with exactly one `？` or `?`, counted in code. |
+
+Conversation quality has its own report section after "Accuracy". The three deterministic reply numbers need no judge and always appear; the ratings and move-on rates show "not run" until `npm run bench -- judge`.
+
+### Rating anchors (what the judge sees)
+
+| | 1 | 3 | 5 |
+|---|---|---|---|
+| **Engagement** (varied, curious, personal follow-ups, not an interview) | Scripted interview: formulaic questions, same shape every turn, little reaction to what the learner said. | Polite and on topic, reacts to some content, but follow-ups are generic and predictable. | Reads like a curious person: builds on the learner's details, shares something of its own, varies turn shape, makes the learner want to write more. |
+| **Pacing** (moves on when it should, stays when it should) | Stuck on one easy topic for most of the chat, or changes topic every turn and drops what the learner cares about. | Moves on, but late; or sometimes moves on while the learner's question is unresolved. | Follows the learner's own topic changes, develops what they care about, raises the challenge or changes topic as soon as the topic is exhausted, leaves no question open. |
+| **Level fit** (questions and wording suit the learner's level; the fixture learner is HSK 3) | Far off: baby questions repeated (for example 你喜欢吃什么？ every turn), or wording far above the learner. | Mixed: some turns fit, others are clearly too easy or too hard. | Wording at the level with a few new words just above it; questions need opinions, reasons, comparisons or plans; no needless simplification. |
+
+2 and 4 are in between. The judge is told the learner level (`learnerLevel` in the scenario, else `selfLevel` in the fixture manifest) and that the learner's messages are a script that cannot react to the tutor.
 
 `report.md` also has per-scenario tables, per-step context curves, and capture checks (wire tokens must be ≥ harness-reported tokens; lower means traffic bypassed the proxy).
 
@@ -92,7 +111,9 @@ All token numbers come from the wire, summed over the model requests of a block 
 | `zh-anki-grounding` | Questions only the deck can answer. Tool-calling cost and grounding. Pinned to the synthetic fixtures (gold depends on that deck). |
 | `zh-reading` | Resume the reader at the checkpoint. Cost of reading material in context. |
 | `zh-continuity` | Two sessions. Carrying history forward (除了…还…, last session's mistakes) and what it costs. |
-| `zh-long-chat` | 12 turns. How context per request grows with conversation length. |
+| `zh-long-chat` | 12 turns. How context per request grows with conversation length. Also rated for engagement, pacing and level. |
+| `zh-pacing` | 10 turns. Lunch topic with short, easy, correct answers (turns 5-7 are `moveOn`), then the learner pivots to the robot dog and a heritage family story with longer messages and a question back (turns 8-10 are `stay`). Two real errors (`pp-order`, `bi-hen-pacing`). Rated for engagement, pacing and level. |
+| `zh-level-fit` | 6 turns of solid HSK 3-4 writing (虽然…但是…, 把, 除了…还…, 越来越, 只有…才…). Do the tutor's questions rise to opinions, reasons, comparisons and plans? Rated for engagement and level. |
 
 Scenario files (`bench/scenarios/*.json`) describe only what the learner does:
 
@@ -110,14 +131,19 @@ Scenario files (`bench/scenarios/*.json`) describe only what the learner does:
         "errors": [{ "id": "time-order", "original": "我去了图书馆昨天", "accept": ["我昨天去了图书馆"], "key": ["昨天去了图书馆"], "pattern": "time word before the verb" }],
         "clean": false,                  // true: any correction is a false alarm
         "anki": { "expect": ["选择"], "min": 1, "forbid": ["朋友"], "fact": "…" },
-        "checks": ["The tutor …"]
+        "checks": ["The tutor …"],
+        "moveOn": true,                  // topic exhausted: by this reply the tutor should have moved on or raised the challenge
+        "stay": true                     // learner invested or asked something: the reply should engage, not change subject
       }
     }],
     "end": true,                         // end the session the way a learner would
-    "checks": ["…"]                      // judge checks over the whole session
+    "checks": ["…"],                     // judge checks over the whole session
+    "rate": ["engagement", "pacing", "level"]  // optional: 1-5 judge ratings over the whole session
   }]
 }
 ```
+
+A turn cannot have both `moveOn` and `stay`. A scenario may also set `learnerLevel` (a string told to the judge); without it the fixture's `selfLevel` is used. `moveOn` is judged over the stretch of conversation so far, so mark every turn from the point where the topic is exhausted: a later reply that still lingers fails, an earlier reply that already moved on passes all of them.
 
 Pick `accept`/`key` strings that only appear when the fix is shown, never in the learner's own text.
 
@@ -165,6 +191,10 @@ Every run records the Sayfern version, `claude --version`, the skill's content h
 ## Threats to validity
 
 - **Scripted learner.** Messages are fixed, so they may not answer the tutor's exact question. Both arms get the same script; the judge checks look at tutor behaviour, not conversational flow.
+- **A scripted learner cannot follow the tutor's topic change.** In `zh-pacing` the learner's messages 2-7 are written to read naturally after almost any tutor question, and the pivot to the robot dog comes from the learner. If the tutor moves on early, the learner's next answer may not match the new question. The judge is told not to penalize that and to judge what the tutor chose to do. The benchmark cannot measure whether the learner enjoys the new topic.
+- **Ratings are subjective.** Engagement, pacing and level are 1-5 judge opinions. Use means over several repetitions and both arms, compare arms only to each other, and read the transcripts (`blocks/*/block.json`) before quoting a gap of under one point. The `movedOn` and `stayed` verdicts are yes/no and sharper, but still the judge's reading.
+- **The judge can tell the arms apart.** Visible formats differ (Sayfern correction cards vs prose notes), which can sway engagement ratings. Ratings of a whole session leave out the end-of-session wrap-up, which differs most between arms.
+- **Reply-style numbers reflect the system prompt as much as quality.** Reply length and question count are counted in code, but "shorter" is not "better". Read them next to the ratings.
 - **Model variance.** Run at least 2 repetitions (default) and read ranges in the per-scenario tables before quoting ratios.
 - **Limit units are an estimate.** Anthropic does not publish how plan limits weigh token kinds. The utilization headers are the direct measurement; use limit units for fine-grained comparisons and headers to confirm direction.
 - **Judge denominators come from the scenarios, not the judge's reply.** Each arm is graded out of the same gold items (errors, clean turns, Anki facts, checks). If the judge skips an item or its reply can't be parsed (after up to three attempts, resending only what is missing), the item counts as ungraded and not passed, and the report flags it with ⚠. Before this, a failed judge call shrank one arm's totals (run 2026-10-01T17-47-57: Anki facts 2/2 vs 3/4).

@@ -17,7 +17,7 @@ process.on("warning", (w) => {
 });
 
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { readCollection } from "./lib/anki";
 import type { Arm } from "./lib/arms/arm";
@@ -168,6 +168,7 @@ async function doctor(cfg: BenchConfig): Promise<void> {
   if (maj > 22 || (maj === 22 && min >= 13)) ok(`node ${process.version} (node:sqlite available)`);
   else no(`node ${process.version}: need ≥ 22.13 for node:sqlite`);
   const tmp = join(resultsRoot(cfg), ".doctor");
+  rmSync(tmp, { recursive: true, force: true }); // a sandbox left by the last doctor run already has a collection
   const sandbox = await materialize(cfg.fixtures, join(tmp, "sandbox"));
   const coll = await readCollection(sandbox.collection);
   ok(`fixtures "${cfg.fixtures}": ${coll.cards.length} cards, ${coll.revlog.length} reviews, deck "${sandbox.deck}"`);

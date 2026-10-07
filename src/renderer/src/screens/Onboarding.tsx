@@ -10,6 +10,8 @@ import { useApp } from "../context";
 import { cls } from "../lib/format";
 import { LocalePicker } from "../components/LocalePicker";
 import { deckRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
+import { isBeta } from "../../../shared/course";
+import { BetaChip } from "../components/BetaChip";
 import { langName, msg, t } from "../i18n";
 
 export interface OnboardingScreenProps {
@@ -140,7 +142,10 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
                       />
                       <span className={cls("g", l.fontClass)}>{l.glyph}</span>
                       <span className="t">
-                        <b>{langName(l.id)}</b>
+                        <b>
+                          {langName(l.id)}
+                          {isBeta(l.id) && <BetaChip />}
+                        </b>
                         <small className={l.fontClass}>{l.nativeName}</small>
                       </span>
                       <span className="check" aria-hidden="true">

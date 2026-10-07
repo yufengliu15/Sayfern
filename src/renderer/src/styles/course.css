@@ -1,0 +1,36 @@
+/* Course screen (prefix cr-) and the Beta chip. Tokens from styles.css. */
+.cr-path { display: flex; flex-direction: column; gap: 34px; max-width: 760px; }
+.cr-lh { display: flex; align-items: baseline; gap: 12px; font-family: var(--serif); font-weight: 400; font-size: 30px; color: var(--fern-dark); margin-bottom: 12px; }
+.cr-lh small { font-family: var(--sans); font-size: 12.5px; color: var(--muted); }
+.cr-units { list-style: none; margin: 0; padding: 0 0 0 11px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid var(--line); }
+.cr-u { position: relative; padding-left: 22px; }
+.cr-u.done { border-color: var(--fern-mid); }
+.cr-dot {
+  position: absolute; left: -9px; top: 22px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--line-2); color: var(--paper);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.cr-u.started .cr-dot { border-color: var(--fern); background: var(--fern-soft); }
+.cr-u.done .cr-dot { border-color: var(--fern); background: var(--fern); }
+.cr-u.next .cr-dot { border-color: var(--seal); background: var(--seal); box-shadow: 0 0 0 4px var(--seal-line); }
+.cr-card {
+  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px 16px;
+  border-radius: 14px; border: 1px solid var(--line-2); background: var(--card); color: var(--muted);
+  transition: border-color 0.12s, background 0.12s;
+}
+.cr-card:hover:not(:disabled) { border-color: #b9b19f; background: var(--white); }
+.cr-u.next .cr-card { border-color: var(--seal-2); background: var(--seal-bg); }
+.cr-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.cr-top { display: flex; align-items: center; gap: 10px; }
+.cr-title { font-size: 15.5px; font-weight: 600; color: var(--ink); }
+.cr-next { padding: 2px 9px; border-radius: 999px; background: var(--seal); color: var(--paper); font-size: 11px; font-weight: 600; letter-spacing: 0.03em; }
+.cr-pats { font-size: 14.5px; line-height: 1.5; color: var(--ink-3); }
+.cr-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.cr-st { font-weight: 600; }
+.cr-st.done, .cr-st.started { color: var(--fern); }
+
+.beta-chip {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line-2);
+  color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; cursor: help;
+}
+

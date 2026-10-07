@@ -15,6 +15,8 @@ import type {
   Difficulty,
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
+import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit } from "../../shared/course";
+import { unitText } from "../course";
 import { isQuizObservation } from "../records/grammar";
 import { explainIn, type TutorDeps } from "./deps";
 
@@ -24,6 +26,22 @@ export const PERSONAL_CONTEXT_CHARS = 1500;
 export const ANKI_PROMPT_HARDEST = 5;
 export const ANKI_PROMPT_NEXT_NEW = 8;
 const RECENT_MISS_MS = 14 * 24 * 60 * 60 * 1000;
+/** Learner replies on one topic after which the tutor is told to move on. */
+export const MOVE_ON_TURNS = 5;
+/** Replies in a row without a mistake after which the tutor is told it is too easy. */
+export const EASY_STREAK = 3;
+/** Grammar points from the next unit named in the course block. */
+export const COURSE_NEXT_POINTS = 3;
+
+/** Counted locally from the session's messages and corrections (S1-25), for the pacing block. */
+export interface Pacing {
+  /** Learner replies since the current topic started, the latest one included. */
+  turnsOnTopic: number;
+  /** Earlier learner replies in a row (before the latest) with no correction other than style. */
+  cleanStreak: number;
+  /** Mean length in characters of the learner's last 3 replies on this topic. */
+  recentLength: number;
+}
 
 export interface PromptData {
   session: SessionMeta;
@@ -46,6 +64,11 @@ export interface PromptData {
   anki?: { overview: AnkiOverview; now: number } | null;
   /** The language the tutor explains in (interface language): "German". Default English. */
   explain?: string;
+  pacing?: Pacing;
+  /** Course languages only: the suggested next unit and its points the learner does not use alone yet. */
+  course?: { course: Course; next?: CourseUnit; points: CourseGrammar[] } | null;
+  /** Course unit sessions: the unit text with the learner's state per point. */
+  unit?: { unit: CourseUnit; text: string } | null;
 }
 
 /**
@@ -115,17 +138,39 @@ export function lastConversationVerdicts(
   return last;
 }
 
+/** Pacing numbers from the stored messages and corrections. */
+export function computePacing(
+  messages: readonly { id: string; role: "user" | "tutor"; text: string; topicStart?: boolean }[],
+  correctedIds: ReadonlySet<string>,
+): Pacing {
+  let start = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "tutor" && messages[i].topicStart) {
+      start = i + 1;
+      break;
+    }
+  }
+  const learner = messages.slice(start).filter((m) => m.role === "user");
+  let cleanStreak = 0;
+  for (let i = learner.length - 2; i >= 0 && !correctedIds.has(learner[i].id); i--) cleanStreak++;
+  const recent = learner.slice(-3);
+  const recentLength = recent.length ? Math.round(recent.reduce((t, m) => t + [...m.text.trim()].length, 0) / recent.length) : 0;
+  return { turnsOnTopic: learner.length, cleanStreak, recentLength };
+}
+
 export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): Promise<PromptData> {
   const { records, lang, library } = deps;
   const language = session.language;
   const pack = lang.pack(language);
-  const [levels, profile, personalContext, grammar, observations, targets] = await Promise.all([
+  const [levels, profile, personalContext, grammar, observations, targets, messages, corrections] = await Promise.all([
     records.getLevels(language),
     records.getProfile(),
     library.personalContext(language, PERSONAL_CONTEXT_CHARS).catch(() => ""),
     records.listGrammar(language),
     records.listObservations({ language }),
     records.getTargets(session.id),
+    records.getMessages(session.id).catch(() => []),
+    records.listCorrections({ language, sessionId: session.id }).catch(() => []),
   ]);
 
   const lastAssessed = lastConversationVerdicts(observations);
@@ -144,7 +189,20 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     catalogue: grammar.slice(0, MAX_CATALOGUE).map((g) => g.point),
     additions: deps.extensions?.promptAdditions(language) ?? [],
     explain: await explainIn(deps),
+    pacing: computePacing(messages, new Set(corrections.filter((c) => c.kind !== "style").map((c) => c.messageId))),
   };
+
+  const course = courseFor(language);
+  if (course) {
+    const states = grammarStates(grammar);
+    const next = nextUnit(course, pack.info.levels, states, courseLevel(levels.current));
+    const points = (next?.grammar ?? []).filter((g) => states.get(g.id) !== "independent").slice(0, COURSE_NEXT_POINTS);
+    data.course = { course, ...(next ? { next } : {}), points };
+    if (session.unitId) {
+      const found = findUnit(session.unitId);
+      data.unit = found ? { unit: found.unit, text: unitText(found.unit, states) } : null;
+    }
+  }
 
   if (await deps.ankiEnabled().catch(() => false)) {
     const overview = await deps.anki.overview(language).catch(() => null);
@@ -179,6 +237,56 @@ function levelLines(d: PromptData): string {
     return e ? `${s} ${e.level} (${e.confidence} confidence)` : `${s} unknown`;
   });
   return `Current level estimates: ${parts.join("; ")}.`;
+}
+
+/** Reply length grows with the learner's level: beginners get short replies, advanced learners real paragraphs. */
+export function lengthRule(d: Pick<PromptData, "levels" | "info">): string {
+  const level = courseLevel(d.levels);
+  const i = level ? d.info.levels.indexOf(level) : -1;
+  if (i < 0) return "Keep replies to 1 to 3 short sentences";
+  const share = d.info.levels.length > 1 ? i / (d.info.levels.length - 1) : 0;
+  if (share < 0.25) return "Keep replies to 1 or 2 short sentences";
+  if (share < 0.6) return "Write 2 or 3 sentences, linked with connectors they know";
+  return "Write 2 to 4 sentences; a short paragraph is fine";
+}
+
+function courseBlock(d: PromptData): string {
+  if (d.session.kind !== "chat") return "";
+  if (!d.course) return `# Course\nThere is no level-by-level course for ${d.info.name} in Sayfern yet. Judge which grammar and words come next from their level and their messages.`;
+  const { course, next, points } = d.course;
+  if (!next) return `# Course (${course.basis})\nThey have used every course point on their own. Keep stretching them with richer topics.`;
+  const lines = [
+    `# Course (${course.basis})`,
+    `Up next for them: unit ${next.id} "${next.title}" (${next.level}). Goal: ${next.goal}`,
+  ];
+  if (points.length) {
+    lines.push(
+      "When you move on, bring in one of these, one at a time: use it yourself in a natural sentence, then ask a question whose natural answer uses it.",
+      ...points.map((g) => `- ${g.pattern} (${g.name}, id ${g.id}). ${g.note}`),
+    );
+  }
+  lines.push(`Topic ideas for this unit: ${next.topics.join("; ")}. Call the course tool for other units, topics and words.`);
+  return lines.join("\n");
+}
+
+/** When to move on. Openings and "New topic" have their own kickoff, so this is for learner turns. */
+export function pacingBlock(d: Pick<PromptData, "pacing" | "session">): string {
+  const p = d.pacing;
+  if (!p || p.turnsOnTopic === 0 || d.session.kind === "placement" || d.session.kind === "reading") return "";
+  const facts = [`This topic has run for ${p.turnsOnTopic} of the learner's replies (this one included).`];
+  if (p.cleanStreak > 0) facts.push(`Their ${p.cleanStreak} previous ${p.cleanStreak === 1 ? "reply" : "replies"} had no mistakes.`);
+  if (p.recentLength) facts.push(`Their recent replies average ${p.recentLength} characters.`);
+  const due = p.turnsOnTopic >= MOVE_ON_TURNS || p.cleanStreak >= EASY_STREAK;
+  return [
+    "# Pacing",
+    "Always answer what the learner just said first. Then decide: stay on the topic or move on.",
+    "- Stay while they are invested: longer replies, their own questions, a story in progress. Never drop a question they asked.",
+    "- Move on when the topic is used up: after about 4 to 6 exchanges, when their replies get short and add nothing new, or when several replies in a row have no mistakes (it is too easy for them).",
+    "- Moving on means a natural bridge to a new topic, or a harder angle on the same one (an opinion, a comparison, a hypothetical) that calls for the next grammar point. Never ask them whether they want to change topic; just do it smoothly.",
+    "- When your reply moves on, set topic_change to true in record_evidence.",
+    facts.join(" "),
+    ...(due ? ["The topic is used up: unless they are clearly invested, move on in this reply."] : []),
+  ].join("\n");
 }
 
 function learnerBlock(d: PromptData): string {
@@ -302,6 +410,17 @@ function sessionBlock(d: PromptData): string {
   const s = d.session;
   switch (s.kind) {
     case "practice": {
+      if (s.unitId) {
+        if (!d.unit) return "# Session: course unit\nThis course unit no longer exists. Chat about whatever interests the learner.";
+        return [
+          "# Session: course unit",
+          d.unit.text,
+          "",
+          "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time: use the point yourself in a natural sentence, then ask a question whose natural answer uses it. Do not lecture or show formulas unless they ask.",
+          "Move to the next point once they use the current one correctly twice, or after about 4 exchanges on it. Change the situation when one runs dry.",
+          "When every point has come up, tell them briefly what they covered and suggest the next unit.",
+        ].join("\n");
+      }
       const f = d.focus;
       const what = f ? `${f.pattern || f.id} (${f.name || f.id}, id ${f.id})` : s.focusGrammarId ? `grammar point ${s.focusGrammarId}` : "";
       if (!what) return "# Session: practice\nOpen conversation with extra attention to the learner's grammar.";
@@ -362,10 +481,10 @@ const FEEDBACK_RULES = [
 
 const TOOL_PROTOCOL = [
   "# Tool protocol",
-  "Write your reply text FIRST. Then, at the very end, call record_evidence ONCE with everything for this turn (corrections, observations, taught, level).",
+  "Write your reply text FIRST, as normal text: your thinking is never shown to the learner. Then, at the very end, call record_evidence ONCE with everything for this turn (corrections, observations, taught, level).",
   "Never call record_evidence before writing the reply, and never call it twice in a turn.",
   "Call it on every turn that answers a learner message, even when there is nothing to correct (then pass empty lists). The learner only sees corrections that come through this call.",
-  "Other tools (search_library, and the anki_* tools when offered) may be called before you reply when you need their results.",
+  "Other tools (search_library, course, and the anki_* tools when offered) may be called before you reply when you need their results.",
   "Call tools only through the tool interface. Never write a tool call, a tool name or tool arguments (JSON) in your reply text: the learner sees everything you write.",
 ].join("\n");
 
@@ -389,7 +508,7 @@ export function renderSystemPrompt(d: PromptData): string {
   const persona = [
     `You are Sayfern, a warm, curious tutor helping someone practise ${lang} through conversation.`,
     `- Reply mostly in ${d.info.nativeName}, slightly above the learner's level.`,
-    "- Keep replies to 1 to 3 short sentences and end with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.",
+    `- ${lengthRule(d)}, and end with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.`,
     "- No translations or romanization unless the learner asks.",
     `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
   ].join("\n");
@@ -402,6 +521,8 @@ export function renderSystemPrompt(d: PromptData): string {
     difficultyBlock(d),
     learnerBlock(d),
     sessionBlock(d),
+    courseBlock(d),
+    pacingBlock(d),
     followUpBlock(d),
     targetBlock(d),
     ankiBlock(d),

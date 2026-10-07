@@ -1,0 +1,41 @@
+{
+  "id": "zh-pacing",
+  "title": "Pacing: move on when the topic is exhausted",
+  "description": "One chat, ten learner messages. The learner opens with an easy topic (lunch) and then gives short, correct, easy answers that add nothing new. By turns 5-7 the tutor should have answered and then changed topic or raised the challenge (moveOn). At turn 8 the learner pivots by themselves to the robot dog and a heritage family story, with longer messages and a question back; the tutor should follow and engage (stay). Two real errors keep grammar scoring meaningful. Limit: the script is fixed, so the learner cannot follow a topic the tutor picks. Turns 2-7 are written to read naturally after almost any tutor question, and the learner's pivot comes from the learner. The judge checks what the tutor chose to do, and whether it followed the pivot or dragged the chat back to lunch.",
+  "language": "zh",
+  "sessions": [
+    {
+      "mode": "chat",
+      "turns": [
+        { "text": "我今天中午在学校食堂吃了面条，还有一个鸡蛋。" },
+        { "text": "对，味道还可以。" },
+        { "text": "我也喜欢。" },
+        {
+          "text": "是的，我常常吃这个在食堂，因为很便宜。",
+          "gold": { "errors": [ { "id": "pp-order", "original": "我常常吃这个在食堂", "accept": ["我常常在食堂吃这个", "我常常在食堂吃", "常常在食堂吃这个"], "pattern": "place phrase before the verb" } ] }
+        },
+        { "text": "还可以，不太贵。", "gold": { "moveOn": true } },
+        { "text": "对，很好吃。", "gold": { "moveOn": true } },
+        { "text": "差不多，每天都一样。", "gold": { "moveOn": true } },
+        {
+          "text": "其实我最近最忙的事不是吃饭，而是做机器狗。每天晚上我都在实验室。",
+          "gold": { "clean": true, "stay": true }
+        },
+        {
+          "text": "它有四条腿，可是走路的时候总是摔倒。我觉得它现在比以前很稳了，但是还不够好。你对机器人有兴趣吗？",
+          "gold": {
+            "errors": [ { "id": "bi-hen-pacing", "original": "它现在比以前很稳了", "accept": ["比以前稳", "比以前更稳", "比以前稳多了", "比以前稳得多"], "pattern": "no 很 in 比 comparisons" } ],
+            "stay": true
+          }
+        },
+        {
+          "text": "我外婆常常说，她小时候家里没有电视，晚上大家只能听收音机。我听得懂一半，所以我很想多了解她的故事。你觉得这样的生活有意思吗？",
+          "gold": { "clean": true, "stay": true }
+        }
+      ],
+      "end": true,
+      "checks": ["After the learner brings up the robot dog (turn 8), the tutor follows that topic and does not drag the conversation back to food."],
+      "rate": ["engagement", "pacing", "level"]
+    }
+  ]
+}

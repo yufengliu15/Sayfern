@@ -10,6 +10,26 @@ What comes after v0.5.0, and where each piece plugs into the code. Stage and fea
 
 ---
 
+## Courses per language (v0.10.0)
+
+The Course screen and the tutor's syllabus come from one data file per language (`src/shared/course/<lang>.ts`, see [architecture section 19](architecture.md#19-course-v0100)). Native support is a lot of work per language (a textbook order to follow, grammar ids, notes, topics, words, 11 translations of every unit title), so it comes one language at a time. Until then the language is **Beta** in the interface: the tutor works, but results may vary.
+
+| Language | Course | Order to follow |
+|---|---|---|
+| Chinese | Built (v0.10.0), 37 units | HSK Standard Course (HSK 1 to 6), HSK 3.0 syllabus (7 to 9) |
+| Japanese | Beta | Genki I and II, then Quartet / Tobira; JLPT order (no official grammar list) |
+| Korean | Beta | Sejong Korean / Yonsei; TOPIK order |
+| English | Beta | English Grammar Profile (Cambridge, CEFR) |
+| Spanish | Beta | Plan Curricular del Instituto Cervantes |
+| French | Beta | CEFR Référentiels (Beacco) |
+| German | Beta | Profile Deutsch, Goethe exam lists |
+| Italian | Beta | Profilo della lingua italiana |
+| Portuguese | Beta | CAPLE / Celpe-Bras levels; sources are weaker |
+| Russian | Beta | TORFL lexical and grammar minimums |
+| Vietnamese | Beta | No common standard yet |
+
+---
+
 ## Stage 2 (built in v0.5.0 and v0.6.0)
 
 ### What shipped

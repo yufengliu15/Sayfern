@@ -13,6 +13,7 @@ import type {
   SourceRef,
   Verdict,
 } from "../../shared/records";
+import { courseTool } from "../course";
 import { ankiTools } from "./anki-tools";
 import { translatorOf, type TutorDeps } from "./deps";
 import { arr, canonicalGrammarId, findOriginal, obj, oneOf, plural, str, truncate } from "./text";
@@ -28,6 +29,8 @@ export interface TurnState {
   sources: SourceRef[];
   /** Corrections already announced this turn (a repeated call must not re-emit). */
   emittedCorrections: Set<string>;
+  /** record_evidence said this reply moved to a new topic (pacing counts from here). */
+  topicChange?: boolean;
 }
 
 const CORRECTION_KINDS: readonly CorrectionKind[] = ["grammar", "vocabulary", "phrasing", "style"];
@@ -78,6 +81,9 @@ const RecordEvidenceParams = Type.Object({
       }),
       { description: "Patterns you explained this turn." },
     ),
+  ),
+  topic_change: Type.Optional(
+    Type.Boolean({ description: "true when your reply moved to a new topic or a clearly harder angle on the old one." }),
   ),
   level: Type.Optional(
     Type.Array(
@@ -252,6 +258,8 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
         logSkip(`${plural(badLevels, "level estimate")} (not on the ${range} scale)`, tr.tn(badLevels, "{count} level estimate (not on the {range} scale)", "{count} level estimates (not on the {range} scale)", { range }));
       }
 
+      if (args.topic_change === true) turn.topicChange = true;
+
       let activity = doneL.length ? tr.t("Logged {items}", { items: doneL.join(", ") }) : tr.t("Nothing new to log");
       if (skippedL.length) activity += tr.t("; skipped {items}", { items: skippedL.join(", ") });
       const content = skipped.length ? `Recorded. Skipped ${skipped.join(", ")}.` : "Recorded.";
@@ -320,6 +328,8 @@ function updateCheckpoint(deps: TutorDeps, session: SessionMeta): TutorTool {
  */
 export function turnTools(deps: TutorDeps, turn: TurnState, opts: { anki?: boolean } = {}): TutorTool[] {
   const tools: TutorTool[] = [recordEvidence(deps, turn), searchLibrary(deps, turn)];
+  const course = courseTool(deps, turn.session.language);
+  if (course) tools.push(course);
   if (opts.anki) tools.push(...ankiTools(deps));
   if (turn.session.kind === "reading" && turn.session.docId) tools.push(updateCheckpoint(deps, turn.session));
   const names = new Set(tools.map((t) => t.name));

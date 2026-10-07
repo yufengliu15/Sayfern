@@ -3,10 +3,10 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { priceFor, type BenchConfig } from "./config";
-import { judgeItems, needs, type JudgeResult } from "./judge";
+import { judgeItems, needs, validRating, type JudgeResult } from "./judge";
 import { blockKey, type BlockResult } from "./runner";
-import type { Scenario } from "./scenarios";
-import { scoreTurn } from "./score";
+import { RATINGS, type Rating, type Scenario } from "./scenarios";
+import { addReply, emptyStyle, scoreTurn, type ReplyStyle } from "./score";
 import type { AnkiCallRecord, WireRecord } from "./types";
 import { promptTokens } from "./wire";
 
@@ -47,6 +47,8 @@ export interface BlockMetrics {
   steps: { label: string; requests: number; prompt: number; output: number; peak: number; wallMs: number; error?: string }[];
   grammar: { gold: number; flagged: number };
   anki: { checks: number; passed: number };
+  /** Deterministic reply-style counts over the tutor replies to learner turns in chat sessions. */
+  style: ReplyStyle;
   judge?: {
     errors: number;
     flagged: number;
@@ -58,8 +60,14 @@ export interface BlockMetrics {
     factsCorrect: number;
     checks: number;
     checksPassed: number;
+    /** Conversation quality: valid 1-5 ratings returned, per quality. */
+    ratings: Record<Rating, number[]>;
+    /** moveOn turns: how many, and how many the tutor moved on by. */
+    moveOn: { turns: number; passed: number };
+    /** stay turns: how many, and how many the tutor stayed with. */
+    stay: { turns: number; passed: number };
     /** Expected verdicts the judge did not return (denominators above still count them). */
-    ungraded: { errors: number; clean: number; facts: number; checks: number };
+    ungraded: { errors: number; clean: number; facts: number; checks: number; ratings: number; moveOn: number; stay: number };
     error?: string;
   };
   reportedVsWire?: { reported: number; wire: number };
@@ -157,6 +165,7 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
       steps: [],
       grammar: { gold: 0, flagged: 0 },
       anki: { checks: 0, passed: 0 },
+      style: emptyStyle(),
       utilDelta: {},
     };
     for (const r of msgs) {
@@ -201,6 +210,7 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
         const sc = scoreTurn(gold, s.output);
         m.grammar.gold += sc.errors.length;
         m.grammar.flagged += sc.errors.filter((e) => e.flagged).length;
+        if (scenario.sessions[s.phase.session]?.mode === "chat" && s.output && !s.output.error) addReply(m.style, s.output.reply);
         if (sc.anki && sc.anki.expected) {
           m.anki.checks++;
           if (sc.anki.pass) m.anki.passed++;
@@ -219,7 +229,8 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
     const j = judge.find((x) => x.block === blockKey(b.arm, b.scenario, b.rep));
     if (scenario && !b.skipped && (j || judge.length)) {
       const jm = { errors: 0, flagged: 0, correctFix: 0, cleanTurns: 0, falsePositives: 0, tutorErrors: 0, facts: 0, factsCorrect: 0, checks: 0, checksPassed: 0,
-        ungraded: { errors: 0, clean: 0, facts: 0, checks: 0 }, ...(j?.error ? { error: j.error } : !j ? { error: "not judged" } : {}) };
+        ratings: { engagement: [], pacing: [], level: [] } as Record<Rating, number[]>, moveOn: { turns: 0, passed: 0 }, stay: { turns: 0, passed: 0 },
+        ungraded: { errors: 0, clean: 0, facts: 0, checks: 0, ratings: 0, moveOn: 0, stay: 0 }, ...(j?.error ? { error: j.error } : !j ? { error: "not judged" } : {}) };
       const got = new Map((j?.items ?? []).map((it) => [it.item, it]));
       for (const it of j?.items ?? []) jm.tutorErrors += Number(it.tutorErrors ?? 0) || 0;
       for (const item of judgeItems(b, scenario)) {
@@ -248,6 +259,21 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
           jm.checks++;
           if (typeof r?.pass !== "boolean") jm.ungraded.checks++;
           else if (r.pass) jm.checksPassed++;
+        }
+        for (const k of n.rate) {
+          const v = r?.ratings?.[k];
+          if (validRating(v)) jm.ratings[k].push(v);
+          else jm.ungraded.ratings++;
+        }
+        if (n.movedOn) {
+          jm.moveOn.turns++;
+          if (typeof r?.movedOn !== "boolean") jm.ungraded.moveOn++;
+          else if (r.movedOn) jm.moveOn.passed++;
+        }
+        if (n.stayed) {
+          jm.stay.turns++;
+          if (typeof r?.stayed !== "boolean") jm.ungraded.stay++;
+          else if (r.stayed) jm.stay.passed++;
         }
       }
       m.judge = jm;
@@ -280,6 +306,43 @@ function ratio(a: number, b: number): string {
   if (!Number.isFinite(a) || !Number.isFinite(b) || a === 0 || b === 0) return "–";
   const r = b / a;
   return r >= 1 ? `${r.toFixed(1)}×` : `${r.toFixed(2)}×`;
+}
+
+/** "## Conversation quality": judge ratings and move-on / stay verdicts next to deterministic reply-style numbers. */
+function conversationQuality(L: string[], good: BlockMetrics[], arms: string[], armLabel: (id: string) => string): void {
+  const of = (arm: string) => good.filter((b) => b.arm === arm);
+  const sty = (arm: string) => of(arm).reduce((t, b) => ({ replies: t.replies + b.style.replies, hanChars: t.hanChars + b.style.hanChars, chars: t.chars + b.style.chars, questions: t.questions + b.style.questions, singleQuestion: t.singleQuestion + b.style.singleQuestion }), emptyStyle());
+  const judged = good.some((b) => b.judge);
+  const rated = judged && good.some((b) => b.judge && (RATINGS.some((k) => b.judge!.ratings[k].length) || b.judge.moveOn.turns || b.judge.stay.turns || b.judge.ungraded.ratings));
+  if (!arms.some((a) => sty(a).replies) && !rated) return;
+  L.push(`## Conversation quality`, "");
+  L.push("Mandarin chat sessions. Ratings are 1-5 from the judge over each whole session (anchors in `docs/benchmark.md`); a higher number is better. The judge sees only what the learner saw, so it may be able to tell the arms apart. The learner script is fixed and cannot follow a topic change by the tutor. Reply-style numbers are counted in code over the tutor's replies to learner turns.", "");
+  L.push(`| Metric | ${arms.map(armLabel).join(" | ")} |`, `|---|${arms.map(() => "---:").join("|")}|`);
+  const row = (name: string, f: (arm: string) => string) => L.push(`| ${name} | ${arms.map(f).join(" | ")} |`);
+  if (rated) {
+    for (const k of RATINGS) {
+      row(`Judge: ${k} (mean 1-5)`, (a) => {
+        const xs = of(a).flatMap((b) => b.judge?.ratings[k] ?? []);
+        return xs.length ? `${fmt(mean(xs), 2)} (n=${xs.length})` : "–";
+      });
+    }
+    const unRatings = (a: string) => of(a).reduce((t, b) => t + (b.judge?.ungraded.ratings ?? 0), 0);
+    if (arms.some((a) => unRatings(a))) row("Judge: ratings missing", (a) => (unRatings(a) ? `⚠ ${unRatings(a)} ungraded` : "0"));
+    const passRow = (name: string, key: "moveOn" | "stay") =>
+      row(name, (a) => {
+        const num = of(a).reduce((t, b) => t + (b.judge?.[key].passed ?? 0), 0);
+        const den = of(a).reduce((t, b) => t + (b.judge?.[key].turns ?? 0), 0);
+        const un = of(a).reduce((t, b) => t + (b.judge?.ungraded[key] ?? 0), 0);
+        return `${pct(num, den)} (${num}/${den}${un ? `, ⚠ ${un} ungraded` : ""})`;
+      });
+    passRow("Judge: moved on when it should", "moveOn");
+    passRow("Judge: stayed when it should", "stay");
+  } else L.push(`| Judge ratings and move-on verdicts | ${arms.map(() => "not run").join(" | ")} |`);
+  row("Mean reply length, Han characters", (a) => (sty(a).replies ? fmt(sty(a).hanChars / sty(a).replies, 1) : "–"));
+  row("Mean reply length, all characters", (a) => (sty(a).replies ? fmt(sty(a).chars / sty(a).replies, 1) : "–"));
+  row("Mean question marks per reply (？ and ?)", (a) => (sty(a).replies ? fmt(sty(a).questions / sty(a).replies, 2) : "–"));
+  row("Replies with exactly one question", (a) => (sty(a).replies ? `${pct(sty(a).singleQuestion, sty(a).replies)} (${sty(a).singleQuestion}/${sty(a).replies})` : "–"));
+  L.push("");
 }
 
 export function renderReport(cfg: BenchConfig, runDir: string, scenarios: Scenario[], meta: Record<string, unknown>): string {
@@ -369,6 +432,8 @@ export function renderReport(cfg: BenchConfig, runDir: string, scenarios: Scenar
       L.push(`> ⚠ ${ungradedTotal} judge verdict(s) missing (${which.join(", ")}). Both arms are still scored out of the same totals; ungraded items count as not passed. Run \`npm run bench -- judge <run-id>\` to grade only the missing ones.`, "");
     }
   }
+
+  conversationQuality(L, good, arms, armLabel);
 
   L.push(`## Plan utilization (rate-limit headers)`, "");
   if (!utilKeys.length) {

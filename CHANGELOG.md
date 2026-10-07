@@ -6,8 +6,29 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-06
+
+### Fixed
+
+- **Empty tutor replies** (bench `zh-pacing`, run 2026-10-06T17-15-47: 3 of 20 Sayfern turns, 1 more in run 2026-10-06T17-05-36). Sonnet 5.5 with adaptive thinking sometimes wrote its reply inside its thinking, called `record_evidence`, read "Recorded." and ended the turn, so the learner saw "The model sent an empty reply". When a recording-only tool runs before any reply text, its result now tells the model the learner has not seen a reply yet and asks for one (`NO_REPLY_YET` in `src/core/agent/turn.ts`); the tool protocol also says thinking is never shown. Re-run (2026-10-06T19-20-35, 3 reps): 0 empty replies in 30 turns.
+- **Benchmark: `npm run bench -- doctor` failed on its second run** ("table col already exists"): the sandbox from the last run was reused. It is now cleared first.
+
+## [0.10.0] - 2026-10-06
+
+Owner feedback, 2026-10-06: conversations feel dull. The tutor stays on simple topics far too long and does not know when to move on. Asked for a per-language plan of where a learner should be at each level (from the textbooks), shown Duolingo-style, with languages that have no plan marked Beta.
+
+### Added
+
+- **Course** (Chinese): 37 units from HSK 1 to HSK 7-9 in the HSK Standard Course order (HSK 3.0 syllabus for 7-9). Each unit has a goal, grammar points with the ids the tutor already records, topic ideas and core words (`src/shared/course/`). A new **Course** screen (⌘2; the other shortcuts move up by one) shows the path by level, with each unit Done, In progress or New, counted from your grammar records, and the unit to do next. Every unit is open. Starting one opens a practice session in which the tutor works through the unit's points one at a time. Today shows the next unit.
+- **`course` tutor tool**: the tutor can look at the course (where you stand, the next unit, any unit's grammar, topics and words) when it wants to move on.
+- **Beta languages**: languages without a course (all but Chinese for now) show a Beta chip in the language pickers. The tutor still works, with no level-by-level plan, so results may vary. `docs/roadmap.md` lists which textbook order each language will follow.
+- **Benchmark: conversation quality.** Judge ratings (1 to 5) for engagement, pacing and level fit; per-turn checks that the tutor moved on when the topic was used up and stayed when the learner was invested; reply length and questions per reply. New scenarios `zh-pacing` and `zh-level-fit`; `zh-long-chat` is rated too.
+
 ### Changed
 
+- **Pacing.** The tutor answers the learner first, then moves on when a topic is used up: after about 4 to 6 exchanges, short replies, or several replies with no mistakes. It moves to a new topic or a harder angle that calls for the next grammar point. Counts come from the session's messages and corrections (`computePacing`); `record_evidence` takes `topic_change` so the count restarts after the tutor moves on (`ChatMessage.topicStart`).
+- **The tutor knows what comes next.** In conversations, the prompt names the next course unit and up to 3 of its points you don't use on your own yet, to bring in one at a time.
+- **Reply length follows the level**: 1 or 2 short sentences for beginners, 2 or 3 linked sentences in the middle, up to 4 sentences for advanced learners (was always 1 to 3).
 - **Licence:** Sayfern is now licensed under the GNU General Public License v3.0 (GPL-3.0-only) instead of MIT. `LICENSE` holds the full GPL-3.0 text; `package.json` and the README say so.
 
 ### Fixed

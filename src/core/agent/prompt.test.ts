@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GrammarObservation } from "../../shared/records";
-import { buildSystemPrompt, difficultyBlock, lastConversationVerdicts } from "./prompt";
+import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
+import { buildSystemPrompt, computePacing, difficultyBlock, lastConversationVerdicts, lengthRule, MOVE_ON_TURNS } from "./prompt";
+import { languageInfo } from "../../shared/languages";
 import { makeHarness } from "./testkit";
 
 test("system prompt: persona, level, learner, follow-ups (skipping focus), targets, catalogue, tool protocol", async () => {
@@ -131,4 +133,73 @@ test("difficulty: no block at the default; easier and harder add the learner's c
   const easy = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
   assert.match(easy, /\nEasier\. Stay at their level/);
   assert.equal(difficultyBlock({ session: { difficulty: 0 } as never }), "");
+});
+
+test("pacing: counts learner replies since the last topic start and the clean streak before the latest", () => {
+  const m = (id: string, role: "user" | "tutor", text = "好", topicStart?: boolean) => ({ id, role, text, ...(topicStart ? { topicStart } : {}) });
+  const msgs = [m("t0", "tutor", "开始", true), m("u1", "user"), m("t1", "tutor"), m("u2", "user", "很好吃"), m("t2", "tutor", "新话题", true), m("u3", "user", "还可以"), m("t3", "tutor"), m("u4", "user", "我也是"), m("t4", "tutor"), m("u5", "user", "对")];
+  assert.deepEqual(computePacing(msgs, new Set()), { turnsOnTopic: 3, cleanStreak: 2, recentLength: 2 });
+  assert.equal(computePacing(msgs, new Set(["u4"])).cleanStreak, 0);
+  assert.equal(computePacing(msgs, new Set(["u5"])).cleanStreak, 2, "the latest reply is judged this turn");
+  assert.equal(computePacing([m("u1", "user")], new Set()).turnsOnTopic, 1, "no topic start: count from the session start");
+});
+
+test("pacing block: rules always, move-on nudge once the topic is used up", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  const say = async (i: number) => {
+    await h.records.appendMessage({ id: `u${i}`, sessionId: sid, role: "user", text: "还可以。", at: h.clock.t + i });
+    await h.records.appendMessage({ id: `t${i}`, sessionId: sid, role: "tutor", text: "好。", at: h.clock.t + i });
+  };
+  const fresh = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.doesNotMatch(fresh, /# Pacing/, "no pacing block before the learner says anything");
+  await say(1);
+  const early = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.match(early, /# Pacing\nAlways answer what the learner just said first/);
+  assert.match(early, /This topic has run for 1 of the learner's replies/);
+  assert.match(early, /set topic_change to true/);
+  assert.doesNotMatch(early, /The topic is used up/);
+  for (let i = 2; i <= MOVE_ON_TURNS; i++) await say(i);
+  const late = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.match(late, new RegExp(`run for ${MOVE_ON_TURNS} of the learner's replies`));
+  assert.match(late, /previous replies had no mistakes/);
+  assert.match(late, /The topic is used up: unless they are clearly invested, move on in this reply\./);
+});
+
+test("reply length grows with the level", () => {
+  const info = languageInfo("zh");
+  const at = (level?: string) => lengthRule({ info, levels: level ? { writing: { level } as never } : {} });
+  assert.match(at(), /1 to 3 short sentences/);
+  assert.match(at("HSK 1"), /1 or 2 short sentences/);
+  assert.match(at("HSK 3"), /2 or 3 sentences/);
+  assert.match(at("HSK 6"), /2 to 4 sentences/);
+  assert.match(lengthRule({ info: languageInfo("es"), levels: { writing: { level: "B2" } as never } }), /2 to 4 sentences/);
+});
+
+test("course block: next unit and its open points in chat; Beta languages say there is no course", async () => {
+  const h = makeHarness();
+  await h.records.recordLevel({ language: "zh", skill: "writing", level: "HSK 3", confidence: "medium", evidence: "", examples: [], at: 1, by: "self" });
+  const sid = await h.newSession();
+  const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.match(p, /# Course \(HSK Standard Course order/);
+  assert.match(p, /Up next for them: unit zh-hsk3-01 "Tell a story in order" \(HSK 3\)/);
+  assert.match(p, /- 一…就… \(as soon as with 一…就…, id zh:yi-jiu\)/);
+  assert.match(p, /Write 2 or 3 sentences/);
+  const practice = await h.newSession("practice");
+  assert.doesNotMatch(await buildSystemPrompt(h.deps, (await h.records.getSession(practice))!), /# Course/);
+  const ko = await h.records.createSession({ language: "ko", kind: "chat", feedbackMode: "inline" });
+  assert.match(await buildSystemPrompt(h.deps, ko), /# Course\nThere is no level-by-level course for Korean/);
+});
+
+test("topic_change in record_evidence marks the reply as a topic start", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  const turn = (text: string, args: Record<string, unknown>) => {
+    h.faux.setResponses([fauxAssistantMessage([fauxText(text), fauxToolCall("record_evidence", args as never)], { stopReason: "toolUse" })]);
+    return h.tutor.runTurn({ sessionId: sid, text: "对。", model: h.model, signal: new AbortController().signal, onEvent: () => {} });
+  };
+  assert.equal((await turn("好的。你周末做什么？", {})).topicStart, undefined);
+  assert.equal((await turn("说到周末，你去过长城吗？", { topic_change: true })).topicStart, true);
+  const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.doesNotMatch(p, /# Pacing/, "the new topic has no learner replies yet");
 });

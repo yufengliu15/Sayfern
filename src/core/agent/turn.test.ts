@@ -167,6 +167,18 @@ test("recording tool before any text: a follow-up request is made for the reply"
   assert.equal(reply.text, "坐火车很舒服吧？你坐了多长时间？");
   assert.equal(ev.deltas(), reply.text);
   assert.equal((await h.records.listObservations({ language: "zh" })).length, 1);
+  // The model is told it has not replied yet (thinking is hidden), so it does not end the turn empty.
+  const result = (await h.records.getTranscript(sid)).find((m) => m.role === "toolResult");
+  assert.ok(result && JSON.stringify(result.content).includes("has not seen any reply yet"));
+});
+
+test("record_evidence after reply text: the result has no reply nudge", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  h.faux.setResponses([fauxAssistantMessage([fauxText("好的！你呢？"), evidence({})], { stopReason: "toolUse" })]);
+  await h.tutor.runTurn({ sessionId: sid, text: "我很好。", model: h.model, signal: abort(), onEvent: () => {} });
+  const result = (await h.records.getTranscript(sid)).find((m) => m.role === "toolResult");
+  assert.ok(result && !JSON.stringify(result.content).includes("has not seen any reply yet"));
 });
 
 test("text continues across iterations joined by a blank line", async () => {

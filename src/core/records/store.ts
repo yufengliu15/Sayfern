@@ -197,6 +197,7 @@ export class JsonRecordsStore implements RecordsStore {
     };
     if (input.focusGrammarId) meta.focusGrammarId = input.focusGrammarId;
     if (input.openWith) meta.openWith = input.openWith;
+    if (input.unitId) meta.unitId = input.unitId;
     if (input.docId) meta.docId = input.docId;
     await this.addSessionFile({ meta, messages: [], transcript: [], targets: [] });
     return clone(meta);

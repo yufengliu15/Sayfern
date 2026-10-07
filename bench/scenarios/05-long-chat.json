@@ -20,7 +20,8 @@
         { "text": "我还没决定毕业以后做什么。" },
         { "text": "可能我会去读研究生，或者去一家机器人公司。" }
       ],
-      "end": true
+      "end": true,
+      "rate": ["engagement", "pacing", "level"]
     }
   ]
 }

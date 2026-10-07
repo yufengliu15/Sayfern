@@ -4,6 +4,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BENCH_DIR } from "./config";
 
+export const RATINGS = ["engagement", "pacing", "level"] as const;
+export type Rating = (typeof RATINGS)[number];
+
 export interface GoldError {
   id: string;
   /** The learner's erroneous text (for the judge and the report). */
@@ -31,6 +34,10 @@ export interface GoldTurn {
   };
   /** Free-form checks for the judge ("The tutor ..."). */
   checks?: string[];
+  /** The topic is exhausted: by the tutor's reply to this turn, it should have changed topic or raised the challenge. */
+  moveOn?: boolean;
+  /** The learner is invested or asked something: the tutor's reply should engage with it, not change the subject. */
+  stay?: boolean;
 }
 
 export interface ScenarioTurn {
@@ -49,6 +56,8 @@ export interface ScenarioSession {
   end?: boolean;
   /** Judge checks over the whole session. */
   checks?: string[];
+  /** Ask the judge for 1-5 ratings of these qualities over the whole session transcript. */
+  rate?: Rating[];
 }
 
 export interface Scenario {
@@ -57,6 +66,8 @@ export interface Scenario {
   description: string;
   language: string;
   fixtures?: string;
+  /** Learner level told to the judge. Defaults to `selfLevel` in the fixture manifest. */
+  learnerLevel?: string;
   sessions: ScenarioSession[];
   file: string;
 }
@@ -79,8 +90,10 @@ function validate(s: Scenario): void {
   if (!s.id || !s.language || !Array.isArray(s.sessions) || !s.sessions.length) throw new Error(`${where}: needs id, language, sessions`);
   for (const [i, sess] of s.sessions.entries()) {
     if (!["chat", "reading", "practice"].includes(sess.mode)) throw new Error(`${where}: session ${i} has unknown mode ${sess.mode}`);
+    for (const r of sess.rate ?? []) if (!RATINGS.includes(r)) throw new Error(`${where}: session ${i} rates unknown quality ${r}`);
     for (const t of sess.turns) {
       if (typeof t.text !== "string" || !t.text) throw new Error(`${where}: empty turn text`);
+      if (t.gold?.moveOn && t.gold.stay) throw new Error(`${where}: a turn cannot have both moveOn and stay`);
       for (const e of t.gold?.errors ?? []) if (!e.id || !e.accept?.length) throw new Error(`${where}: gold error needs id and accept`);
     }
   }

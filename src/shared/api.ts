@@ -31,6 +31,7 @@ import type {
   WordUsage,
 } from "./records";
 import { BUILDER_METHODS, DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type BuilderApi, type DeckApi, type QuizApi, type ReviewApi } from "./stage2";
+import type { CourseView } from "./course";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "./types";
 
 export type * from "./stage2";
@@ -131,6 +132,8 @@ export interface NewSessionOptions {
   language: Language;
   kind?: SessionKind;
   focusGrammarId?: string;
+  /** practice: a course unit (src/shared/course). */
+  unitId?: string;
   docId?: string;
 }
 
@@ -223,6 +226,12 @@ export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, Voi
   disputeObservation(observationId: string, verdict: Verdict, note: string): Promise<GrammarDetail | null>;
   /** S1-19: new practice session focused on one pattern. `explain`: the tutor opens with a fresh explanation and a new example. */
   practiseGrammar(grammarId: string, opts?: { explain?: boolean }): Promise<SessionView>;
+
+  // course (Duolingo-style units; only languages with a course, see src/shared/course)
+  /** Units by level with status computed from grammar records. `available: false` for Beta languages. */
+  getCourse(language: Language): Promise<CourseView>;
+  /** New practice session on one course unit; the tutor opens it. */
+  startUnit(unitId: string): Promise<SessionView>;
 
   // library (S1-10..S1-12)
   listDocs(language: Language): Promise<LibraryDoc[]>;
@@ -358,6 +367,8 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   getProfile: true,
   setProfile: true,
   getLevels: true,
+  getCourse: true,
+  startUnit: true,
   setSelfLevel: true,
   startPlacement: true,
   exportData: true,

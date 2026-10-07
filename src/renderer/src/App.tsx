@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { WordPopoverHost } from "./components/WordPopover";
 import { AppProvider, useApp } from "./context";
 import { navigate, parseRoute, useRoute, type Route } from "./router";
+import { CourseScreen } from "./screens/Course";
 import { CustomizeScreen } from "./screens/Customize";
 import { DecksScreen } from "./screens/Decks";
 import { FeatureScreen } from "./screens/FeatureHost";
@@ -36,14 +37,14 @@ function Localized() {
   );
 }
 
-const NAV_KEYS: Record<string, Route> = { "1": "today", "2": "library", "3": "grammar", "4": "review", "5": "progress" };
+const NAV_KEYS: Record<string, Route> = { "1": "today", "2": "course", "3": "library", "4": "grammar", "5": "review", "6": "progress" };
 
 function Shell() {
   const app = useApp();
   const route = parseRoute(useRoute());
   const { language } = app;
 
-  // F-10: ⌘N new session, ⌘1..5 navigation.
+  // F-10: ⌘N new session, ⌘1..6 navigation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
@@ -71,6 +72,9 @@ function Shell() {
   switch (route.name) {
     case "session":
       screen = <SessionScreen key={route.id} id={route.id} language={language} navigate={navigate} />;
+      break;
+    case "course":
+      screen = <CourseScreen key={language} language={language} navigate={navigate} />;
       break;
     case "library":
       screen = <LibraryScreen language={language} navigate={navigate} />;

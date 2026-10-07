@@ -37,6 +37,9 @@ export function kickoffText(session: SessionMeta, opts: { newTopic?: boolean } =
   if (opts.newTopic) {
     return "(The learner pressed \"New topic\". Drop the current topic without summing it up and open a fresh one, clearly different from what this session has covered so far. Pick something that fits their interests if you know them. Start.)";
   }
+  if (session.kind === "practice" && session.unitId) {
+    return "(The learner started a course unit. Open with a situation from the unit that fits them, and bring in its first grammar point. Start.)";
+  }
   if (session.kind === "practice" && session.openWith === "explain") {
     return "(The learner opened a practice session and asked you to explain the focus pattern again, with a new example. Start.)";
   }
@@ -302,6 +305,11 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
         activity.push(act);
         emit({ type: "tool", activity: act });
       }
+      if (calls.length && !text.trim()) {
+        for (const r of results) {
+          if (!r.isError && byName.get(r.toolName)?.recordingOnly) r.content = [...r.content, { type: "text", text: NO_REPLY_YET }];
+        }
+      }
       transcript.push(message, ...results);
       committed = transcript.length;
       completedIterations++;
@@ -360,6 +368,8 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
     usage,
   };
   if (failure) tutor.error = failure.aborted ? "Stopped" : failure.message;
+  // Openings and "New topic" start a topic; so does a reply the tutor marked with topic_change.
+  if (!failure && (!li.userMessageId || turn.topicChange)) tutor.topicStart = true;
   if (activity.length) tutor.toolActivity = activity;
   const sources = turn.sources.slice(0, MAX_SOURCES);
   if (sources.length) tutor.sources = sources;
@@ -376,6 +386,14 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
 }
 
 const EVIDENCE_TOOL = "record_evidence";
+
+/**
+ * Added to a recording tool's result when no reply text exists yet. Some models (Sonnet 5.5 with
+ * adaptive thinking) write the reply inside their thinking, call record_evidence, read "Recorded."
+ * and end the turn: the learner gets an empty reply (bench run 2026-10-06T17-15-47, 3 of 20 turns).
+ */
+export const NO_REPLY_YET =
+  "The learner has not seen any reply yet: your thinking is hidden from them. Write your reply to the learner now, as plain text. Do not call record_evidence again.";
 
 /** One tool-only request for record_evidence. Never throws: a failed pass just records nothing. */
 async function evidencePass(

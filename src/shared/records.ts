@@ -33,6 +33,8 @@ export interface SessionMeta {
   difficulty?: Difficulty;
   /** practice sessions: grammar point to work on (S1-19). */
   focusGrammarId?: string;
+  /** practice sessions: the course unit to work through (src/shared/course). */
+  unitId?: string;
   /** practice sessions: how the tutor opens. "explain" = a fresh explanation of the focus pattern with a new example first. */
   openWith?: "explain";
   /** reading sessions: the document being read (S1-11). */
@@ -78,6 +80,8 @@ export interface ChatMessage {
   translation?: string;
   /** Language the translation is in ("German"); absent = English (written before v0.7). */
   translationLang?: string;
+  /** tutor: this reply opened a topic (an opening, "New topic", or record_evidence new_topic). Pacing counts from here. */
+  topicStart?: boolean;
   /** tutor: tools called while producing this reply (F-07). */
   toolActivity?: ToolActivity[];
   /** tutor: sources the reply relied on (S1-12). */

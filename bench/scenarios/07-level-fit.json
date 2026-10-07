@@ -1,0 +1,22 @@
+{
+  "id": "zh-level-fit",
+  "title": "Level fit: HSK 3-4 writing",
+  "description": "One chat, six learner messages in solid HSK 3-4 Chinese (虽然…但是…, 把, 除了…还…, 越来越, 只有…才…). Checks that the tutor's questions and wording rise to what the learner writes (opinions, reasons, comparisons, plans) and do not stay at HSK 1 one-word questions. The judge rates against the fixture's self-assessed level (HSK 3).",
+  "language": "zh",
+  "sessions": [
+    {
+      "mode": "chat",
+      "turns": [
+        { "text": "虽然我是计算机专业的学生，但是我对做饭也很感兴趣。", "gold": { "clean": true } },
+        { "text": "我把上个周末做的红烧肉拍了照片，发给了我的朋友，他们都说看起来很好吃。" },
+        { "text": "除了做饭，我还喜欢打篮球和画画。", "gold": { "clean": true } },
+        { "text": "最近我的中文越来越好了，不过写汉字还是有点难。", "gold": { "clean": true } },
+        { "text": "我觉得学语言最重要的是多说，因为只有说得多，才能说得好。" },
+        { "text": "如果有机会，我打算明年去上海住三个月，这样我的中文会进步得更快。", "gold": { "clean": true } }
+      ],
+      "end": true,
+      "checks": ["The tutor's questions invite answers at HSK 3-4 (opinions, reasons, comparisons, plans), not only HSK 1 one-word answers."],
+      "rate": ["engagement", "level"]
+    }
+  ]
+}

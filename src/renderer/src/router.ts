@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 
 export type Route =
   | "today"
+  | "course"
   | `session/${string}`
   | "library"
   | `reader/${string}`
@@ -23,6 +24,7 @@ export type Route =
 
 export type ParsedRoute =
   | { name: "today" }
+  | { name: "course" }
   | { name: "session"; id: string }
   | { name: "library" }
   | { name: "reader"; docId: string; paragraph?: number }
@@ -55,7 +57,7 @@ export const quizRoute = (id: string): Route => `quiz/${encodeURIComponent(id)}`
 export const featureRoute = (id: string): Route => `feature/${encodeURIComponent(id)}`;
 export const deckRoute = (id?: string): Route => (id ? `decks/${encodeURIComponent(id)}` : "decks");
 
-const SIMPLE = new Set(["today", "library", "grammar", "progress", "settings", "onboarding", "customize"]);
+const SIMPLE = new Set(["today", "course", "library", "grammar", "progress", "settings", "onboarding", "customize"]);
 
 export function parseRoute(raw: string): ParsedRoute {
   const s = raw.replace(/^#?\/?/, "");

@@ -31,3 +31,28 @@ export function scoreTurn(gold: GoldTurn | undefined, out: TurnOutput | null): T
   }
   return s;
 }
+
+/** Counts behind the reply-style numbers. Summable, so arms and blocks aggregate by adding. */
+export interface ReplyStyle {
+  replies: number;
+  /** Han characters only. */
+  hanChars: number;
+  /** All characters. */
+  chars: number;
+  /** ？ and ? */
+  questions: number;
+  /** Replies with exactly one question mark. */
+  singleQuestion: number;
+}
+
+export const emptyStyle = (): ReplyStyle => ({ replies: 0, hanChars: 0, chars: 0, questions: 0, singleQuestion: 0 });
+
+/** Adds one tutor reply (the text only, not feedback cards) to `acc`. */
+export function addReply(acc: ReplyStyle, reply: string): void {
+  const q = (reply.match(/[？?]/g) ?? []).length;
+  acc.replies++;
+  acc.hanChars += (reply.match(/\p{Script=Han}/gu) ?? []).length;
+  acc.chars += Array.from(reply).length;
+  acc.questions += q;
+  if (q === 1) acc.singleQuestion++;
+}

@@ -49,6 +49,7 @@ import type {
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
 import { LANGUAGE_META } from "../../shared/languages";
+import { buildCourseView, findUnit, type CourseView } from "../../shared/course";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "../../shared/types";
 import { SayfernTutor } from "../agent";
 import { lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
@@ -492,6 +493,7 @@ export class SayfernApp implements CoreApi {
       if (!opts.docId) throw new Error("Pick a document to read first.");
       return this.openReading(opts.docId);
     }
+    if (kind === "practice" && opts.unitId) return this.startUnit(opts.unitId);
     if (kind === "practice" && opts.focusGrammarId) return this.practiseGrammar(opts.focusGrammarId);
     if (kind === "placement") return this.startPlacement(opts.language);
     return this.createAndOpen({ language: opts.language, kind, focusGrammarId: opts.focusGrammarId });
@@ -503,6 +505,7 @@ export class SayfernApp implements CoreApi {
     title?: string;
     focusGrammarId?: string;
     openWith?: "explain";
+    unitId?: string;
     docId?: string;
   }): Promise<SessionView> {
     const settings = await this.settings.get();
@@ -763,6 +766,32 @@ export class SayfernApp implements CoreApi {
       focusGrammarId: grammarId,
       ...(opts.explain ? { openWith: "explain" as const } : {}),
       title: `${LANGUAGE_META[point.language]?.titles.practice ?? "Practice"} ${point.pattern}`,
+    });
+  }
+
+  // ============================================================ course
+
+  async getCourse(language: Language): Promise<CourseView> {
+    const [grammar, levels, sessions] = await Promise.all([
+      this.records.listGrammar(language),
+      this.records.getLevels(language),
+      this.records.listSessions(language),
+    ]);
+    const opened = new Set(sessions.flatMap((s) => (s.unitId ? [s.unitId] : [])));
+    return buildCourseView(language, this.lang.pack(language).info.levels, grammar, levels.current, opened);
+  }
+
+  async startUnit(unitId: string): Promise<SessionView> {
+    const found = findUnit(unitId);
+    if (!found) throw new Error("That course unit no longer exists.");
+    const { course, unit } = found;
+    const language = course.language;
+    const tr = await this.settings.translator();
+    return this.createAndOpen({
+      language,
+      kind: "practice",
+      unitId,
+      title: `${LANGUAGE_META[language]?.titles.practice ?? "Practice"} · ${tr.t(unit.title)}`,
     });
   }
 

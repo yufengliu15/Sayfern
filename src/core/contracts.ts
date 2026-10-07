@@ -53,6 +53,8 @@ export interface NewSessionInput {
   focusGrammarId?: string;
   /** practice sessions: open with a fresh explanation of the focus pattern. */
   openWith?: "explain";
+  /** practice sessions: the course unit to work through. */
+  unitId?: string;
   docId?: string;
   title?: string;
 }

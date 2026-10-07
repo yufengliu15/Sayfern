@@ -1,6 +1,7 @@
 // Home (S1-02): resume card, start tiles, placement prompt, this week's numbers.
 import { useEffect, useState } from "react";
 import type { HomeView } from "../../../shared/api";
+import type { CourseView } from "../../../shared/course";
 import type { Language, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { FeatureActivities } from "../components/FeatureActivities";
@@ -22,6 +23,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
   const [home, setHome] = useState<HomeView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [course, setCourse] = useState<CourseView | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -29,6 +31,17 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
       .getHome(language)
       .then((h) => alive && setHome(h))
       .catch((e) => alive && setError(errorText(e)));
+    return () => {
+      alive = false;
+    };
+  }, [language, app.sessions]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .getCourse(language)
+      .then((c) => alive && setCourse(c))
+      .catch(() => alive && setCourse(null));
     return () => {
       alive = false;
     };
@@ -65,6 +78,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
 
   const r = home.resume;
   const headline = r ? t("Pick up where you left off.") : home.needsPlacement ? t("Let's find your level first.") : t("What shall we practise today?");
+  const nextUnit = course?.levels.flatMap((l) => l.units).find((u) => u.id === course.nextUnitId);
   const maxDay = Math.max(1, ...home.week.daily.map((d) => d.activeMs));
   const queued = home.followUps.length + (home.reading ? 1 : 0) + (home.targets.length ? 1 : 0);
   const levels = (Object.entries(home.levels) as [Skill, NonNullable<HomeView["levels"][Skill]>][]).filter(([, v]) => v);
@@ -163,6 +177,25 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
             )}
           </div>
         </section>
+
+        {nextUnit && (
+          <section className="place card" aria-label={t("Course")}>
+            <span className="place-i">
+              <Icon name="course" size={22} />
+            </span>
+            <div className="place-t">
+              <h2>{t("Course · Up next: {unit} ({level})", { unit: t(nextUnit.title), level: nextUnit.level })}</h2>
+            </div>
+            <div className="place-a">
+              <button className="btn btn-f" disabled={busy === "unit"} onClick={() => void act("unit", () => api.startUnit(nextUnit.id))}>
+                {busy === "unit" ? t("Starting…") : t("Start unit")}
+              </button>
+              <button className="linkb" onClick={() => navigate("course")}>
+                {t("See the course")}
+              </button>
+            </div>
+          </section>
+        )}
 
         {home.needsPlacement && (
           <section className="place card" aria-label={t("Find your level")}>

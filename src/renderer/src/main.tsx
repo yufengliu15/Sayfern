@@ -15,6 +15,7 @@ import "./styles/quiz.css";
 import "./styles/builder.css";
 import "./styles/decks.css";
 import "./styles/voice.css";
+import "./styles/course.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 

@@ -6,7 +6,7 @@ Entry point for coding agents (and humans) working on Sayfern. Read this first, 
 
 A free, open-source (MIT) macOS app for learning languages (Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian, Vietnamese) by chatting with an AI tutor that remembers what the learner is learning. The learner brings their own model (API key, or a Claude Pro/Max or ChatGPT subscription). All records stay on the Mac as JSON files. The interface is translated into 12 locales and follows the Mac's language unless the learner picks one; the tutor explains in the interface language.
 
-- **Version:** 0.9.1. Stage 1 (text learning) and Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki onboarding page and deck generator) are built; v0.7.0 added nine learning languages and the translated interface; v0.8.0 started Stage 3 (listening, push-to-talk, several ElevenLabs accounts); v0.9.0 added New topic, the difficulty slider and the evidence pass for GPT models. Pronunciation assessment and audio quizzes are next: [`docs/roadmap.md`](docs/roadmap.md).
+- **Version:** 0.10.1. Stage 1 (text learning) and Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki onboarding page and deck generator) are built; v0.7.0 added nine learning languages and the translated interface; v0.8.0 started Stage 3 (listening, push-to-talk, several ElevenLabs accounts); v0.9.0 added New topic, the difficulty slider and the evidence pass for GPT models; v0.10.0 added the Course (Duolingo-style units, Chinese only; other languages are Beta) and pacing (the tutor moves on when a topic is used up). Pronunciation assessment and audio quizzes are next: [`docs/roadmap.md`](docs/roadmap.md).
 - **Owner:** Yufeng. Feature IDs (S1-xx, F-xx, S2-xx, S3-xx) come from the owner's project page; [`docs/stage1.md`](docs/stage1.md) maps S1/F IDs and [`docs/stage2.md`](docs/stage2.md) maps S2 IDs and [`docs/stage3.md`](docs/stage3.md) S3 IDs to code.
 
 ## Stack
@@ -51,6 +51,7 @@ Before you finish any change: `npm run typecheck` and `npm test` must pass.
 src/shared/        types + the renderer ↔ main contract (api.ts). No runtime deps.
   stage2/          per-feature API slots merged into SayfernApi: review.ts, quiz.ts, builder.ts (+ builder-sdk.ts: SDK JS/CSS), decks.ts
   stage3/          Stage 3 slot: voice.ts (VoiceApi, VOICE_METHODS)
+  course/          Duolingo-style course per language: index.ts (types, COURSES, isBeta, unit status, buildCourseView), zh.ts (37 HSK units)
   ruby.ts          ruby segments (pinyin per character, okurigana outside), used by the renderer and deck cards
   languages.ts     LANGUAGE_META: per learning language names, script, font class, levels, titles
   locales.ts       UI locales, system-language matching (matchLocale, effectiveLocale)
@@ -60,6 +61,7 @@ src/core/          all logic, plain Node, NO electron imports
   stage2.ts        Stage2Deps (shared deps for Stage 2 services) + bindSlot
   app/             SayfernApp facade (implements the API) + SettingsStore
   agent/           tutor: prompt, tools, streaming turn loop, retries, translation, end of session
+  course/          the `course` tutor tool and unit text for the prompt
   records/         JSON-file RecordsStore: sessions, corrections, grammar, words, levels, stats, export
   lang/            language packs (zh, ja; spaced.ts: SpacedPack, KoreanPack, VietnamesePack; lemma.ts), dictionaries
                    (cedict, jmdict, wordlists.ts: WikDict, Kengdic, kaikki), lookup with per-locale dictionary choice
@@ -122,6 +124,8 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 | Change the turn loop, streaming, errors, abort | `src/core/agent/turn.ts`; tests in `turn.test.ts` and `src/core/app/app.test.ts` |
 | Change token caps / reasoning effort | `src/core/agent/options.ts`, constants in `turn.ts` |
 | Change which models get the evidence pass | `needsEvidencePass` in `src/core/agent/options.ts`; the pass itself is `evidencePass` / `EVIDENCE_NUDGE` in `turn.ts` |
+| Change when the tutor moves on, or reply length | `pacingBlock` / `computePacing` (`MOVE_ON_TURNS`, `EASY_STREAK`) and `lengthRule` in `src/core/agent/prompt.ts`; `topic_change` in `record_evidence` (`tools.ts`) sets `ChatMessage.topicStart` in `runLoop` (`turn.ts`) |
+| Add or change a language's course | `src/shared/course/<lang>.ts` + `COURSES` in `src/shared/course/index.ts` (no course = Beta); unit titles in all 11 catalogs; checks in `src/core/course/course.test.ts`; tool and unit text in `src/core/course/index.ts`; course block and unit session block in `prompt.ts`; UI `screens/Course.tsx`; status list in `docs/roadmap.md` |
 | Change "New topic" or the difficulty slider | `kickoffText` (`newTopic`) in `turn.ts`, `difficultyBlock` in `prompt.ts`, `SayfernApp.newTopic` / `setDifficulty`, `components/SessionTools.tsx`, `requestNewTopic` in `lib/chatStream.ts` |
 | Store a new kind of record | `src/core/records/store.ts` (+ `files.ts` shape, `exportAll`), the `RecordsStore` interface, types in `src/shared/records.ts` |
 | Change a progress number | `src/core/records/stats.ts` (`computeProgress`) or `grammar.ts` (`summarizeGrammar`) |
@@ -218,5 +222,5 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 - [`docs/stage2.md`](docs/stage2.md): Stage 2 feature map and status.
 - [`docs/extensions.md`](docs/extensions.md): extension API, surfaces, versions, review gate, trust model.
 - [`docs/feature-builder.md`](docs/feature-builder.md), [`docs/feature-sdk.d.ts`](docs/feature-sdk.d.ts): builder kit (what the builder model reads).
-- [`docs/benchmark.md`](docs/benchmark.md): benchmark vs Claude Code + skill (context, limits, accuracy).
+- [`docs/benchmark.md`](docs/benchmark.md): benchmark vs Claude Code + skill (context, limits, accuracy, conversation quality).
 - [`CHANGELOG.md`](CHANGELOG.md): version history.

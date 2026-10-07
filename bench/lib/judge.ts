@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BenchConfig } from "./config";
 import type { BlockResult } from "./runner";
-import type { Scenario } from "./scenarios";
+import { fixtureDir, loadManifest } from "./fixtures";
+import { RATINGS, type Rating, type Scenario } from "./scenarios";
 import { surface } from "./score";
 
 export interface JudgeItem {
@@ -19,6 +20,12 @@ export interface JudgeItem {
   tutorErrors?: number;
   correct?: boolean;
   pass?: boolean;
+  /** Session items with `rate`: integer 1-5 per requested quality. */
+  ratings?: Partial<Record<Rating, number>>;
+  /** moveOn turns: this reply, or an earlier one in the current stretch, changed topic or raised the challenge. */
+  movedOn?: boolean;
+  /** stay turns: this reply engages with what the learner just raised or asked, without changing the subject. */
+  stayed?: boolean;
   note?: string;
 }
 
@@ -39,14 +46,32 @@ export interface Item {
   clean?: boolean;
   fact?: string;
   checks?: string[];
+  /** Session items: qualities to rate 1-5, and the learner's level they are rated against. */
+  rate?: Rating[];
+  learnerLevel?: string;
+  /** Turn items: the topic is exhausted (moveOn) or the learner is invested (stay). */
+  moveOn?: boolean;
+  stay?: boolean;
+  /** Turn items with moveOn/stay: the conversation so far, opening included. */
+  before?: string;
 }
 
-export function judgeItems(block: BlockResult, scenario: Scenario): Item[] {
+/** A rating is an integer 1-5; anything else counts as no verdict. */
+export const validRating = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 1 && x <= 5;
+
+/** The learner level the judge rates against: the scenario's `learnerLevel`, else the fixture manifest's `selfLevel`. */
+export function learnerLevel(config: BenchConfig, scenario: Scenario): string {
+  return scenario.learnerLevel ?? loadManifest(fixtureDir(scenario.fixtures ?? config.fixtures)).selfLevel ?? "unknown";
+}
+
+export function judgeItems(block: BlockResult, scenario: Scenario, level = "unknown"): Item[] {
   const items: Item[] = [];
   for (const [si, session] of scenario.sessions.entries()) {
     const steps = block.steps.filter((s) => s.phase.session === si);
     const open = steps.find((s) => s.phase.step === "open");
     if (open?.output && session.openChecks?.length) items.push({ item: `s${si}-open`, kind: "open", tutor: surface(open.output), checks: session.openChecks });
+    const said = (s: BlockResult["steps"][number]) =>
+      `${s.phase.step === "turn" && s.input ? `LEARNER: ${s.input}\n` : ""}TUTOR${s.phase.step === "open" ? " (opening)" : ""}: ${surface(s.output)}`;
     for (const [ti, turn] of session.turns.entries()) {
       const step = steps.find((s) => s.phase.step === "turn" && s.phase.turn === ti);
       if (!step?.output) continue;
@@ -60,21 +85,45 @@ export function judgeItems(block: BlockResult, scenario: Scenario): Item[] {
         ...(g.clean ? { clean: true } : {}),
         ...(g.anki?.fact ? { fact: g.anki.fact } : {}),
         ...(g.checks?.length ? { checks: g.checks } : {}),
+        ...(g.moveOn || g.stay
+          ? {
+              ...(g.moveOn ? { moveOn: true } : { stay: true }),
+              before: steps
+                .filter((s) => (s.phase.step === "open" || s.phase.step === "turn") && s.phase.turn < ti)
+                .map(said)
+                .join("\n\n"),
+            }
+          : {}),
       });
     }
-    if (session.checks?.length) {
-      const transcript = steps
-        .map((s) => `${s.input ? `LEARNER: ${s.input}\n` : ""}TUTOR: ${surface(s.output)}`)
-        .join("\n\n");
-      items.push({ item: `s${si}-session`, kind: "session", tutor: transcript, checks: session.checks });
+    if (session.checks?.length || session.rate?.length) {
+      // Rated sessions show the conversation only (opening and turns): the wrap-up at the end is not conversation.
+      const transcript = session.rate?.length
+        ? steps.filter((s) => s.phase.step === "open" || s.phase.step === "turn").map(said).join("\n\n")
+        : steps.map((s) => `${s.input ? `LEARNER: ${s.input}\n` : ""}TUTOR: ${surface(s.output)}`).join("\n\n");
+      items.push({
+        item: `s${si}-session`,
+        kind: "session",
+        tutor: transcript,
+        ...(session.checks?.length ? { checks: session.checks } : {}),
+        ...(session.rate?.length ? { rate: session.rate, learnerLevel: level } : {}),
+      });
     }
   }
   return items;
 }
 
-/** The verdicts an item must carry to count: one per gold error, falsePositive, correct, pass. */
-export function needs(item: Item): { errors: string[]; clean: boolean; fact: boolean; checks: boolean } {
-  return { errors: (item.goldErrors ?? []).map((e) => e.id), clean: !!item.clean, fact: !!item.fact, checks: !!item.checks?.length };
+/** The verdicts an item must carry to count: one per gold error, falsePositive, correct, pass, each rating, movedOn, stayed. */
+export function needs(item: Item): { errors: string[]; clean: boolean; fact: boolean; checks: boolean; rate: Rating[]; movedOn: boolean; stayed: boolean } {
+  return {
+    errors: (item.goldErrors ?? []).map((e) => e.id),
+    clean: !!item.clean,
+    fact: !!item.fact,
+    checks: !!item.checks?.length,
+    rate: item.rate ?? [],
+    movedOn: !!item.moveOn,
+    stayed: !!item.stay,
+  };
 }
 
 /** Ids of items whose required verdicts are absent from `results`. */
@@ -83,13 +132,16 @@ export function missingVerdicts(items: Item[], results: JudgeItem[]): string[] {
   return items
     .filter((it) => {
       const n = needs(it);
-      if (!n.errors.length && !n.clean && !n.fact && !n.checks) return false;
+      if (!n.errors.length && !n.clean && !n.fact && !n.checks && !n.rate.length && !n.movedOn && !n.stayed) return false;
       const r = byId.get(it.item);
       if (!r) return true;
       if (n.errors.some((id) => !r.errors?.some((e) => e.id === id))) return true;
       if (n.clean && typeof r.falsePositive !== "boolean") return true;
       if (n.fact && typeof r.correct !== "boolean") return true;
       if (n.checks && typeof r.pass !== "boolean") return true;
+      if (n.rate.some((k) => !validRating(r.ratings?.[k]))) return true;
+      if (n.movedOn && typeof r.movedOn !== "boolean") return true;
+      if (n.stayed && typeof r.stayed !== "boolean") return true;
       return false;
     })
     .map((it) => it.item);
@@ -101,7 +153,11 @@ function mergeResults(a: JudgeItem[], b: JudgeItem[]): JudgeItem[] {
   for (const r of b) {
     const cur = out.get(r.item);
     if (!cur) out.set(r.item, { ...r });
-    else for (const [k, v] of Object.entries(r)) if ((cur as Record<string, unknown>)[k] === undefined) (cur as Record<string, unknown>)[k] = v;
+    else {
+      for (const [k, v] of Object.entries(r)) if ((cur as Record<string, unknown>)[k] === undefined) (cur as Record<string, unknown>)[k] = v;
+      // Ratings merge per quality, so a retry can fill in just the ones that were missing or invalid.
+      for (const k of RATINGS) if (!validRating(cur.ratings?.[k]) && validRating(r.ratings?.[k])) cur.ratings = { ...cur.ratings, [k]: r.ratings[k] };
+    }
   }
   return [...out.values()];
 }
@@ -115,16 +171,37 @@ Rules:
 - tutorErrors: number of ungrammatical or clearly unnatural Mandarin sentences written by the tutor in this item (0 if none).
 - correct (only when "fact" is given): true if the tutor's answer states the fact correctly and does not contradict it.
 - pass (only when "checks" are given): true only if every check is satisfied.
+- ratings (only when "rate" is given; the item is the whole conversation, opening included, and "learnerLevel" is the learner's level): give an integer 1-5 for each quality listed in "rate". Judge the TUTOR's side only. The learner's messages are a fixed script and cannot react to the tutor's questions or topic changes: never lower a rating because the learner's next message does not match what the tutor just asked. Judge what the tutor chose to do. Use the anchors:
+  engagement (is the conversation engaging: varied, curious, personal follow-ups, not a repetitive interview?)
+    1 = a scripted interview: formulaic questions, same shape every turn, little or no reaction to what the learner said.
+    2 = mostly question after question; reacts to the learner only with praise or a word of acknowledgement.
+    3 = polite and on topic; reacts to some content, but follow-ups are generic and predictable.
+    4 = varied; picks up specific details the learner gave, asks personal follow-ups, sometimes adds something of its own (an opinion, a fact, a short story).
+    5 = reads like a curious person: builds on the learner's details, shares something of its own, varies turn shape (comment, question, challenge), makes the learner want to write more.
+  pacing (does it move on when it should, and stay when it should?)
+    1 = stuck on one easy topic for most of the conversation, or changes topic every turn and drops what the learner cares about.
+    2 = lingers on an exhausted topic for many exchanges after easy, short, correct answers; or often drops threads the learner is invested in.
+    3 = moves on, but late; or sometimes moves on while the learner's question is unresolved.
+    4 = answers, then moves to a new topic or a harder question soon after easy answers pile up; keeps topics the learner is invested in.
+    5 = well timed throughout: follows the learner's own topic changes, develops what they care about, and raises the challenge or changes topic as soon as the current one is exhausted. No question left unresolved.
+  level (are the tutor's questions and wording right for "learnerLevel"?)
+    1 = far off for most of the conversation: baby questions well below the level asked again and again (for example "你喜欢吃什么？" every turn for an HSK 3 learner), or wording far above what the learner can read.
+    2 = mostly off, with occasional fitting turns.
+    3 = mixed: some turns fit the level, others are clearly too easy or too hard.
+    4 = mostly right: wording within or slightly above the level, questions invite full sentences with reasons or opinions.
+    5 = well calibrated and rising: wording at the level with a few new words just above it, questions need opinions, reasons, comparisons or plans suited to the level, no needless simplification.
+- movedOn (only when "moveOn" is true; "before" is the conversation so far): the learner's topic is exhausted. true if the tutor's reply in this item, or any earlier tutor reply in the same stretch of conversation on this topic, changed the topic, opened a clearly new angle, or raised the challenge (a harder question, a new structure to use, a request for a longer answer). false if the tutor is still on the same topic with questions of the same easy kind.
+- stayed (only when "stay" is true): the learner is invested in a topic or asked the tutor something. true if the tutor's reply answers what the learner asked and engages with what the learner raised. false if it ignores the question, drags back to an earlier topic, or changes the subject while the learner's question is unresolved.
 - note: at most one short sentence.
 
-Answer with ONLY a JSON object: {"items":[{"item":"...", "errors":[{"id":"...","flagged":true,"correctFix":true}], "falsePositive":false, "tutorErrors":0, "correct":true, "pass":true, "note":"..."}]}. Omit fields that do not apply.
+Answer with ONLY a JSON object: {"items":[{"item":"...", "errors":[{"id":"...","flagged":true,"correctFix":true}], "falsePositive":false, "tutorErrors":0, "correct":true, "pass":true, "ratings":{"engagement":4,"pacing":3,"level":5}, "movedOn":true, "stayed":true, "note":"..."}]}. Omit fields that do not apply.
 
 Items:
 `;
 
 export async function judgeBlock(config: BenchConfig, block: BlockResult, scenario: Scenario): Promise<JudgeResult> {
   const key = `${block.arm}__${block.scenario}__rep${block.rep}`;
-  const all = judgeItems(block, scenario);
+  const all = judgeItems(block, scenario, learnerLevel(config, scenario));
   if (!all.length) return { block: key, items: [] };
   // Up to three attempts. After the first, only the items still missing a verdict are resent,
   // so a reply that is unparseable or skips an item cannot silently shrink a denominator.

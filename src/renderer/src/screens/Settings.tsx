@@ -15,6 +15,8 @@ import { sharedDecksUrl } from "../../../shared/stage2";
 import { uiLocaleInfo } from "../../../shared/locales";
 import { LocalePicker } from "../components/LocalePicker";
 import { GOAL_PLACEHOLDER } from "../lib/samples";
+import { isBeta } from "../../../shared/course";
+import { BetaChip } from "../components/BetaChip";
 import { langName, msg, t, tj } from "../i18n";
 import { SpeakButtons } from "../components/Speak";
 import { loadVoiceStatus, setVoiceStatus, useVoiceStatus, VOICE_SAMPLES } from "../lib/voice";
@@ -196,7 +198,10 @@ function LanguagesTab({ navigate }: { navigate: Navigate }) {
                 <input type="checkbox" checked={on} disabled={on && enabled.length === 1} onChange={(e) => toggle(l.id, e.target.checked)} />
                 <span className={cls("g", l.fontClass)}>{l.glyph}</span>
                 <span className="t">
-                  <b>{langName(l.id)}</b>
+                  <b>
+                    {langName(l.id)}
+                    {isBeta(l.id) && <BetaChip />}
+                  </b>
                   <small className={l.fontClass}>{l.nativeName}</small>
                 </span>
                 <span className="check" aria-hidden="true">
