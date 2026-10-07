@@ -1,0 +1,20 @@
+{
+ "name": "Sayfern",
+ "short_name": "Sayfern",
+ "start_url": "/",
+ "display": "browser",
+ "background_color": "#f4f0e7",
+ "theme_color": "#173e35",
+ "icons": [
+  {
+   "src": "/apple-touch-icon.png",
+   "sizes": "180x180",
+   "type": "image/png"
+  },
+  {
+   "src": "/favicon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}
