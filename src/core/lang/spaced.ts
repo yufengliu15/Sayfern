@@ -45,7 +45,7 @@ const EXTRA_NOTE: Partial<Record<Language, string>> = {
   fr: "Use tu with the learner unless they prefer vous.",
   es: "Use tú with the learner unless they prefer usted.",
   it: "Use tu with the learner unless they prefer Lei.",
-  pt: "Use você with the learner.",
+  pt: "Use tu with the learner unless they prefer você or o senhor / a senhora.",
   en: "Use plain, natural conversational English.",
 };
 

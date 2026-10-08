@@ -35,7 +35,8 @@ export interface SessionMeta {
   focusGrammarId?: string;
   /** practice sessions: the course unit to work through (src/shared/course). */
   unitId?: string;
-  /** practice sessions: how the tutor opens. "explain" = a fresh explanation of the focus pattern with a new example first. */
+  /** practice sessions: how the tutor opens. "explain" = a fresh explanation of the focus pattern with a new example first;
+   *  in a course unit session, a short overview of the unit's grammar points first. */
   openWith?: "explain";
   /** reading sessions: the document being read (S1-11). */
   docId?: string;

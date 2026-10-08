@@ -781,7 +781,7 @@ export class SayfernApp implements CoreApi {
     return buildCourseView(language, this.lang.pack(language).info.levels, grammar, levels.current, opened);
   }
 
-  async startUnit(unitId: string): Promise<SessionView> {
+  async startUnit(unitId: string, opts: { explain?: boolean } = {}): Promise<SessionView> {
     const found = findUnit(unitId);
     if (!found) throw new Error("That course unit no longer exists.");
     const { course, unit } = found;
@@ -791,6 +791,7 @@ export class SayfernApp implements CoreApi {
       language,
       kind: "practice",
       unitId,
+      ...(opts.explain ? { openWith: "explain" as const } : {}),
       title: `${LANGUAGE_META[language]?.titles.practice ?? "Practice"} · ${tr.t(unit.title)}`,
     });
   }

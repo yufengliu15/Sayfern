@@ -93,7 +93,7 @@ const LANGUAGE_RULES: Record<Language, string> = {
   fr: "French: natural modern French with all accents, correct elision and agreement, French spacing before ? ! : ; is optional.",
   de: "German: natural modern German, correct capitalization of nouns and case endings, ß where standard.",
   it: "Italian: natural modern Italian with all accents and correct apostrophes.",
-  pt: "Portuguese: natural Brazilian Portuguese with all accents.",
+  pt: "Portuguese: natural European Portuguese (Portugal) with all accents, tu for informal you, estar a + infinitive, pronouns placed as in Portugal.",
   ru: "Russian: natural modern Russian in Cyrillic, no stress marks unless the item is about stress, ё where it helps.",
   vi: "Vietnamese: natural Vietnamese with every tone mark, Northern usage unless the learner asks for Southern.",
 };

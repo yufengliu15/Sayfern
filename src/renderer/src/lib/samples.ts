@@ -50,9 +50,9 @@ export const STARTERS: Record<Language, { t: string; e: string }[]> = {
     { t: "Mi consigli un bel film?", e: msg("Ask for a recommendation") },
   ],
   pt: [
-    { t: "Neste fim de semana eu quero…", e: msg("Talk about your weekend plans") },
-    { t: "Hoje eu…", e: msg("Tell the tutor about your day") },
-    { t: "Você me recomenda um filme?", e: msg("Ask for a recommendation") },
+    { t: "Este fim de semana quero…", e: msg("Talk about your weekend plans") },
+    { t: "Hoje…", e: msg("Tell the tutor about your day") },
+    { t: "Recomendas-me um filme?", e: msg("Ask for a recommendation") },
   ],
   ru: [
     { t: "В эти выходные я хочу…", e: msg("Talk about your weekend plans") },
@@ -279,10 +279,10 @@ export const QUIZ_SAMPLES: Record<Language, QuizFormatSample> = {
   },
   pt: {
     multiple_choice: { text: "Ontem eu ___ ao cinema.", choices: ["fui", "ia", "vou", "irei"] },
-    cloze: { text: "Espero que você ___ um bom fim de semana." },
-    ordering: { context: msg("I would like a coffee, please."), tiles: ["um", "Eu", "café,", "queria", "por favor"] },
+    cloze: { text: "Espero que tu ___ um bom fim de semana." },
+    ordering: { context: msg("I would like a coffee, please."), tiles: ["um", "Queria", "café,", "por favor"] },
     written: { context: msg("Say what you did last weekend, using the pretérito perfeito.") },
-    scenario: { context: msg("At a café. The waiter greets you."), text: "Oi! O que você vai querer?" },
+    scenario: { context: msg("At a café. The waiter greets you."), text: "Bom dia! O que vai ser?" },
   },
   ru: {
     multiple_choice: { text: "Я каждый день ___ на работу.", choices: ["хожу", "иду", "пойду", "шёл"] },

@@ -235,6 +235,28 @@ test("Explain again: the request rides in the opening, so no send is rejected (v
   assert.equal(plain.meta.openWith, undefined);
 });
 
+test("startUnit: the learner's choice of a grammar overview is saved on the session and reaches the opening", async () => {
+  const { app, faux, ref } = await makeApp();
+  await app.setSettings({ model: ref });
+  let seen = "";
+  faux.setResponses([
+    (ctx) => {
+      seen = JSON.stringify(ctx);
+      return fauxAssistantMessage("A 比 B + Adj：比较两样东西。比如：今天比昨天冷。你和你朋友谁高？");
+    },
+    fauxAssistantMessage("你和你朋友谁高？"),
+  ]);
+  const v = await app.startUnit("zh-hsk30-1-08", { explain: true });
+  await app.whenIdle();
+  assert.equal(v.meta.openWith, "explain");
+  assert.equal(v.meta.unitId, "zh-hsk30-1-08");
+  assert.match(seen, /quick overview of this unit's grammar/);
+
+  const plain = await app.startUnit("zh-hsk30-1-08");
+  await app.whenIdle();
+  assert.equal(plain.meta.openWith, undefined);
+});
+
 test("eraseData: stops a running turn, deletes learner data, keeps dictionaries and extensions; sign-ins optional", async () => {
   for (const keepSignIns of [true, false]) {
     const { dir, app, faux, ref } = await makeApp({ tokensPerSecond: 5 });

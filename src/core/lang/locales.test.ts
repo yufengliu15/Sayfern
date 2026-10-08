@@ -11,7 +11,10 @@ test("locales: system languages map to a UI locale", () => {
   assert.equal(matchOne("zh-TW"), "zh-Hant");
   assert.equal(matchOne("zh-HK"), "zh-Hant");
   assert.equal(matchOne("zh_CN"), "zh-Hans");
-  assert.equal(matchOne("pt-PT"), "pt-BR");
+  assert.equal(matchOne("pt-PT"), "pt-PT");
+  assert.equal(matchOne("pt-AO"), "pt-PT");
+  assert.equal(matchOne("pt-BR"), "pt-BR");
+  assert.equal(matchOne("pt"), "pt-BR");
   assert.equal(matchOne("tl-PH"), null);
   assert.equal(matchLocale(["tl-PH", "ar-SA", "fr-CA"]), "fr");
   assert.equal(matchLocale(["tl-PH"]), "en");

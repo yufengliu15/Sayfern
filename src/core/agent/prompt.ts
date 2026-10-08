@@ -406,6 +406,15 @@ export function difficultyBlock(d: Pick<PromptData, "session">): string {
   ].join("\n");
 }
 
+/** Unit sessions the learner opened with "go over the grammar first". */
+const UNIT_OVERVIEW = [
+  "The learner asked for a quick overview of this unit's grammar before practising. In your first reply only, before anything else, give it:",
+  "- One short line per grammar point, in the order above: the pattern, what it does in plain words, and one short example sentence.",
+  "- Keep the whole overview brief, a reminder of what is coming. It is not a full lesson and does not replace their textbook: no tables, no lists of exceptions, no exercises.",
+  "Then open the conversation as below, with a question that invites the first point.",
+  "",
+];
+
 function sessionBlock(d: PromptData): string {
   const s = d.session;
   switch (s.kind) {
@@ -416,6 +425,7 @@ function sessionBlock(d: PromptData): string {
           "# Session: course unit",
           d.unit.text,
           "",
+          ...(s.openWith === "explain" ? UNIT_OVERVIEW : []),
           "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time: use the point yourself in a natural sentence, then ask a question whose natural answer uses it. Do not lecture or show formulas unless they ask.",
           "Move to the next point once they use the current one correctly twice, or after about 4 exchanges on it. Change the situation when one runs dry.",
           "When every point has come up, tell them briefly what they covered and suggest the next unit.",

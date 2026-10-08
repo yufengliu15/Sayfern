@@ -171,6 +171,7 @@ const MENU_TEXT: Record<UiLocale, { about: string; hide: string; quit: string }>
   es: { about: "Acerca de Sayfern", hide: "Ocultar Sayfern", quit: "Salir de Sayfern" },
   de: { about: "Über Sayfern", hide: "Sayfern ausblenden", quit: "Sayfern beenden" },
   "pt-BR": { about: "Sobre o Sayfern", hide: "Ocultar Sayfern", quit: "Encerrar Sayfern" },
+  "pt-PT": { about: "Acerca do Sayfern", hide: "Ocultar Sayfern", quit: "Sair do Sayfern" },
 };
 
 let menuLocale: UiLocale | null = null;

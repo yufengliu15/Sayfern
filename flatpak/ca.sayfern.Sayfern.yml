@@ -1,0 +1,43 @@
+# Flatpak of the packaged Linux build (electron-builder's tar.gz), on the Electron base app.
+# CI builds a .flatpak bundle from it on every push to main (.github/workflows/release.yml).
+# Local build: put the tar.gz next to this file as sayfern-linux-x64.tar.gz, then
+#   flatpak-builder --user --install --force-clean --install-deps-from=flathub build-dir flatpak/ca.sayfern.Sayfern.yml
+# For the Flathub submission, scripts/flathub-manifest.mjs writes a copy that downloads the release tar.gz.
+id: ca.sayfern.Sayfern
+runtime: org.freedesktop.Platform
+runtime-version: "26.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "26.08"
+command: sayfern
+separate-locales: false
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Voice playback and push-to-talk.
+  - --socket=pulseaudio
+  # safeStorage keeps the key for credentials.json in the Secret Service (GNOME Keyring, KWallet).
+  - --talk-name=org.freedesktop.secrets
+modules:
+  - name: sayfern
+    buildsystem: simple
+    build-commands:
+      - cp -a sayfern /app/sayfern
+      - rm -f /app/sayfern/chrome-sandbox
+      - install -Dm755 sayfern.sh /app/bin/sayfern
+      - install -Dm644 /app/sayfern/resources/icon.svg /app/share/icons/hicolor/scalable/apps/ca.sayfern.Sayfern.svg
+      - install -Dm644 ca.sayfern.Sayfern.desktop -t /app/share/applications
+      - install -Dm644 ca.sayfern.Sayfern.metainfo.xml -t /app/share/metainfo
+    sources:
+      - type: archive
+        path: sayfern-linux-x64.tar.gz
+        dest: sayfern
+      - type: file
+        path: sayfern.sh
+      - type: file
+        path: ca.sayfern.Sayfern.desktop
+      - type: file
+        path: ca.sayfern.Sayfern.metainfo.xml

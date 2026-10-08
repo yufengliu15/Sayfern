@@ -9,6 +9,7 @@ import { buildSystemPrompt } from "../agent/prompt";
 import { makeHarness } from "../agent/testkit";
 import { canonicalGrammarId } from "../agent/text";
 import { turnTools } from "../agent/tools";
+import { overviewText, unitText } from "./index";
 
 const zh = courseFor("zh")!;
 const scale = LANGUAGE_META.zh.levels;
@@ -42,12 +43,64 @@ test("course data: unique ids, levels on the scale and in order, grammar ids the
   }
 });
 
+test("full-syllabus courses: every source point once, at its own level", () => {
+  const covered = (lang: "zh" | "en", prefix: string) => {
+    const refs = courseFor(lang)!.units.flatMap((u) => u.grammar.map((g) => g.ref ?? ""));
+    assert.equal(new Set(refs).size, refs.length, `${lang}: a source point appears twice`);
+    return new Set(refs.map((r) => Number(r.slice(prefix.length))));
+  };
+  const zhRefs = covered("zh", "HSK 3.0 #");
+  const enRefs = covered("en", "EGP ");
+  for (let n = 1; n <= 573; n++) assert.ok(zhRefs.has(n), `HSK 3.0 #${n} missing`);
+  for (let n = 1; n <= 1239; n++) assert.ok(enRefs.has(n), `EGP ${n} missing`);
+  assert.equal(zhRefs.size, 573);
+  assert.equal(enRefs.size, 1239);
+  // Spot checks of the source levels: HSK 3.0 #49 (可能/可以) is level 2, #573 is 7-9; EGP 818 (present perfect) is A2.
+  const levelOf = (lang: "zh" | "en", ref: string) => courseFor(lang)!.units.find((u) => u.grammar.some((g) => g.ref === ref))!.level;
+  assert.equal(levelOf("zh", "HSK 3.0 #49"), "HSK 2");
+  assert.equal(levelOf("zh", "HSK 3.0 #573"), "HSK 7-9");
+  assert.equal(levelOf("en", "EGP 818"), "A2");
+  assert.ok(findUnit("zh-hsk30-1-08")!.unit.grammar.some((g) => g.id === "zh:bi-comparison"), "old grammar ids are reused");
+  assert.ok(courseFor("en")!.units.some((u) => u.grammar.some((g) => g.id === "en:present-perfect")));
+});
+
+test("course overview: capped, the learner's level first", () => {
+  const en = courseFor("en")!;
+  const levels = LANGUAGE_META.en.levels;
+  const text = overviewText(en, buildCourseView("en", levels, [], level("B1")), levels);
+  const rows = text.split("\n").filter((l) => l.startsWith("en-egp-"));
+  assert.equal(rows.length, 40);
+  assert.match(rows[0], /^en-egp-b1-01 \| B1 \|/);
+  assert.match(text, /more units at these levels/);
+});
+
 test("Beta: languages without a course", () => {
   assert.equal(isBeta("zh"), false);
-  assert.equal(isBeta("ko"), true);
-  const view = buildCourseView("ko" as Language, LANGUAGE_META.ko.levels, [], {});
+  for (const lang of ["ja", "ko", "fr", "es", "en", "it", "de", "pt"] as const) assert.equal(isBeta(lang), false, lang);
+  assert.equal(isBeta("ru"), true);
+  assert.equal(isBeta("vi"), true);
+  const view = buildCourseView("ru" as Language, LANGUAGE_META.ru.levels, [], {});
   assert.equal(view.available, false);
   assert.deepEqual(view.levels, []);
+});
+
+test("courses after Chinese: next unit at the learner's level, words listed per script", () => {
+  for (const lang of ["ja", "ko", "fr", "es", "en", "it", "de", "pt"] as const) {
+    const course = courseFor(lang)!;
+    const levels = LANGUAGE_META[lang].levels;
+    assert.equal(buildCourseView(lang, levels, [], {}).nextUnitId, course.units[0].id, lang);
+    const mid = levels[2];
+    const first = course.units.find((u) => u.level === mid)!;
+    assert.equal(buildCourseView(lang, levels, [], level(mid)).nextUnitId, first.id, `${lang} ${mid}`);
+    const done = first.grammar.map((g) => solid(g.id));
+    const second = course.units[course.units.indexOf(first) + 1];
+    assert.equal(buildCourseView(lang, levels, done, level(mid)).nextUnitId, second.id, `${lang}: skips a done unit`);
+  }
+  assert.match(unitText(findUnit("ja-n5-01")!.unit, new Map()), /Core words: わたし、なまえ/);
+  assert.match(unitText(findUnit("fr-a1-01")!.unit, new Map()), /Core words: bonjour, nom, /);
+  assert.match(unitText(findUnit("ko-topik1-01")!.unit, new Map()), /Core words: 안녕하세요, 이름, /);
+  assert.match(unitText(findUnit("es-a1-01")!.unit, new Map()), /Core words: hola, nombre, /);
+  assert.match(unitText(findUnit("de-a1-01")!.unit, new Map()), /Core words: Hallo, Name, /);
 });
 
 test("course view: next unit starts at the learner's level and skips done units", () => {
@@ -78,8 +131,8 @@ test("course tool: offered for course languages only; overview and unit text", a
   const turn = { session, emit: () => {}, sources: [], emittedCorrections: new Set<string>() };
   const tool = turnTools(h.deps, turn).find((t) => t.name === "course");
   assert.ok(tool);
-  const ko = await h.records.createSession({ language: "ko", kind: "chat", feedbackMode: "inline" });
-  assert.ok(!turnTools(h.deps, { ...turn, session: ko }).some((t) => t.name === "course"));
+  const ru = await h.records.createSession({ language: "ru", kind: "chat", feedbackMode: "inline" });
+  assert.ok(!turnTools(h.deps, { ...turn, session: ru }).some((t) => t.name === "course"));
 
   const ctx = { sessionId: sid, language: "zh" as const, records: h.records, library: h.library, anki: h.anki, lang: h.lang };
   const overview = await tool.execute({ action: "overview" }, ctx);
@@ -87,11 +140,11 @@ test("course tool: offered for course languages only; overview and unit text", a
   assert.match(overview.content, new RegExp(`Next unit: ${zh.units[0].id}`));
   assert.equal(overview.activity, "Looked at the course");
 
-  const { unit } = findUnit("zh-hsk3-02")!;
+  const { unit } = findUnit("zh-hsk30-3-07")!;
   await h.records.upsertGrammarPoint({ id: "zh:chule-hai", language: "zh", pattern: "除了…还…", name: "besides", introduced: true });
   const one = await tool.execute({ action: "unit", unit_id: unit.id }, ctx);
-  assert.match(one.content, /zh:chule-hai \| 除了 A（以外），还 B .* Learner: introduced, not used correctly yet\./);
-  assert.match(one.content, /zh:you-you .* Learner: not seen yet\./);
+  assert.match(one.content, /zh:chule-hai \| 除了 A（以外），还 .* Learner: introduced, not used correctly yet\./);
+  assert.match(one.content, /zh:yue-yue .* Learner: not seen yet\./);
   assert.match(one.content, /Topic ideas: /);
   assert.equal(one.activity, `Opened course unit: ${unit.title}`);
   const missing = await tool.execute({ action: "unit", unit_id: "zh-nope" }, ctx);
@@ -100,14 +153,28 @@ test("course tool: offered for course languages only; overview and unit text", a
 
 test("unit session: the tutor opens it and the prompt carries the unit", async () => {
   const h = makeHarness();
-  const s = await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk2-04" });
+  const s = await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk30-1-08" });
   h.faux.setResponses([fauxAssistantMessage([fauxText("你和你朋友谁高？"), fauxToolCall("record_evidence", {} as never)], { stopReason: "toolUse" })]);
   const reply = await h.tutor.runOpening({ sessionId: s.id, model: h.model, signal: new AbortController().signal, onEvent: () => {} });
   assert.equal(reply.topicStart, true);
   const transcript = await h.records.getTranscript(s.id);
   assert.match(String(transcript[0].content), /started a course unit/);
   const prompt = await buildSystemPrompt(h.deps, s);
-  assert.match(prompt, /# Session: course unit\nUnit zh-hsk2-04 \(HSK 2\): Compare things/);
+  assert.match(prompt, /# Session: course unit\nUnit zh-hsk30-1-08 \(HSK 1\): Special sentence patterns/);
   assert.match(prompt, /zh:bi-comparison \| A 比 B \+ Adj/);
   assert.doesNotMatch(prompt, /# Course \(/, "no course block inside a unit session");
+  assert.doesNotMatch(prompt, /quick overview/, "no overview unless the learner asked for it");
+});
+
+test("unit session with a grammar overview: the opening gives a short summary first", async () => {
+  const h = makeHarness();
+  const s = await h.records.createSession({ language: "ja", kind: "practice", feedbackMode: "inline", unitId: "ja-n5-04", openWith: "explain" });
+  h.faux.setResponses([fauxAssistantMessage([fauxText("い形容詞：高いです。…どんな町ですか？"), fauxToolCall("record_evidence", {} as never)], { stopReason: "toolUse" })]);
+  await h.tutor.runOpening({ sessionId: s.id, model: h.model, signal: new AbortController().signal, onEvent: () => {} });
+  const transcript = await h.records.getTranscript(s.id);
+  assert.match(String(transcript[0].content), /started a course unit and asked for a quick overview of its grammar first/);
+  const prompt = await buildSystemPrompt(h.deps, s);
+  assert.match(prompt, /# Session: course unit\nUnit ja-n5-04 \(N5\)/);
+  assert.match(prompt, /quick overview of this unit's grammar/);
+  assert.match(prompt, /does not replace their textbook/);
 });

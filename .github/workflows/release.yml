@@ -1,0 +1,147 @@
+# Builds the installers on every push to main: macOS .dmg (Apple silicon and Intel), Windows .exe,
+# Linux .tar.gz and a .flatpak bundle, plus the files for the Flathub repo.
+# Every run keeps them as workflow artifacts. When package.json has a version with no v<version>
+# release yet, the run also publishes a GitHub release with them (notes from CHANGELOG.md).
+# Details: docs/packaging.md.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: version
+        run: echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  package:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native modules (@napi-rs/canvas, used by pdf.js) are per OS and CPU, so each build runs on its own machine.
+          - { os: macos-latest, args: --mac --arm64 }
+          - { os: macos-15-intel, args: --mac --x64 }
+          - { os: windows-latest, args: --win --x64 }
+          - { os: ubuntu-latest, args: --linux --x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-vite build
+      - run: npx electron-builder ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.tar.gz
+          if-no-files-found: error
+      - name: Prepare the Flatpak and Flathub folders
+        if: runner.os == 'Linux'
+        run: |
+          tarball=dist/Sayfern-${{ needs.check.outputs.version }}-linux-x64.tar.gz
+          node scripts/flatpak.mjs local "$tarball"
+          node scripts/flatpak.mjs flathub "$tarball" "$GITHUB_REPOSITORY"
+      - if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-source
+          path: dist/flatpak/
+      - if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: flathub-submission
+          path: dist/flathub/
+
+  flatpak:
+    needs: [check, package]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-source
+          path: flatpak-source
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
+        with:
+          manifest-path: flatpak-source/ca.sayfern.Sayfern.yml
+          bundle: Sayfern-${{ needs.check.outputs.version }}-linux-x86_64.flatpak
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak
+          path: Sayfern-*.flatpak
+          if-no-files-found: error
+
+  release:
+    needs: [check, package, flatpak]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip if this version is already released
+        id: new
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "v$VERSION is already released; the installers stay on this run only."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.new.outputs.new == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: artifacts
+          merge-multiple: true
+      - if: steps.new.outputs.new == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: flatpak
+          path: artifacts
+      - if: steps.new.outputs.new == 'true'
+        name: Publish the release
+        run: |
+          # The CHANGELOG.md section for this version, without its heading.
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+          gh release create "v$VERSION" artifacts/* \
+            --target "$GITHUB_SHA" \
+            --title "Sayfern $VERSION" \
+            --notes-file notes.md

@@ -14,6 +14,7 @@ import { FileCredentialStore } from "../credential-file-store";
 import { FileExtensionHost, hashDir, readDirFiles } from "../extensions";
 import { DefaultLanguageService } from "../lang";
 import { JsonRecordsStore } from "../records";
+import { KIT_DIRS, KIT_FILES } from "./kit";
 import { FeatureRpc } from "./rpc";
 import { checkMainSideCode, fullAccessFiles } from "./manifest";
 import { defaultSeed, runTestsInChildProcess, type FeatureTestRunInput } from "./runner";
@@ -22,6 +23,12 @@ import { FeatureStore } from "./store";
 const EXAMPLES = resolve(import.meta.dirname, "../../../examples/extensions");
 const DRILL = join(EXAMPLES, "measure-word-drill");
 const CHENGYU = join(EXAMPLES, "chengyu-of-the-day");
+
+test("packaging: electron-builder.yml ships every kit file and folder", () => {
+  const config = readFileSync(resolve(import.meta.dirname, "../../../electron-builder.yml"), "utf8");
+  for (const file of KIT_FILES) assert.match(config, new RegExp(`^  - ${file}$`, "m"), file);
+  for (const dir of KIT_DIRS) assert.match(config, new RegExp(`^  - ${dir}/\\*\\*$`, "m"), dir);
+});
 
 async function exampleFiles(dir: string): Promise<[string, string][]> {
   return (await readDirFiles(dir)).map(([p, b]) => [p, b.toString("utf8")]);

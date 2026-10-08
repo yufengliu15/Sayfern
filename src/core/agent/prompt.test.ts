@@ -181,14 +181,18 @@ test("course block: next unit and its open points in chat; Beta languages say th
   await h.records.recordLevel({ language: "zh", skill: "writing", level: "HSK 3", confidence: "medium", evidence: "", examples: [], at: 1, by: "self" });
   const sid = await h.newSession();
   const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
-  assert.match(p, /# Course \(HSK Standard Course order/);
-  assert.match(p, /Up next for them: unit zh-hsk3-01 "Tell a story in order" \(HSK 3\)/);
-  assert.match(p, /- 一…就… \(as soon as with 一…就…, id zh:yi-jiu\)/);
+  assert.match(p, /# Course \(HSK 3.0 grammar syllabus: all 573 points/);
+  assert.match(p, /Up next for them: unit zh-hsk30-3-01 "Verbs" \(HSK 3\)/);
+  assert.match(p, /- 敢 \+ V \(dare with 敢, id zh:gan-dare\)/);
   assert.match(p, /Write 2 or 3 sentences/);
   const practice = await h.newSession("practice");
   assert.doesNotMatch(await buildSystemPrompt(h.deps, (await h.records.getSession(practice))!), /# Course/);
   const ko = await h.records.createSession({ language: "ko", kind: "chat", feedbackMode: "inline" });
-  assert.match(await buildSystemPrompt(h.deps, ko), /# Course\nThere is no level-by-level course for Korean/);
+  assert.match(await buildSystemPrompt(h.deps, ko), /Up next for them: unit ko-topik1-01 "Say who you are" \(TOPIK 1\)/);
+  const es = await h.records.createSession({ language: "es", kind: "chat", feedbackMode: "inline" });
+  assert.match(await buildSystemPrompt(h.deps, es), /Up next for them: unit es-a1-01 "Say who you are" \(A1\)/);
+  const ru = await h.records.createSession({ language: "ru", kind: "chat", feedbackMode: "inline" });
+  assert.match(await buildSystemPrompt(h.deps, ru), /# Course\nThere is no level-by-level course for Russian/);
 });
 
 test("topic_change in record_evidence marks the reply as a topic start", async () => {

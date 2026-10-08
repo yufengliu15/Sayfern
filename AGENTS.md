@@ -4,9 +4,9 @@ Entry point for coding agents (and humans) working on Sayfern. Read this first, 
 
 ## What Sayfern is
 
-A free, open-source (MIT) macOS app for learning languages (Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian, Vietnamese) by chatting with an AI tutor that remembers what the learner is learning. The learner brings their own model (API key, or a Claude Pro/Max or ChatGPT subscription). All records stay on the Mac as JSON files. The interface is translated into 12 locales and follows the Mac's language unless the learner picks one; the tutor explains in the interface language.
+A free, open-source (MIT) macOS app for learning languages (Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian, Vietnamese) by chatting with an AI tutor that remembers what the learner is learning. The learner brings their own model (API key, or a Claude Pro/Max or ChatGPT subscription). All records stay on the Mac as JSON files. The interface is translated into 13 locales and follows the Mac's language unless the learner picks one; the tutor explains in the interface language.
 
-- **Version:** 0.10.1. Stage 1 (text learning) and Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki onboarding page and deck generator) are built; v0.7.0 added nine learning languages and the translated interface; v0.8.0 started Stage 3 (listening, push-to-talk, several ElevenLabs accounts); v0.9.0 added New topic, the difficulty slider and the evidence pass for GPT models; v0.10.0 added the Course (Duolingo-style units, Chinese only; other languages are Beta) and pacing (the tutor moves on when a topic is used up). Pronunciation assessment and audio quizzes are next: [`docs/roadmap.md`](docs/roadmap.md).
+- **Version:** 0.16.0. Stage 1 (text learning) and Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki onboarding page and deck generator) are built; v0.7.0 added nine learning languages and the translated interface; v0.8.0 started Stage 3 (listening, push-to-talk, several ElevenLabs accounts); v0.9.0 added New topic, the difficulty slider and the evidence pass for GPT models; v0.10.0 added the Course (Duolingo-style units) and pacing (the tutor moves on when a topic is used up); v0.11.0 added courses for Japanese, Korean and French (the other languages are Beta); v0.12.0 asks before a unit whether the tutor should go over its grammar quickly first; v0.13.0 added courses for Spanish, English, Italian, German and Portuguese (Russian and Vietnamese are still Beta); v0.14.0 made the Chinese and English courses follow the full HSK 3.0 grammar syllabus (573 points) and English Grammar Profile (1,239 points), switched Portuguese to European Portuguese and added a pt-PT interface; v0.15.0 redesigned the Course screen around the grammar points (syllabus map, unit grid, unit drawer); v0.16.0 added installers (.dmg, .exe, Flatpak) built by CI on every push to `main`. Pronunciation assessment and audio quizzes are next: [`docs/roadmap.md`](docs/roadmap.md).
 - **Owner:** Yufeng. Feature IDs (S1-xx, F-xx, S2-xx, S3-xx) come from the owner's project page; [`docs/stage1.md`](docs/stage1.md) maps S1/F IDs and [`docs/stage2.md`](docs/stage2.md) maps S2 IDs and [`docs/stage3.md`](docs/stage3.md) S3 IDs to code.
 
 ## Stack
@@ -36,8 +36,9 @@ npx tsx --test src/core/agent/turn.test.ts   # one file
 npm run smoke -- selftest        # offline end-to-end run of SayfernApp with a fake provider
 npm run smoke -- chat anthropic "你好！"      # real provider from the terminal (data in ./.sayfern-dev)
 npx vite --config vite.mock.config.ts         # UI only, in a browser, mock backend: http://localhost:5174
-                                              # add ?onboarding=1, ?fresh=1 or ?anki=offline
+                                              # add ?onboarding=1, ?fresh=1, ?anki=offline or ?lang=en
 npm run build && npm start       # build to out/ and run the built app
+npm run dist -- --mac --arm64    # installer in dist/ (.dmg; --win .exe, --linux .tar.gz); CI builds all on push to main (docs/packaging.md)
 npm run bench -- selftest        # offline check of the Sayfern vs Claude Code benchmark (docs/benchmark.md)
 npx electron-vite build && xvfb-run -a env SAYFERN_E2E_BUILDER=1 SAYFERN_E2E_DATA=$(mktemp -d) \
   node_modules/.bin/electron --no-sandbox out/main/index.js   # headless feature-sandbox check (Linux container)
@@ -51,7 +52,8 @@ Before you finish any change: `npm run typecheck` and `npm test` must pass.
 src/shared/        types + the renderer ↔ main contract (api.ts). No runtime deps.
   stage2/          per-feature API slots merged into SayfernApi: review.ts, quiz.ts, builder.ts (+ builder-sdk.ts: SDK JS/CSS), decks.ts
   stage3/          Stage 3 slot: voice.ts (VoiceApi, VOICE_METHODS)
-  course/          Duolingo-style course per language: index.ts (types, COURSES, isBeta, unit status, buildCourseView), zh.ts (37 HSK units)
+  course/          Duolingo-style course per language: index.ts (types, COURSES, isBeta, unit status, buildCourseView), zh.ts (92 units, all 573 HSK 3.0 points), ja.ts (32 JLPT units),
+                   ko.ts (32 TOPIK units); en.ts (215 units, all 1,239 EGP points); es, fr, it, de, pt .ts (32 CEFR units each)
   ruby.ts          ruby segments (pinyin per character, okurigana outside), used by the renderer and deck cards
   languages.ts     LANGUAGE_META: per learning language names, script, font class, levels, titles
   locales.ts       UI locales, system-language matching (matchLocale, effectiveLocale)
@@ -80,8 +82,10 @@ src/preload/       generic bridge: window.sayfern
 src/renderer/      React UI; src/renderer/src/dev/mockApi.ts is the in-browser backend, with Stage 2 mock slots
                    dev/mock{Review,Quiz,Builder,Decks}.ts over the shared dev/mockWorld.ts
   src/styles.css   tokens + Stage 1 styles; src/styles/{review,quiz,builder,decks}.css: one stylesheet per Stage 2 feature
-scripts/           smoke.ts, brand-oauth-page.mjs, brand-electron-app.mjs, i18n-keys.ts (collects translation keys)
-build/             app icon: icon.svg (source), icon.png, icon.icns
+scripts/           smoke.ts, brand-oauth-page.mjs, brand-electron-app.mjs, i18n-keys.ts (collects translation keys), flatpak.mjs (Flatpak build folders)
+build/             app icon: icon.svg (source), icon.png, icon.icns; entitlements.mac.plist (packaged macOS app)
+flatpak/           Flatpak manifest, launcher, .desktop, metainfo (ca.sayfern.Sayfern)
+.github/workflows/ release.yml (installers + GitHub release on push to main), pages.yml (website)
 examples/          example extensions: chengyu-of-the-day (main-side tool), measure-word-drill (sandboxed tab + activity)
 bench/             benchmark vs Claude Code + skill: recording proxy, fake AnkiConnect, scenarios, report
 docs/              architecture, decisions, roadmap, stage1/stage2 feature maps, extensions API; builder kit docs:
@@ -125,7 +129,7 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 | Change token caps / reasoning effort | `src/core/agent/options.ts`, constants in `turn.ts` |
 | Change which models get the evidence pass | `needsEvidencePass` in `src/core/agent/options.ts`; the pass itself is `evidencePass` / `EVIDENCE_NUDGE` in `turn.ts` |
 | Change when the tutor moves on, or reply length | `pacingBlock` / `computePacing` (`MOVE_ON_TURNS`, `EASY_STREAK`) and `lengthRule` in `src/core/agent/prompt.ts`; `topic_change` in `record_evidence` (`tools.ts`) sets `ChatMessage.topicStart` in `runLoop` (`turn.ts`) |
-| Add or change a language's course | `src/shared/course/<lang>.ts` + `COURSES` in `src/shared/course/index.ts` (no course = Beta); unit titles in all 11 catalogs; checks in `src/core/course/course.test.ts`; tool and unit text in `src/core/course/index.ts`; course block and unit session block in `prompt.ts`; UI `screens/Course.tsx`; status list in `docs/roadmap.md` |
+| Add or change a language's course | Follow [`docs/courses.md`](docs/courses.md). `src/shared/course/<lang>.ts` + `COURSES` in `src/shared/course/index.ts` (no course = Beta); unit titles in all 12 catalogs; checks in `src/core/course/course.test.ts`; tool and unit text in `src/core/course/index.ts`; course block and unit session block in `prompt.ts`; UI `screens/Course.tsx`; status list in `docs/roadmap.md` |
 | Change "New topic" or the difficulty slider | `kickoffText` (`newTopic`) in `turn.ts`, `difficultyBlock` in `prompt.ts`, `SayfernApp.newTopic` / `setDifficulty`, `components/SessionTools.tsx`, `requestNewTopic` in `lib/chatStream.ts` |
 | Store a new kind of record | `src/core/records/store.ts` (+ `files.ts` shape, `exportAll`), the `RecordsStore` interface, types in `src/shared/records.ts` |
 | Change a progress number | `src/core/records/stats.ts` (`computeProgress`) or `grammar.ts` (`summarizeGrammar`) |
@@ -134,7 +138,7 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 | Change sign-in behavior | `SayfernApp.login` / `authInteraction` in `src/core/app/index.ts`; UI in `src/renderer/src/components/Connect.tsx` |
 | Add a learning language | Widen `Language` / `LANGUAGES` in `src/shared/records.ts`; add `LANGUAGE_META` in `src/shared/languages.ts`; a pack in `src/core/lang/` (often just `SpacedPack`) and a dictionary choice in `DefaultLanguageService.choices`; lemma rules in `lemma.ts`; prompt rules (`LANGUAGE_RULES` in `quiz/generate.ts`, `CARD_RULES` / `WORD_FORM` in `decks/prompts.ts`), `EDGE_VOICES`, `SPOKEN_CHARS`, CEFR grammar in `quiz/levels.ts`, `LEGACY_ENCODINGS`; renderer samples in `lib/samples.ts` and `COMPOSER_PLACEHOLDER`; a font class if the script is new. Typecheck lists most of these (`Record<Language, …>`). |
 | Add an interface language | `UiLocale` / `UI_LOCALES` and `matchOne` in `src/shared/locales.ts`, a catalog `src/shared/i18n/<locale>.ts` registered in `CATALOGS`, `MENU_TEXT` in `src/main/index.ts`, a `html:lang()` font stack in `styles.css` if the script needs one. `src/core/i18n-catalogs.test.ts` checks the catalog is complete. |
-| Add or change UI text | Wrap it: `t("…")`, `tn(n, one, other)`, `tj` for element placeholders, `tc(context, "…")` when one English word means two things, `msg("…")` for module constants (translate with `t()` where shown); core text built for the learner goes through `tr.t` (`translatorFor(deps)` / `translatorOf(deps)`). Then add the translation to all 11 catalogs: `npx tsx scripts/i18n-keys.ts missing` lists what is missing, and the catalog test fails until it is done. |
+| Add or change UI text | Wrap it: `t("…")`, `tn(n, one, other)`, `tj` for element placeholders, `tc(context, "…")` when one English word means two things, `msg("…")` for module constants (translate with `t()` where shown); core text built for the learner goes through `tr.t` (`translatorFor(deps)` / `translatorOf(deps)`). Then add the translation to all 12 catalogs: `npx tsx scripts/i18n-keys.ts missing` lists what is missing, and the catalog test fails until it is done. |
 | Improve segmentation or readings | `src/core/lang/zh.ts`, `src/core/lang/ja.ts`; ruby split in `src/shared/ruby.ts` (renderer and Anki deck cards) |
 | Support a new import format | `src/core/library/index.ts` (`FORMATS`, `parseBytes`) + a parser file; `IMPORT_EXTENSIONS` in `src/main/index.ts` |
 | Change search ranking | `src/core/library/search.ts` (bump `DocIndex.v` if the index format changes) |
@@ -160,6 +164,7 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 | Change the welcome page's Anki step | `AnkiStep` in `src/renderer/src/screens/Onboarding.tsx` (`sharedDecksUrl` in `src/shared/stage2/decks.ts`); dev-only "Show welcome page" in `PreferencesTab` (`screens/Settings.tsx`) |
 | Change deck generation (words, cards, checks, batches) | `src/core/decks/prompts.ts` (prompts), `cards.ts` (`checkCard`, `VOCAB_NOTE_TYPE`, `noteFor`), `index.ts` (`DeckService`: `pickWords`, `writeCards`, `runOneBatch`, `followDeck`); UI `screens/Decks.tsx`; tests `src/core/decks/decks.test.ts` |
 | Change deck audio (ElevenLabs, Edge voices) | `src/core/decks/tts.ts` (`edgeTts`, `EDGE_VOICES`, edge-tts constants, `elevenTts`, `ELEVEN_MODEL`), `DeckService.clip`; ElevenLabs key in `credentials.json` under `elevenlabs`, voice in `Settings.elevenLabsVoice` |
+| Change packaging, installers, signing or the release workflow | `electron-builder.yml`, `build/entitlements.mac.plist`, `.github/workflows/release.yml`, `flatpak/`, `scripts/flatpak.mjs`; see [`docs/packaging.md`](docs/packaging.md). New files the app reads at runtime from the repo (like the builder kit) must be in `files` |
 | Change what "Erase all data" deletes | `ERASE_PATHS` and `eraseData` in `src/core/app/index.ts` (also stops quiz generations and builds); test in `app.test.ts` |
 
 ## Invariants and rules
@@ -171,7 +176,7 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 5. **Every turn ends with exactly one `done` or `error` ChatEvent**, and `error` carries a fresh `view` whenever the session exists. Failed or stopped replies are saved on the tutor message (`error`), never thrown.
 6. **Storage writes** go through the existing atomic helpers (`JsonFile`, `writeJsonAtomic`). One process only (single-instance lock).
 7. **Openings.** Practice, reading and placement sessions start with a tutor turn from main; `send` is rejected while it runs. To make the tutor open a certain way, put it on the session (`SessionMeta.openWith`, read by `kickoffText` and `sessionBlock`), never send right after creating the session.
-8. **UI copy:** plain, short, no em dashes, in every locale. Every learner-visible string goes through `t`/`tn`/`tj`/`tc`/`msg` and has a translation in all 11 catalogs (the catalog test enforces it). Language names come from `langName()` (Intl.DisplayNames), numbers and dates from the locale. Colors and fonts from the `styles.css` tokens only. Stage 1 styles live in `styles.css`; each Stage 2 feature has its own stylesheet in `src/renderer/src/styles/` (`review.css` `rv-`, `quiz.css` `qz-`, `builder.css` `cz-`/`frv-`/`fh-`, `decks.css` `dk-`), using the same tokens. Put new feature styles in the feature's file, not in `styles.css`.
+8. **UI copy:** plain, short, no em dashes, in every locale. Every learner-visible string goes through `t`/`tn`/`tj`/`tc`/`msg` and has a translation in all 12 catalogs (the catalog test enforces it). Language names come from `langName()` (Intl.DisplayNames), numbers and dates from the locale. Colors and fonts from the `styles.css` tokens only. Stage 1 styles live in `styles.css`; each Stage 2 feature has its own stylesheet in `src/renderer/src/styles/` (`review.css` `rv-`, `quiz.css` `qz-`, `builder.css` `cz-`/`frv-`/`fh-`, `decks.css` `dk-`), using the same tokens. Put new feature styles in the feature's file, not in `styles.css`.
 9. **API change checklist:** `src/shared/api.ts` (`SayfernApi` + `METHOD_TABLE` / `API_METHODS`) or the feature's slot in `src/shared/stage2/` (interface + `*_METHODS`) → `SayfernApp` / the bound Stage 2 service (or main `electronOnly`) → main IPC (automatic) → `mockApi.ts` or the feature's `dev/mock*.ts` → UI → tests.
 10. **Every change bumps the version** (semver; while 0.x, minor = features, patch = fixes) in `package.json` + `package-lock.json` + the `README.md` version line, and adds a `CHANGELOG.md` entry (Keep a Changelog: Added / Changed / Fixed).
 11. **Docs:** if you change behavior described in `docs/`, update the doc in the same change. Code wins over docs.
@@ -190,19 +195,20 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 - **AnkiConnect port conflicts.** AnkiConnect listens on 127.0.0.1:8765. If something else owns the port (this happened: a Python LaunchAgent), AnkiConnect can't bind and Sayfern reports `refused` or `not_ankiconnect`. Check with `sudo lsof -i :8765`. `timeout` usually means macOS App Nap. Anki calls use Node's fetch (`ankiFetch`), not Chromium's.
 - **safeStorage prompt.** The first credential read/write can make macOS ask to allow "sayfern Safe Storage" in the Keychain. Deny it and credentials can't be read. The smoke script uses plain JSON in `.sayfern-dev/` instead.
 - **Two TS projects.** `src/shared` is compiled by both `tsconfig.node.json` and `tsconfig.web.json`: keep it free of Node and DOM APIs.
-- **Translation keys are the English text.** Changing an English string (even punctuation) makes a new key: update all 11 catalogs, or the catalog test fails. Keys in core thrown errors count only for literal sentences (`new Error("Pick a level.")`); errors with interpolated values stay English. Placeholders like `{language}` get a language name capitalized by `languageName()`, which reads oddly mid-sentence in some locales: translators phrase around it.
+- **Translation keys are the English text.** Changing an English string (even punctuation) makes a new key: update all 12 catalogs, or the catalog test fails. Keys in core thrown errors count only for literal sentences (`new Error("Pick a level.")`); errors with interpolated values stay English. Placeholders like `{language}` get a language name capitalized by `languageName()`, which reads oddly mid-sentence in some locales: translators phrase around it.
 - **Explanation language = interface language.** Model prompts name it with `promptName` ("Brazilian Portuguese"), from `settings.explanationLanguage()`. Stage 2 services use `explanationFor(deps)` / `translatorFor(deps)` (English when settings are absent, as in tests).
 - **Mock API drift.** `mockApi.ts` implements `SayfernApi`; a new method without a mock implementation fails typecheck.
 - **Extension imports are cached by URL.** The host adds `?v=<generation>`; reloading happens on toggle or restart, not on file change.
 - **Tests with timers.** Many core services take `now`; use it instead of `Date.now()` so tests can control time.
 - **The app window's session has no network.** `lockDownAppSession` (`src/main/features.ts`) points the default session at a dead proxy (`127.0.0.1:9`; loopback too in production) and denies subframe permissions, so feature frames can't phone home. Anything in main that needs Chromium's network must use `electronFetch` / `netSession()` (`sayfern-net` partition); Anki uses Node's fetch. In dev, loopback stays reachable for the Vite server.
 - **Feature e2e and `--no-sandbox`.** `SAYFERN_E2E_BUILDER=1` (run the sandbox checks in `src/main/e2e.ts`, prints PASS lines) and `SAYFERN_E2E_DATA=<dir>` (throwaway userData) are test hooks only. `--no-sandbox` is only for the root Linux container (`xvfb-run`); never add it to app launch scripts. Still to check on macOS: OS sandbox and font fallback in frames.
-- **Builder kit location.** The builder reads the kit from the repo (`findKitRoot` walks up from the module) or `SAYFERN_KIT_DIR`. Packaged builds don't ship the kit yet, so `list_kit` would be empty there.
+- **Builder kit location.** The builder reads the kit from the repo (`findKitRoot` walks up from the module) or `SAYFERN_KIT_DIR`. Packaged builds carry it inside `app.asar` at the same paths (`files` in `electron-builder.yml`; a test in `builder.test.ts` checks the list).
 - **Node test-runner fallback is not a sandbox for the network.** `runTestsInChildProcess` (`node --permission`) is for unit tests, smoke and dev only; the app always injects the Electron runner (`setTestRunner`).
 - **Mock world is shared.** `dev/mockWorld.ts` holds the mock's corrections, grammar, Anki cards and sessions for `mockApi.ts` and the three Stage 2 mocks; `mockBuilder.ts` adds six measure-word nouns to the zh Anki cards (not with `?fresh=1`).
 - **`.stop` CSS collision.** The reader's `.stop` rule in `styles.css` also matches the composer's `.send.stop` button; the builder composer neutralizes it locally (`.cz-comp .send.stop`). Check the session Composer's stop button before reusing the class.
 - **Edge voices are unofficial.** `edgeTts` speaks Edge's read-aloud websocket protocol (ported from edge-tts 7.2.8). If it starts failing with 403s, copy `CHROMIUM_FULL_VERSION` (and anything else changed) from the latest edge-tts `constants.py`/`drm.py`. Deck cards are still added without audio when both voice services fail.
 - **Generated decks are followed.** After a deck's first batch, `DeckService` appends it to `AnkiConfig.decks` for the language. Settings > Anki edits only the first mapping per language; the others show as "Also following".
+- **Releases come from the version.** A push to `main` publishes the GitHub release `v<version>` only if it does not exist, with the `CHANGELOG.md` section as notes. Forget the version bump and the push builds artifacts but no release.
 - **Known gaps.** Before "fixing" odd behavior, check the backlog in [`docs/roadmap.md`](docs/roadmap.md#known-gaps-and-backlog): some are known (retry duplicates the learner message, disputes don't reach the tutor).
 
 ## Debugging
@@ -220,7 +226,9 @@ Practice, reading and placement sessions open with a tutor turn started by main 
 - [`docs/roadmap.md`](docs/roadmap.md): Stage 2 follow-ups, Stage 3, and the known-gaps backlog with pointers.
 - [`docs/stage1.md`](docs/stage1.md): Stage 1 feature map and status.
 - [`docs/stage2.md`](docs/stage2.md): Stage 2 feature map and status.
+- [`docs/courses.md`](docs/courses.md): how to write a language's course (sources, units, grammar ids, translations, checks).
 - [`docs/extensions.md`](docs/extensions.md): extension API, surfaces, versions, review gate, trust model.
 - [`docs/feature-builder.md`](docs/feature-builder.md), [`docs/feature-sdk.d.ts`](docs/feature-sdk.d.ts): builder kit (what the builder model reads).
+- [`docs/packaging.md`](docs/packaging.md): installers, the release workflow, signing, Flatpak and Flathub.
 - [`docs/benchmark.md`](docs/benchmark.md): benchmark vs Claude Code + skill (context, limits, accuracy, conversation quality).
 - [`CHANGELOG.md`](CHANGELOG.md): version history.

@@ -457,7 +457,7 @@ const MORE_REPLIES: Partial<Record<Language, Reply[]>> = {
   fr: [{ t: "Super ! Qu'est-ce que tu as fait d'autre ce week-end ?", tr: "Great! What else did you do this weekend?" }],
   de: [{ t: "Toll! Was hast du am Wochenende sonst noch gemacht?", tr: "Great! What else did you do on the weekend?" }],
   it: [{ t: "Che bello! Cos'altro hai fatto nel fine settimana?", tr: "How nice! What else did you do on the weekend?" }],
-  pt: [{ t: "Que legal! O que mais você fez no fim de semana?", tr: "How cool! What else did you do on the weekend?" }],
+  pt: [{ t: "Que fixe! O que mais fizeste no fim de semana?", tr: "How cool! What else did you do on the weekend?" }],
   ru: [{ t: "Здорово! А что ещё ты делал на выходных?", tr: "Great! What else did you do on the weekend?" }],
   vi: [{ t: "Hay quá! Cuối tuần bạn còn làm gì nữa?", tr: "Great! What else did you do on the weekend?" }],
 };
@@ -509,6 +509,18 @@ const TRANSLATIONS: Record<string, string> = {
 
 type SessionRec = MockSessionRec;
 
+const UNIT_OPENERS: Partial<Record<Language, string>> = {
+  zh: "我们来练习这个单元吧。先聊聊你今天做了什么？",
+  ja: "このユニットを練習しましょう。まず、今日は何をしましたか？",
+  ko: "이 단원을 연습해 봐요. 먼저, 오늘 뭐 했어요?",
+  fr: "On travaille cette unité ensemble. D'abord, qu'est-ce que tu as fait aujourd'hui ?",
+  es: "Vamos a practicar esta unidad. Primero, ¿qué hiciste hoy?",
+  en: "Let's practise this unit together. First, what did you do today?",
+  it: "Facciamo pratica con questa unità. Prima di tutto, che cosa hai fatto oggi?",
+  de: "Lass uns diese Einheit üben. Erzähl mal: Was hast du heute gemacht?",
+  pt: "Vamos praticar esta unidade. Primeiro, o que fizeste hoje?",
+};
+
 export function createMockApi(): SayfernApi {
   const T0 = Date.now();
 
@@ -519,12 +531,14 @@ export function createMockApi(): SayfernApi {
   const fresh = firstRun || params.get("fresh") === "1";
   /** ?anki=offline: AnkiConnect unreachable. */
   const ankiOffline = params.get("anki") === "offline";
+  /** ?lang=en: start in another learning language (to preview its course). */
+  const startLang = (params.get("lang") ?? "zh") as Language;
 
   let settings: Settings = {
-    language: "zh",
+    language: startLang,
     model: { provider: "anthropic", id: "claude-sonnet-4-5" },
     deviceId: "mock-device",
-    languages: ["zh", "ja"],
+    languages: startLang === "zh" || startLang === "ja" ? ["zh", "ja"] : ["zh", "ja", startLang],
     feedbackMode: "inline",
     autoTranslate: false,
     onboarded: !firstRun,
@@ -1631,13 +1645,18 @@ export function createMockApi(): SayfernApi {
       const list = [...grammar.values()].filter((g) => g.language === language).map((g) => summarize(g.id));
       return clone(buildCourseView(language, LANGUAGE_META[language].levels, list, cur, opened));
     },
-    startUnit: async (unitId) => {
+    startUnit: async (unitId, opts) => {
       await wait(150);
       const found = findUnit(unitId);
       if (!found) throw new Error("Unknown course unit.");
       const { course, unit } = found;
-      const opener = "我们来练习这个单元吧。先聊聊你今天做了什么？";
-      return createSession({ language: course.language, kind: "practice", unitId }, `练习 · ${t(unit.title)}`, opener);
+      const opener = UNIT_OPENERS[course.language] ?? UNIT_OPENERS.zh!;
+      const overview = opts?.explain ? `${unit.grammar.map((g) => `${g.pattern}: ${g.name}. ${g.note}`).join("\n")}\n\n` : "";
+      return createSession(
+        { language: course.language, kind: "practice", unitId },
+        `${LANGUAGE_META[course.language].titles.practice} · ${t(unit.title)}`,
+        overview + opener,
+      );
     },
 
     // library

@@ -6,6 +6,106 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-07
+
+### Added
+
+- **Installers, built on every push to `main`** (`.github/workflows/release.yml`): a macOS `.dmg` for Apple silicon and for Intel, a Windows `.exe` (NSIS) and a Linux `.tar.gz` plus a `.flatpak` bundle. When `package.json` has a new version, the run also publishes a GitHub release `v<version>` with them and this changelog's section as notes. See `docs/packaging.md`.
+- `electron-builder.yml` (new dev dependency `electron-builder`) and `npm run dist`. The macOS app has an ad-hoc signature until a Developer ID is set up.
+- Flatpak and Flathub files in `flatpak/` (app ID `ca.sayfern.Sayfern`) and `scripts/flatpak.mjs`, which writes the CI build folder and the Flathub submission folder.
+
+### Fixed
+
+- Packaged builds now ship the feature builder's kit, so `list_kit` is no longer empty there (roadmap gap 6). A test checks that `electron-builder.yml` lists every kit file.
+
+## [0.15.0] - 2026-10-07
+
+### Changed
+
+- **Course screen redesign**, built for the full-syllabus courses and the whole window width:
+  - A **syllabus map**: one dot per grammar point (573 for Chinese, 1,239 for English), grouped by level and colored by the learner's state (new, introduced, with help, on your own), with the next unit's points marked. Each level tile shows its count and picks the level shown below; hovering a dot shows its pattern and unit.
+  - A dark **Up next** card with the unit's patterns as chips, its progress and the Continue button.
+  - The level's units as a **responsive grid** instead of one long column: numbered cards with a segmented bar (one segment per point), the patterns as chips (state colors, "+N" for the rest) and the points used on their own.
+  - A **unit drawer** that lists every point with its pattern, name and state, and asks "Go over this unit's grammar quickly first?" there (no second dialog).
+  - An overall progress ring in the header.
+- `UnitView.points`: each point's pattern, name and state, computed in `buildCourseView`.
+
+### Added
+
+- Mock backend: `?lang=<code>` starts in another learning language, to preview its course.
+
+## [0.14.0] - 2026-10-07
+
+### Added
+
+- **Full-syllabus Chinese course.** `src/shared/course/zh.ts` now has every point of the HSK 3.0 grammar syllabus (GF 0025-2021, appendix A): 573 points in 92 units, levels 1 to 9, at the syllabus level and in its order. Units follow the syllabus groups (word classes, phrases, fixed patterns, complements, complex sentences, questions, emphasis, spoken patterns) inside each level.
+- **Full-syllabus English course.** `src/shared/course/en.ts` now has every point of the English Grammar Profile: 1,239 points in 215 units, A1 to C2, grouped by the profile's categories. Only its numbers, levels and categories are used; every name, note and example is written for Sayfern.
+- `CourseGrammar.ref`: the point's number in the source (`HSK 3.0 #57`, `EGP 412`). A test checks that each course covers its source list exactly once.
+- **European Portuguese interface** (`pt-PT`, "Português (Portugal)"). macOS regions other than Brazil (pt-PT, pt-AO, ...) now pick it; bare `pt` and `pt-BR` keep Brazilian.
+- 102 new unit titles and course sources in all 12 catalogs.
+
+### Changed
+
+- **Portuguese is now European Portuguese** as a learning language: the tutor's variety and address (`tu`), quiz and deck prompts, Edge voices (`pt-PT-RaquelNeural`, `pt-PT-DuarteNeural`), samples, and the Portuguese course notes and words. The course source line is now "QuaREPE descriptors".
+- The `course` tool's overview lists at most 40 open units, the learner's level first, with the first patterns of each.
+- The Course screen clamps a unit's pattern list to three lines (full list on hover).
+- `docs/courses.md` describes full-syllabus and core-path courses; the roadmap marks the other courses as core paths.
+
+### Removed
+
+- The old Chinese (37) and English (32) themed units and their titles. Sessions started from them still open, without the unit block. Grammar ids were reused, so recorded progress still counts.
+
+## [0.13.0] - 2026-10-06
+
+### Added
+
+- **Courses for Spanish, English, Italian, German and Portuguese.** These five languages are no longer Beta. Each course has 32 units on the CEFR scale (7, 7, 6, 5, 4, 3 from A1 to C2), built by following `docs/courses.md`:
+  - Spanish (`src/shared/course/es.ts`): the Plan Curricular del Instituto Cervantes. Notes give Latin American use first, as the tutor does. Reuses `es:subjunctive-ojala`.
+  - English (`src/shared/course/en.ts`): the English Grammar Profile. Reuses `en:present-perfect`.
+  - Italian (`src/shared/course/it.ts`): the Profilo della lingua italiana. Reuses `it:passato-prossimo`.
+  - German (`src/shared/course/de.ts`): Profile deutsch and the Goethe-Zertifikat guides. Reuses `de:dative-prepositions`.
+  - Portuguese (`src/shared/course/pt.ts`): QuaREPE levels in the order of Brazilian textbooks. Notes give Brazilian use first. Reuses `pt:personal-infinitive`.
+- Unit titles reuse the existing title keys where the theme is the same, so only six new strings (five course sources and "Literary and formal style") were added to all 11 catalogs.
+- The mock backend opens units of the new courses in their language.
+
+### Changed
+
+- Russian and Vietnamese are now the only Beta languages. Tests that used Spanish as the example Beta language now use Russian.
+
+## [0.12.0] - 2026-10-06
+
+### Added
+
+- **Quick grammar overview before a course unit.** When the learner picks a unit (Course screen or the Up next card on Today), a dialog asks "Go over this unit's grammar quickly first?". Yes: the tutor's opening starts with a short summary, one line and one example per grammar point, then starts the conversation. The summary is a reminder and does not replace the learner's textbook. No: the unit opens as before.
+- `startUnit(unitId, { explain })`; the choice is saved on the session as `openWith: "explain"` (the same field Grammar's "Explain again" uses), so it rides in the opening (`kickoffText`, `UNIT_OVERVIEW` in the unit session block of `prompt.ts`).
+- `components/UnitStart.tsx` (styles `cr-ask` in `styles/course.css`), four new strings in all 11 catalogs.
+- Tests: the overview prompt and kickoff for a unit session, and `startUnit` saving the choice.
+
+## [0.11.0] - 2026-10-06
+
+### Added
+
+- **Courses for Japanese, Korean and French.** These three languages are no longer Beta: each has a Course screen, the `course` tutor tool and the course block in the prompt, like Chinese. Each course has 32 units, built by following `docs/courses.md`:
+  - Japanese (`src/shared/course/ja.ts`): JLPT N5 to N1, in the order of Genki I and II, then Quartet and Tobira. It reuses the grammar ids the tutor already records (`ja:te-iru`, `ja:tai`, `ja:tara`, `ja:te-kara`, `ja:i-adj-past`, `ja:noni`).
+  - Korean (`src/shared/course/ko.ts`): TOPIK 1 to 6, in the order of the Sejong Korean and Yonsei Korean series, with romanized grammar ids (`ko:go-sipda`, `ko:aseo-eoseo`, ...).
+  - French (`src/shared/course/fr.ts`): CEFR A1 to C2, after the CEFR Référentiels for French. It reuses `fr:passe-compose-etre`.
+- Every new unit title and course source, translated in all 11 catalogs.
+- Tests: next unit at the learner's level for the three new courses, and the Korean course block in the prompt.
+
+### Changed
+
+- The `course` tool's unit text joins core words with commas for languages that do not use 、 (only Chinese and Japanese use 、).
+- Tests that used Korean as the example Beta language now use Spanish.
+- The mock backend opens a course unit in the unit's language, not always in Chinese.
+
+## [0.10.2] - 2026-10-06
+
+### Added
+
+- **`docs/courses.md`**: how to write a language's course, so future work follows the Chinese one: picking the textbook order, cutting levels into units, the rules for every field (stable ids, reusing the grammar ids the tutor records, own wording, no copied textbook text), registering and translating, and the checks to run.
+- **ADR 26** in `docs/decisions.md`: why the course works the way it does (one data file per language, status from records only, all units open, a small prompt with the full course behind a tool, Beta for languages without a course, pacing from counted facts).
+- Links to both from `AGENTS.md`, `docs/architecture.md` (section 19, test table) and `docs/roadmap.md`.
+
 ## [0.10.1] - 2026-10-06
 
 ### Fixed

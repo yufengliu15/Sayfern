@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Sayfern
+Comment=Learn a language by chatting with an AI tutor that remembers what you learn
+Exec=sayfern %U
+Icon=ca.sayfern.Sayfern
+Terminal=false
+Categories=Education;Languages;
+Keywords=language;learning;tutor;Chinese;Japanese;Korean;Spanish;French;German;Anki;
+StartupWMClass=sayfern

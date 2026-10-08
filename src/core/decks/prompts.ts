@@ -21,7 +21,7 @@ const WORD_FORM: Record<Language, string> = {
   fr: "word = the dictionary form: verbs in the infinitive (parler), nouns in the singular without an article, adjectives in the masculine singular.",
   de: "word = the dictionary form: verbs in the infinitive (sprechen), nouns in the singular with a capital letter and no article, adjectives uninflected.",
   it: "word = the dictionary form: verbs in the infinitive (parlare), nouns in the singular without an article, adjectives in the masculine singular.",
-  pt: "word = the dictionary form in Brazilian spelling: verbs in the infinitive (falar), nouns in the singular without an article, adjectives in the masculine singular.",
+  pt: "word = the dictionary form in European Portuguese spelling (1990 agreement): verbs in the infinitive (falar), nouns in the singular without an article, adjectives in the masculine singular.",
   ru: "word = the dictionary form in Cyrillic without stress marks: verbs in the infinitive, nouns in the nominative singular, adjectives in the masculine nominative singular.",
   vi: "word = standard Vietnamese spelling with every tone mark (học sinh, cảm ơn); a word of several syllables is one item.",
 };
@@ -150,8 +150,8 @@ const CARD_RULES: Record<Language, string[]> = {
   ],
   pt: [
     "reading = empty string.",
-    "sentence = natural modern Brazilian Portuguese, 6 to 14 words. Use the word in the same form when you can; a verb may be conjugated. Every other word at or below the deck's level.",
-    "notes = short, only when useful: the gender of a noun that breaks the pattern, an irregular form, ser or estar, a European Portuguese difference.",
+    "sentence = natural modern European Portuguese (Portugal), 6 to 14 words. Use the word in the same form when you can; a verb may be conjugated. Every other word at or below the deck's level.",
+    "notes = short, only when useful: the gender of a noun that breaks the pattern, an irregular form, ser or estar, a word that differs in Brazil.",
   ],
   ru: [
     "reading = the word with an acute accent on the stressed vowel (молоко́, говори́ть); empty for one-syllable words.",

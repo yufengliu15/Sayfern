@@ -37,6 +37,9 @@ export function kickoffText(session: SessionMeta, opts: { newTopic?: boolean } =
   if (opts.newTopic) {
     return "(The learner pressed \"New topic\". Drop the current topic without summing it up and open a fresh one, clearly different from what this session has covered so far. Pick something that fits their interests if you know them. Start.)";
   }
+  if (session.kind === "practice" && session.unitId && session.openWith === "explain") {
+    return "(The learner started a course unit and asked for a quick overview of its grammar first. Give the short overview, then open the conversation. Start.)";
+  }
   if (session.kind === "practice" && session.unitId) {
     return "(The learner started a course unit. Open with a situation from the unit that fits them, and bring in its first grammar point. Start.)";
   }

@@ -3,7 +3,7 @@
 // pairing works: a Russian interface for learning Japanese, a German one for learning Korean.
 // Pure data and functions, shared by core, main and renderer.
 
-export type UiLocale = "en" | "zh-Hans" | "zh-Hant" | "ja" | "ko" | "vi" | "ru" | "fr" | "it" | "es" | "de" | "pt-BR";
+export type UiLocale = "en" | "zh-Hans" | "zh-Hant" | "ja" | "ko" | "vi" | "ru" | "fr" | "it" | "es" | "de" | "pt-BR" | "pt-PT";
 
 export interface UiLocaleInfo {
   id: UiLocale;
@@ -28,6 +28,7 @@ export const UI_LOCALES: readonly UiLocaleInfo[] = [
   { id: "es", nativeName: "Español", englishName: "Spanish", promptName: "Spanish" },
   { id: "de", nativeName: "Deutsch", englishName: "German", promptName: "German" },
   { id: "pt-BR", nativeName: "Português (Brasil)", englishName: "Portuguese (Brazil)", promptName: "Brazilian Portuguese" },
+  { id: "pt-PT", nativeName: "Português (Portugal)", englishName: "Portuguese (Portugal)", promptName: "European Portuguese" },
 ];
 
 export const DEFAULT_UI_LOCALE: UiLocale = "en";
@@ -45,14 +46,15 @@ export function uiLocaleInfo(id: UiLocale): UiLocaleInfo {
 /** Traditional-script regions and script subtags. */
 const HANT = /^zh(-hant\b|.*-(tw|hk|mo)\b)/i;
 
-/** Best UI locale for one BCP-47 tag ("de-AT" → de, "zh-TW" → zh-Hant, "pt-PT" → pt-BR), or null. */
+/** Best UI locale for one BCP-47 tag ("de-AT" → de, "zh-TW" → zh-Hant, "pt-PT" → pt-PT, "pt" → pt-BR), or null. */
 export function matchOne(tag: string): UiLocale | null {
   const t = tag.trim().replace(/_/g, "-");
   if (!t) return null;
   const lower = t.toLowerCase();
   if (lower.startsWith("zh")) return HANT.test(lower) ? "zh-Hant" : "zh-Hans";
   const primary = lower.split("-")[0];
-  if (primary === "pt") return "pt-BR";
+  // macOS uses bare "pt" for Brazilian Portuguese; any other region (PT, AO, MZ...) gets European.
+  if (primary === "pt") return /^pt(-br)?$/.test(lower) ? "pt-BR" : "pt-PT";
   return IDS.has(primary) ? (primary as UiLocale) : null;
 }
 

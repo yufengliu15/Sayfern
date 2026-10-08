@@ -1,6 +1,6 @@
 {
   "name": "sayfern",
-  "version": "0.10.1",
+  "version": "0.16.0",
   "private": true,
   "description": "Free, open-source, AI-native language learning for macOS",
   "license": "GPL-3.0-only",
@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p bench/tsconfig.json",
     "smoke": "tsx scripts/smoke.ts",
     "bench": "tsx bench/bench.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "dist": "electron-vite build && electron-builder"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.99.1",
@@ -40,11 +41,13 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.5.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^7.3.6"
-  }
+  },
+  "author": "Yufeng Liu"
 }

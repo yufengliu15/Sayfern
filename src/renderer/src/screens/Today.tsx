@@ -6,6 +6,7 @@ import type { Language, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { FeatureActivities } from "../components/FeatureActivities";
 import { Icon } from "../components/icons";
+import { UnitStart } from "../components/UnitStart";
 import { useApp } from "../context";
 import { cls, fmtDuration, fmtNumber, fmtShortDate, KIND_LABEL } from "../lib/format";
 import { grammarRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
@@ -24,6 +25,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [course, setCourse] = useState<CourseView | null>(null);
+  const [askUnit, setAskUnit] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -59,6 +61,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
       navigate(sessionRoute(v.meta.id));
     } catch (e) {
       setError(errorText(e));
+      setAskUnit(false);
     } finally {
       setBusy(null);
     }
@@ -187,7 +190,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
               <h2>{t("Course · Up next: {unit} ({level})", { unit: t(nextUnit.title), level: nextUnit.level })}</h2>
             </div>
             <div className="place-a">
-              <button className="btn btn-f" disabled={busy === "unit"} onClick={() => void act("unit", () => api.startUnit(nextUnit.id))}>
+              <button className="btn btn-f" disabled={busy === "unit"} onClick={() => setAskUnit(true)}>
                 {busy === "unit" ? t("Starting…") : t("Start unit")}
               </button>
               <button className="linkb" onClick={() => navigate("course")}>
@@ -305,6 +308,15 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
           ))}
         </div>
       </aside>
+      {askUnit && nextUnit && (
+        <UnitStart
+          unit={nextUnit}
+          fontClass={L}
+          busy={busy === "unit"}
+          onStart={(explain) => void act("unit", () => api.startUnit(nextUnit.id, { explain }))}
+          onClose={() => setAskUnit(false)}
+        />
+      )}
     </main>
   );
 }

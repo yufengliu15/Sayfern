@@ -16,6 +16,7 @@ import it from "./it";
 import ja from "./ja";
 import ko from "./ko";
 import ptBR from "./pt-BR";
+import ptPT from "./pt-PT";
 import ru from "./ru";
 import vi from "./vi";
 import zhHans from "./zh-Hans";
@@ -37,6 +38,7 @@ export const CATALOGS: Record<Exclude<UiLocale, "en">, Catalog> = {
   es,
   de,
   "pt-BR": ptBR,
+  "pt-PT": ptPT,
 };
 
 const pluralRules = new Map<string, Intl.PluralRules>();

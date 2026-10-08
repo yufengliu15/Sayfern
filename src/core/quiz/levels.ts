@@ -153,11 +153,11 @@ const CEFR_GRAMMAR: Record<"en" | "es" | "fr" | "de" | "it" | "pt" | "ru" | "vi"
   ],
   pt: [
     "ser and estar, ter, articles and gender, present tense regular verbs, contractions (no, na, do, da)",
-    "pretérito perfeito, ir + infinitive, possessives, object pronouns in Brazilian usage, comparatives",
+    "pretérito perfeito, ir + infinitive, possessives, object pronoun placement (vi-o, não o vi), comparatives",
     "pretérito imperfeito vs perfeito, futuro do presente, present subjunctive after querer que and talvez, commands",
     "imperfect and future subjunctive, personal infinitive, conditional, passive voice, reported speech",
     "compound subjunctive tenses, nuanced connectors (no entanto, embora), formal register and mesoclisis awareness",
-    "literary style, idioms, Brazilian and European differences, fine register",
+    "literary style, idioms, European and Brazilian differences, fine register",
   ],
   ru: [
     "the alphabet, gender of nouns, nominative and prepositional cases, present tense, это, у меня есть",
@@ -195,7 +195,7 @@ const DELF = cefrExam("delf", "DELF / DALF", "fr", "DELF/DALF-style items: compr
 const GOETHE = cefrExam("goethe", "Goethe-Zertifikat", "de", "Goethe-Zertifikat-style items: Lesen (match, true/false, choose), Sprachbausteine (fill the gap), sentence building, Schreiben (an email, a forum post, an argued text at B2+).");
 const CILS = cefrExam("cils", "CILS", "it", "CILS-style items: comprehension of short texts, cloze with options, choose the correct form, short writing (a message, a letter, an argued text at B2+).");
 const TORFL = cefrExam("torfl", "TORFL (ТРКИ)", "ru", "TORFL-style items (лексика и грамматика): choose the correct case or aspect, complete the sentence, reading comprehension, short writing (a letter, a short essay at B2+). Levels: A1 элементарный, A2 базовый, B1 ТРКИ-1, B2 ТРКИ-2, C1 ТРКИ-3, C2 ТРКИ-4.");
-const CEFR_PT = cefrExam("cefr-pt", "CEFR (Portuguese)", "pt", "CEFR-aligned items in Brazilian Portuguese: fill the gap, choose the matching sentence, put the parts in order, short writing (a message, an opinion at B2+).");
+const CEFR_PT = cefrExam("cefr-pt", "CEFR (Portuguese)", "pt", "CEFR-aligned items in European Portuguese: fill the gap, choose the matching sentence, put the parts in order, short writing (a message, an opinion at B2+).");
 const CEFR_VI = cefrExam("cefr-vi", "CEFR (Vietnamese)", "vi", "CEFR-aligned items in Vietnamese (the Vietnamese 6-level framework follows the CEFR): fill the gap, choose the matching sentence, put the parts in order, short writing.");
 
 export const EXAMS: Record<ExamSystem, ExamDef> = {

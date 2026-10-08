@@ -12,21 +12,23 @@ What comes after v0.5.0, and where each piece plugs into the code. Stage and fea
 
 ## Courses per language (v0.10.0)
 
-The Course screen and the tutor's syllabus come from one data file per language (`src/shared/course/<lang>.ts`, see [architecture section 19](architecture.md#19-course-v0100)). Native support is a lot of work per language (a textbook order to follow, grammar ids, notes, topics, words, 11 translations of every unit title), so it comes one language at a time. Until then the language is **Beta** in the interface: the tutor works, but results may vary.
+The Course screen and the tutor's syllabus come from one data file per language (`src/shared/course/<lang>.ts`, see [architecture section 19](architecture.md#19-course-v0100); how to write one: [`courses.md`](courses.md)). Native support is a lot of work per language (a textbook order to follow, grammar ids, notes, topics, words, 12 translations of every unit title), so it comes one language at a time. Until then the language is **Beta** in the interface: the tutor works, but results may vary.
 
 | Language | Course | Order to follow |
 |---|---|---|
-| Chinese | Built (v0.10.0), 37 units | HSK Standard Course (HSK 1 to 6), HSK 3.0 syllabus (7 to 9) |
-| Japanese | Beta | Genki I and II, then Quartet / Tobira; JLPT order (no official grammar list) |
-| Korean | Beta | Sejong Korean / Yonsei; TOPIK order |
-| English | Beta | English Grammar Profile (Cambridge, CEFR) |
-| Spanish | Beta | Plan Curricular del Instituto Cervantes |
-| French | Beta | CEFR Référentiels (Beacco) |
-| German | Beta | Profile Deutsch, Goethe exam lists |
-| Italian | Beta | Profilo della lingua italiana |
-| Portuguese | Beta | CAPLE / Celpe-Bras levels; sources are weaker |
+| Chinese | Full syllabus (v0.14.0): 92 units, all 573 points | HSK 3.0 grammar syllabus (GF 0025-2021, appendix A), levels 1 to 9 |
+| Japanese | Core path (v0.11.0), 32 units | Genki I and II, then Quartet / Tobira; JLPT order (no official grammar list) |
+| Korean | Core path (v0.11.0), 32 units | Sejong Korean / Yonsei; TOPIK order |
+| English | Full syllabus (v0.14.0): 215 units, all 1,239 points | English Grammar Profile (Cambridge, CEFR); levels and categories only, own wording |
+| Spanish | Core path (v0.13.0), 32 units | Plan Curricular del Instituto Cervantes (PCIC); notes give Latin American use first |
+| French | Core path (v0.11.0), 32 units | CEFR Référentiels (Beacco) |
+| German | Core path (v0.13.0), 32 units | Profile deutsch, Goethe-Zertifikat guides |
+| Italian | Core path (v0.13.0), 32 units | Profilo della lingua italiana, CILS / PLIDA order |
+| Portuguese | Core path (v0.13.0), 32 units; European Portuguese since v0.14.0 | QuaREPE descriptors (Camões). Sources are weaker |
 | Russian | Beta | TORFL lexical and grammar minimums |
 | Vietnamese | Beta | No common standard yet |
+
+**Full syllabus** means every point of the source list is in the course once, at the source's level, and `course.test.ts` checks it. **Core path** means the most important points per level, about 100 per course (15 to 25% of a full inventory), in themed units of 2 to 4 points; the levels were placed from memory of the sources and still need a check against them. Next: a full-syllabus pass for the other languages (the PCIC for Spanish is free and detailed), then a native-speaker or teacher review per language.
 
 ---
 
@@ -67,7 +69,6 @@ Anki decks (v0.6.0):
 - A generated deck is followed automatically; nothing syncs it right away (the next sync or session start does).
 
 Feature builder:
-- **Packaged builds don't ship the builder kit** (`docs/`, `examples/`, the public `.ts` files); `findKitRoot` finds nothing and `list_kit` is empty. Add them to packaged resources and set `SAYFERN_KIT_DIR` (or `kitDir`) when packaging exists (gap 6).
 - **Check on macOS:** the OS sandbox (the Linux e2e needed `--no-sandbox` because the container runs as root) and font fallback inside feature frames.
 - `run_tests` also loads main-side modules that `test.js` imports, in the sandboxed page; main-side code that needs `node:` APIs can't be unit-tested by the builder.
 - Surfaces beyond tab and activity (statistics widgets, dictionaries, importers, integrations, quiz formats or grading rules) are not implemented; hand-installed extensions' surfaces are ignored.
@@ -108,7 +109,7 @@ Verified against the v0.5.0 code. Each item says where a fix would go.
 | 3 | ~~Grammar "Explain again" is rejected.~~ **Fixed in 0.2.2:** the request rides in the opening (`SessionMeta.openWith = "explain"`). | |
 | 4 | **Disabled extension language packs stay loaded until restart.** Same for approved built features that register a language pack. | `LanguageService.registerPack` has no unregister; `FileExtensionHost.loadAll` in `src/core/extensions/index.ts`. |
 | 5 | **No context trimming.** Every turn sends the full transcript; very long sessions will hit context limits and cost more. | `runLoop` in `src/core/agent/turn.ts` (`transcript`). The prompt already carries long-term memory (ADR 16), so older turns can be dropped or summarized. |
-| 6 | **Packaged app untested; no packaging or signing.** kuromoji's dictionary path (`defaultKuromojiDicPath`, overridable through `SayfernAppDeps.kuromojiDicPath`, which main never passes) and pdf.js CMaps/standard fonts (`loadPdfJs` in `src/core/library/pdf.ts`) are resolved from `node_modules` paths that may not work inside an asar. The builder kit (`docs/`, `examples/`, public `.ts` files) is read from the repo. There is no electron-builder config, signing or notarization. | `src/core/lang/ja.ts`, `src/core/library/pdf.ts`, `src/core/builder/kit.ts` (`SAYFERN_KIT_DIR`), `src/main/index.ts`, new build config. |
+| 6 | ~~Packaged app untested; no packaging or signing.~~ **Packaging added in 0.16.0** ([packaging.md](packaging.md)): CI builds a .dmg, an .exe and a Flatpak on every push to `main`. kuromoji's dictionary, pdf.js and the builder kit load from the packaged app (checked on macOS). Still open: Developer ID signing and notarization, Windows SmartScreen signing, a check by hand on Windows and Linux, auto-update. | `electron-builder.yml`, `.github/workflows/release.yml`, `flatpak/`. |
 | 7 | ~~JMdict download URL resolution never verified live.~~ **Verified 2026-10-02** on the owner's Mac: JMdict with German glosses installed (129,073 entries) through the GitHub releases API. | `LIVE=1 npx tsx --test src/core/lang/live.test.ts` re-checks it. |
 | 8 | **Chinese segmentation is greedy longest match.** Forward maximum matching against CC-CEDICT mis-splits some phrases; without the dictionary it falls back to `Intl.Segmenter`. | `ChinesePack.splitHan` in `src/core/lang/zh.ts`. |
 | 9 | **PDFs with columns or vertical text parse poorly; no OCR.** Lines are grouped by baseline in content order; scanned PDFs import empty with a warning. | `toLines` / `toParagraphs` in `src/core/library/pdf.ts`. |
@@ -125,7 +126,7 @@ Verified against the v0.5.0 code. Each item says where a fix would go.
 | 20 | **Partial `addNotes` batches.** If AnkiConnect rejects a batch after adding part of it, the per-note fallback reports those notes as "already there" with no note id stored. Rare: duplicates and empty fields are filtered first. | `AnkiConnectService.addNotes` in `src/core/anki/index.ts`. |
 | 21 | **Edited Sayfern note types aren't repaired.** If the learner renames or deletes fields of "Sayfern Cloze" / "Sayfern Recall" in Anki, adding fails per card with Anki's message. | `ensureNoteType` in `src/core/anki/index.ts`, `src/core/review/cards.ts`. |
 | 22 | **Mock Anki word counts include builder nouns.** `mockBuilder.ts` adds six measure-word nouns to the zh mock Anki cards (unless `?fresh=1`), which shifts mock counts on other screens. | `src/renderer/src/dev/mockBuilder.ts`. |
-| 23 | **Translations need a native-speaker pass.** All 11 catalogs were model-written (v0.7.0). Some phrasing around placeholders is stiff (language names arrive capitalized and in the nominative; sentence fragments joined in code). | `src/shared/i18n/<locale>.ts`; joins in `Settings.tsx` (audio credits), `QuizzesTab.tsx` (mad-lib). |
+| 23 | **Translations need a native-speaker pass.** All 12 catalogs were model-written (v0.7.0; pt-PT in v0.14.0). Some phrasing around placeholders is stiff (language names arrive capitalized and in the nominative; sentence fragments joined in code). | `src/shared/i18n/<locale>.ts`; joins in `Settings.tsx` (audio credits), `QuizzesTab.tsx` (mad-lib). |
 | 24 | **Dictionary gaps for new languages.** zh, ko and vi glosses are English only; English as a learning language has no dictionary with a zh, ko or vi interface; the kaikki.org Vietnamese URL is deprecated upstream; WikDict and kaikki downloads were checked live once (2026-10-01), JMdict German glosses on the owner's Mac (2026-10-02). | `choices` in `src/core/lang/index.ts`, `src/core/lang/wordlists.ts`. |
 | 25 | **Lemmas are rule-based.** Spanish, Portuguese, Italian, French, German, Russian and Korean forms are reduced with suffix rules and irregular tables, checked against the dictionary; forms the rules miss look up as the surface word. | `src/core/lang/lemma.ts`. |
 | 26 | **Fonts for new scripts unchecked on macOS.** Korean (AppleMyungjo), Cyrillic (PT Serif) and Vietnamese (Georgia) stacks were only seen in Linux Chromium. | `--ko`, `--lt`, `--cy` and `html:lang()` rules in `styles.css`. |

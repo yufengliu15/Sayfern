@@ -230,8 +230,8 @@ export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, Voi
   // course (Duolingo-style units; only languages with a course, see src/shared/course)
   /** Units by level with status computed from grammar records. `available: false` for Beta languages. */
   getCourse(language: Language): Promise<CourseView>;
-  /** New practice session on one course unit; the tutor opens it. */
-  startUnit(unitId: string): Promise<SessionView>;
+  /** New practice session on one course unit; the tutor opens it. `explain`: the tutor opens with a short overview of the unit's grammar. */
+  startUnit(unitId: string, opts?: { explain?: boolean }): Promise<SessionView>;
 
   // library (S1-10..S1-12)
   listDocs(language: Language): Promise<LibraryDoc[]>;

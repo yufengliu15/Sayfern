@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ca.sayfern.Sayfern</id>
+  <name>Sayfern</name>
+  <summary>Learn a language by chatting with an AI tutor</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="ca.sayfern">
+    <name>Yufeng Liu</name>
+  </developer>
+  <description>
+    <p>
+      Sayfern is a free, open-source app for learning Chinese, Japanese, Korean, English, Spanish,
+      French, German, Italian, Portuguese, Russian or Vietnamese by chatting with an AI tutor that
+      remembers what you are learning.
+    </p>
+    <ul>
+      <li>Bring your own model: an API key, or a Claude or ChatGPT subscription</li>
+      <li>Corrections, grammar progress and courses, computed on your computer</li>
+      <li>Quizzes, Anki export and Anki deck generation</li>
+      <li>Listen to the tutor and talk instead of typing</li>
+    </ul>
+    <p>All your records stay on your computer as plain files.</p>
+  </description>
+  <launchable type="desktop-id">ca.sayfern.Sayfern.desktop</launchable>
+  <url type="homepage">https://sayfern.ca</url>
+  <url type="vcs-browser">https://github.com/yufengliu15/Sayfern</url>
+  <url type="bugtracker">https://github.com/yufengliu15/Sayfern/issues</url>
+  <categories>
+    <category>Education</category>
+    <category>Languages</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">980</display_length>
+  </requires>
+  <releases>
+    <!-- scripts/flatpak.mjs writes the current version and its CHANGELOG.md date here. -->
+  </releases>
+</component>

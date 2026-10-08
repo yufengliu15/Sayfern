@@ -1,0 +1,66 @@
+# Packaged builds: macOS .dmg, Windows .exe (NSIS), Linux .tar.gz (the Flatpak repackages it, see flatpak/).
+# Run `npm run dist -- --<arch>` on the target OS (native modules are per OS and CPU); CI does all three on every push to main (.github/workflows/release.yml).
+#
+# app.name must stay "sayfern" (AGENTS.md, Gotchas): it names the userData folder and the Keychain item
+# "sayfern Safe Storage". productName below names only the bundle and the installers: electron-builder
+# does not write it into the packaged package.json, where Electron would read it as app.name.
+appId: ca.sayfern.Sayfern
+productName: Sayfern
+copyright: Copyright © Yufeng Liu
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - build/icon.png
+  - package.json
+  # The feature builder's kit: findKitRoot finds it next to out/ (KIT_FILES and KIT_DIRS in src/core/builder/kit.ts).
+  - docs/feature-builder.md
+  - docs/feature-sdk.d.ts
+  - docs/extensions.md
+  - src/core/contracts.ts
+  - src/core/extensions/index.ts
+  - src/shared/records.ts
+  - src/shared/lang.ts
+  - examples/extensions/**
+  - "!**/*.map"
+artifactName: Sayfern-${version}-${os}-${arch}.${ext}
+publish: null
+
+mac:
+  target:
+    - dmg
+  icon: build/icon.icns
+  category: public.app-category.education
+  # Ad-hoc signature: without one, Apple silicon refuses the edited bundle ("damaged"). To ship a
+  # Developer ID build, delete this line and set CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID,
+  # APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID (repo secrets; CI passes them on).
+  identity: "-"
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Sayfern records your voice when you hold the mic to talk to the tutor. The recording goes to ElevenLabs for transcription and is not kept.
+dmg:
+  title: Sayfern ${version}
+
+win:
+  target:
+    - nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Sayfern
+
+linux:
+  target:
+    - tar.gz
+  icon: build/icon.png
+  category: Education
+  executableName: sayfern
+  # The Flatpak installs this as its icon (flatpak/).
+  extraResources:
+    - from: build/icon.svg
+      to: icon.svg
+  artifactName: Sayfern-${version}-linux-${arch}.${ext}

@@ -187,6 +187,48 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 28. Packaging with electron-builder; CI releases on push to main; Flatpak from the tar.gz (v0.16.0)
+
+Owner request, 2026-10-07: a .dmg, an .exe and a Flathub-ready Flatpak, built automatically after each push to `main`.
+
+- **Decision.**
+  1. **electron-builder** (owner choice over Electron Forge): one config for dmg, NSIS and tar.gz. `productName` names only the bundle; `app.name` stays `sayfern` (ADR 17).
+  2. **One CI machine per OS and CPU** (macOS arm64 and x64, Windows x64, Linux x64): `@napi-rs/canvas` (pdf.js) is a native package per platform, so cross-builds would ship the wrong binary.
+  3. **A release only for a new version.** Every push builds artifacts; the `release` job publishes `v<version>` only when that release does not exist, with the CHANGELOG section as notes (ADR 13 already makes every change bump the version).
+  4. **macOS ad-hoc signature** until there is an Apple Developer ID: unsigned bundles are "damaged" on Apple silicon.
+  5. **The Flatpak repackages the release tar.gz** on the Electron base app instead of building from source on Flathub (that would need every npm package as an offline source). `scripts/flatpak.mjs` writes the CI and the Flathub variants from one manifest; `x-checker-data` lets Flathub's bot follow new releases.
+- **Consequences.** Learners see Gatekeeper and SmartScreen warnings until signing is set up. Flathub needs a public repository and a one-time manual submission. No ARM builds for Windows and Linux yet. Each push to `main` uses macOS CI minutes (10 times the Linux rate on private repositories).
+- **Where.** `electron-builder.yml`, `build/entitlements.mac.plist`, `.github/workflows/release.yml`, `flatpak/`, `scripts/flatpak.mjs`, `docs/packaging.md`.
+
+## ADR 27. Full-syllabus courses for Chinese and English; European Portuguese (v0.14.0)
+
+Owner request, 2026-10-07: build complete courses for Chinese and English that follow the HSK and the English Grammar Profile fully (the themed courses covered about 100 points each); teach European Portuguese instead of Brazilian; add a European Portuguese interface.
+
+- **Decision.**
+  1. **Every source point, once, at its level.** zh: the 573 points of the HSK 3.0 grammar syllabus. en: the 1,239 points of the English Grammar Profile. Each `CourseGrammar` carries `ref` (its source number); a test checks the coverage.
+  2. **Units follow the source's own groups** inside each level (owner choice), 3 to 12 points each, instead of can-do themes: the units are easy to check against the source, and title translations stay few (102 new titles). Repeated titles inside a level ("Adverbs" at HSK 7-9) are told apart by their patterns.
+  3. **EGP text is not copied** (owner choice): only numbers, levels and categories; every name, note and example is Sayfern's own.
+  4. **New unit ids** (`zh-hsk30-…`, `en-egp-…`); grammar ids reuse the old ones where a source point matches (98 of 121 for zh, 79 of 102 for en), so old records still count. The rest were items inside list points (最 in a list of degree adverbs) or patterns the source does not list on their own.
+  5. **Portuguese = European Portuguese** (`pt-PT`: variety, Edge voices `pt-PT-RaquelNeural` / `pt-PT-DuarteNeural`, quiz and deck prompts, `tu` with the learner); QuaREPE now matches the variety. A `pt-PT` interface locale joins `pt-BR`.
+- **Consequences.** Old Chinese and English unit sessions (`zh-hsk2-04`, `en-a1-01`) no longer match a unit: they still open, without the unit block. A unit is done only when every point is `independent`, so full-syllabus units take longer. The tool overview is capped at 40 units. Notes were model-written and need a teacher's review.
+- **Where.** `src/shared/course/zh.ts`, `en.ts`, `pt.ts`; `CourseGrammar.ref`; `overviewText` in `src/core/course/index.ts`; `src/shared/locales.ts`, `src/shared/i18n/pt-PT.ts`; `LANGUAGE_META.pt`; `docs/courses.md`.
+
+## ADR 26. Course per language: units in textbook order, status from records (v0.10.0)
+
+Owner report, 2026-10-06: conversations feel dull; the tutor stays on simple topics far too long and does not know when to move on. Asked for a per-language plan of where a learner should be at each level, based on the textbooks, shown Duolingo-style, with languages that have no plan marked Beta.
+
+- **Context.** The tutor knew a level label ("HSK 3") but not what comes at that level or next. Its grammar catalogue held only points the learner had already used, so nothing pulled it forward. The persona also fixed every reply at 1 to 3 short sentences, and nothing told it when a topic was used up.
+- **Decision.**
+  1. **One data file per language** (`src/shared/course/<lang>.ts`): units in the order of one well-known textbook or syllabus, grouped by level, each with grammar points, topic ideas and core words. Titles, goals and notes are written for Sayfern; the textbook gives only the order. Grammar ids are the ids `record_evidence` already uses, so old records count.
+  2. **Status from records only** (S1-25): a unit is done when every point is `independent`; started when any point was seen or a unit session opened. No model ever marks a unit done, and quiz answers cannot finish one (S2-09).
+  3. **All units open.** No locks: "Up next" (first unit not done from the learner's level on) is a suggestion. Learners who know more than the placement says are not blocked.
+  4. **The tutor sees little by default.** Chat prompts carry only the next unit and up to 3 of its open points; the full course is behind the `course` tool, and a course unit session gets the whole unit. This keeps the per-turn prompt small.
+  5. **Beta = no course.** Native support costs a lot per language (order, ids, notes, 12 translations of every title), so it comes one language at a time. Languages without a file show a Beta chip and keep the old behavior.
+  6. **Pacing by counted facts.** The prompt states how many learner replies the topic has run and how many were clean (`computePacing`, from stored messages and corrections); at 5 replies or 3 clean ones it tells the tutor to move on. `record_evidence.topic_change` restarts the count (`ChatMessage.topicStart`). Reply length grows with the level (`lengthRule`).
+- **Consequences.** Only Chinese has a course in v0.10.0; Japanese, Korean and French followed in v0.11.0; Spanish, English, Italian, German and Portuguese in v0.13.0 (Russian and Vietnamese stay Beta). Adding a language is data plus translations, no code ([`courses.md`](courses.md)). Unit and grammar ids are now a contract: renaming one orphans records and sessions. The benchmark measures the effect (engagement, pacing, level fit; `zh-pacing`, `zh-level-fit`).
+- **Update (v0.10.1).** The pacing runs exposed empty replies: Sonnet 5.5 wrote its reply inside its thinking, called `record_evidence` first, then ended the turn. When a recording-only tool runs before any reply text, its result now says the learner has not seen a reply (`NO_REPLY_YET`).
+- **Where.** `src/shared/course/`, `src/core/course/`, `src/core/agent/prompt.ts` (`courseBlock`, `pacingBlock`, `computePacing`, `lengthRule`, unit session block), `tools.ts` (`topic_change`, `course` tool), `turn.ts` (`topicStart`, `NO_REPLY_YET`), `src/renderer/src/screens/Course.tsx`, `components/BetaChip.tsx`; tests in `src/core/course/course.test.ts`, `prompt.test.ts`, `turn.test.ts`.
+
 ## ADR 25. Evidence pass for models that skip record_evidence (v0.9.0)
 
 Owner report, 2026-10-03: corrections never appear with GPT Sol and Astra (ChatGPT sign-in); Sonnet records them well.
@@ -221,5 +263,5 @@ Owner request, 2026-10-01: support English, Chinese, Japanese, Korean, Vietnames
   - **Full parity enforced by a test**: every key in every catalog. Catalogs were written by a model per locale with a shared brief (register, Anki's own terms, no em dashes) and should get a native-speaker pass.
   - **Dictionaries per pair, downloaded on demand**, preferring glosses in the interface language: JMdict (5 gloss languages), WikDict bilingual SQLite (read with built-in `node:sqlite`, so no SQLite dependency), Kengdic, kaikki.org Wiktionary for Vietnamese; English glosses as the fallback.
   - **Lightweight morphology**: `Intl.Segmenter` plus rule-based lemmas checked against the dictionary, instead of per-language analyzers.
-- **Consequences.** Lemmas for inflected Spanish, Russian or Korean words are approximate (unknown forms fall back to the surface word). zh, ko and vi glosses are English only; English as the learning language has no dictionary when the interface is zh, ko or vi. The kaikki.org URL is marked deprecated upstream. Changing an English string means updating 11 catalogs.
+- **Consequences.** Lemmas for inflected Spanish, Russian or Korean words are approximate (unknown forms fall back to the surface word). zh, ko and vi glosses are English only; English as the learning language has no dictionary when the interface is zh, ko or vi. The kaikki.org URL is marked deprecated upstream. Changing an English string means updating every catalog (12 since v0.14.0).
 - **Where.** `src/shared/languages.ts`, `locales.ts`, `i18n/`; `src/core/lang/`; `scripts/i18n-keys.ts`; `src/core/i18n-catalogs.test.ts`.

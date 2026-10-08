@@ -254,7 +254,7 @@ export const VOICE_SAMPLES: Record<Language, string> = {
   fr: "Bonjour ! Il fait très beau aujourd'hui. On va se promener ?",
   de: "Hallo! Heute ist so schönes Wetter. Wollen wir spazieren gehen?",
   it: "Ciao! Oggi è proprio una bella giornata. Facciamo una passeggiata?",
-  pt: "Oi! O dia está lindo hoje. Vamos dar uma volta?",
+  pt: "Olá! Está um dia lindo hoje. Vamos dar uma volta?",
   ru: "Привет! Сегодня отличная погода. Пойдём погуляем?",
   vi: "Xin chào! Hôm nay trời đẹp quá. Mình đi dạo nhé?",
 };

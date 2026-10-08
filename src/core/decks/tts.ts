@@ -24,7 +24,7 @@ export const EDGE_VOICES: Record<Language, { word: string; sentence: string }> =
   fr: { word: "fr-FR-DeniseNeural", sentence: "fr-FR-HenriNeural" },
   de: { word: "de-DE-KatjaNeural", sentence: "de-DE-ConradNeural" },
   it: { word: "it-IT-ElsaNeural", sentence: "it-IT-DiegoNeural" },
-  pt: { word: "pt-BR-FranciscaNeural", sentence: "pt-BR-AntonioNeural" },
+  pt: { word: "pt-PT-RaquelNeural", sentence: "pt-PT-DuarteNeural" },
   ru: { word: "ru-RU-SvetlanaNeural", sentence: "ru-RU-DmitryNeural" },
   vi: { word: "vi-VN-HoaiMyNeural", sentence: "vi-VN-NamMinhNeural" },
 };

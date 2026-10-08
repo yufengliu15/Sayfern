@@ -6,6 +6,14 @@
 // prompt block. The others are marked Beta in the interface: the tutor still works, but it has
 // no level-by-level syllabus, so results may vary. docs/roadmap.md lists the languages still to do.
 import type { GrammarState, GrammarSummary, Language, LevelEstimate, Skill } from "../records";
+import { DE_COURSE } from "./de";
+import { EN_COURSE } from "./en";
+import { ES_COURSE } from "./es";
+import { FR_COURSE } from "./fr";
+import { IT_COURSE } from "./it";
+import { JA_COURSE } from "./ja";
+import { KO_COURSE } from "./ko";
+import { PT_COURSE } from "./pt";
 import { ZH_COURSE } from "./zh";
 
 export interface CourseGrammar {
@@ -17,6 +25,8 @@ export interface CourseGrammar {
   name: string;
   /** One English line for the tutor: how the pattern is used, a typical trap. */
   note: string;
+  /** The point in the source syllabus, for courses that follow one in full: "HSK 3.0 #57", "EGP 412". */
+  ref?: string;
 }
 
 export interface CourseUnit {
@@ -44,6 +54,14 @@ export interface Course {
 
 export const COURSES: Partial<Record<Language, Course>> = {
   zh: ZH_COURSE,
+  ja: JA_COURSE,
+  ko: KO_COURSE,
+  en: EN_COURSE,
+  es: ES_COURSE,
+  fr: FR_COURSE,
+  de: DE_COURSE,
+  it: IT_COURSE,
+  pt: PT_COURSE,
 };
 
 export function courseFor(language: Language): Course | undefined {
@@ -68,11 +86,20 @@ export function findUnit(unitId: string): { course: Course; unit: CourseUnit } |
 /** done = every point used correctly on the learner's own; started = some evidence or a unit session. */
 export type UnitStatus = "new" | "started" | "done";
 
+/** One grammar point of a unit, with the learner's state (null = not seen yet). */
+export interface UnitPointView {
+  id: string;
+  pattern: string;
+  name: string;
+  state: GrammarState | null;
+}
+
 export interface UnitView {
   id: string;
   level: string;
   title: string;
   patterns: string[];
+  points: UnitPointView[];
   status: UnitStatus;
   /** Grammar points used correctly on the learner's own. */
   solid: number;
@@ -146,6 +173,7 @@ export function buildCourseView(
       level: u.level,
       title: u.title,
       patterns: u.grammar.map((g) => g.pattern),
+      points: u.grammar.map((g) => ({ id: g.id, pattern: g.pattern, name: g.name, state: states.get(g.id) ?? null })),
       status,
       solid,
       total: u.grammar.length,

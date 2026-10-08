@@ -25,7 +25,7 @@ export interface LanguageMeta {
   glyph: string;
   /** CSS font class in the renderer. */
   fontClass: string;
-  /** BCP-47 tag for lang attributes, Intl.Segmenter and voices: "es", "pt-BR". */
+  /** BCP-47 tag for lang attributes, Intl.Segmenter and voices: "es", "pt-PT". */
   bcp47: string;
   script: Script;
   levelSystem: LevelSystem;
@@ -90,9 +90,9 @@ export const LANGUAGE_META: Record<Language, LanguageMeta> = {
     titles: { chat: "Nuova conversazione", placement: "Test di livello", practice: "Pratica" },
   },
   pt: {
-    id: "pt", name: "Portuguese", nativeName: "Português", glyph: "Pt", fontClass: "lt", bcp47: "pt-BR", script: "latin",
+    id: "pt", name: "Portuguese", nativeName: "Português", glyph: "Pt", fontClass: "lt", bcp47: "pt-PT", script: "latin",
     levelSystem: "cefr", levels: CEFR_LEVELS, ankiSearch: "portuguese",
-    variety: "Brazilian Portuguese unless the learner asks for European Portuguese",
+    variety: "European Portuguese (Portugal: estar a + infinitive, the object pronoun after the verb in plain statements, as in vi-o)",
     titles: { chat: "Nova conversa", placement: "Teste de nível", practice: "Prática" },
   },
   ru: {
