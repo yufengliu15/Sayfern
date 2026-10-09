@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, type Message } from "@earendil-works/pi-ai";
 import type { TutorEvent } from "../contracts";
 import { makeHarness } from "./testkit";
-import { kickoffText } from "./turn";
+import { kickoffText, NO_REPLY_YET } from "./turn";
 import { SayfernTutor } from "./index";
 
 const abort = () => new AbortController().signal;
@@ -169,7 +169,7 @@ test("recording tool before any text: a follow-up request is made for the reply"
   assert.equal((await h.records.listObservations({ language: "zh" })).length, 1);
   // The model is told it has not replied yet (thinking is hidden), so it does not end the turn empty.
   const result = (await h.records.getTranscript(sid)).find((m) => m.role === "toolResult");
-  assert.ok(result && JSON.stringify(result.content).includes("has not seen any reply yet"));
+  assert.ok(result && JSON.stringify(result.content).includes(NO_REPLY_YET));
 });
 
 test("record_evidence after reply text: the result has no reply nudge", async () => {
@@ -178,7 +178,7 @@ test("record_evidence after reply text: the result has no reply nudge", async ()
   h.faux.setResponses([fauxAssistantMessage([fauxText("好的！你呢？"), evidence({})], { stopReason: "toolUse" })]);
   await h.tutor.runTurn({ sessionId: sid, text: "我很好。", model: h.model, signal: abort(), onEvent: () => {} });
   const result = (await h.records.getTranscript(sid)).find((m) => m.role === "toolResult");
-  assert.ok(result && !JSON.stringify(result.content).includes("has not seen any reply yet"));
+  assert.ok(result && !JSON.stringify(result.content).includes(NO_REPLY_YET));
 });
 
 test("text continues across iterations joined by a blank line", async () => {

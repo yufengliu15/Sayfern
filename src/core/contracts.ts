@@ -28,6 +28,7 @@ import type {
   GrammarSummary,
   Language,
   LearnerProfile,
+  LevelBand,
   LevelEstimate,
   LibraryDoc,
   LibraryHit,
@@ -56,6 +57,10 @@ export interface NewSessionInput {
   /** practice sessions: the course unit to work through. */
   unitId?: string;
   docId?: string;
+  /** placement sessions: the learner's own rough level. */
+  levelBand?: LevelBand;
+  /** chat sessions: the role-play scenario. */
+  scenarioId?: string;
   title?: string;
 }
 
@@ -141,6 +146,14 @@ export interface RecordsStore {
     words: string[];
     at: number;
   }): Promise<WordUsage[]>;
+  /**
+   * Recounts the learner words of every stored learner message with `wordsOf` and rebuilds word usage
+   * from them. Runs only when `key` (the filter's inputs) differs from the last run for the language.
+   * Returns whether it ran.
+   */
+  recountLearnerWords(language: Language, key: string, wordsOf: (message: ChatMessage) => string[]): Promise<boolean>;
+  /** Cheap check before loading a language pack: `key` differs from the last recount and there are words to recount. */
+  needsRecount(language: Language, key: string): Promise<boolean>;
   getWordUsage(language: Language, word: string): Promise<WordUsage | null>;
 
   // anki practice targets per session (S1-14)

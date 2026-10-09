@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { gzipSync } from "node:zlib";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import type { ChatEvent } from "../../shared/api";
 import type { ModelRef } from "../../shared/types";
 import { FileCredentialStore } from "../credential-file-store";
+import { CEDICT_URL } from "../lang";
+import { OEWN_URL } from "../lang/wordlists";
+import { JsonRecordsStore } from "../records";
 import { SayfernApp, type AppEventChannel } from "./index";
 
 const EXAMPLE_EXTENSION = resolve(import.meta.dirname, "../../../examples/extensions/chengyu-of-the-day");
@@ -18,6 +22,7 @@ interface Setup {
   withModel?: boolean;
   beforeInit?: (dir: string) => void;
   ankiFetch?: typeof fetch;
+  fetch?: typeof fetch;
 }
 
 async function makeApp(setup: Setup = {}) {
@@ -36,7 +41,7 @@ async function makeApp(setup: Setup = {}) {
     dataDir: dir,
     models,
     credentials,
-    fetch: offline,
+    fetch: setup.fetch ?? offline,
     ...(setup.ankiFetch ? { ankiFetch: setup.ankiFetch } : {}),
     now: () => clock.t,
     emit: (channel, payload) => events.push({ channel, payload }),
@@ -257,6 +262,27 @@ test("startUnit: the learner's choice of a grammar overview is saved on the sess
   assert.equal(plain.meta.openWith, undefined);
 });
 
+test("role-play: a scenario chat is titled after it, carries the scene into the prompt and opens in role", async () => {
+  const { app, faux, chat, ref } = await makeApp();
+  await app.setSettings({ model: ref });
+  let seen = "";
+  faux.setResponses([
+    (ctx) => {
+      seen = JSON.stringify(ctx);
+      return fauxAssistantMessage("欢迎光临！请问几位？");
+    },
+  ]);
+  const v = await app.newSession({ language: "zh", kind: "chat", scenarioId: "restaurant" });
+  await app.whenIdle();
+  assert.equal(v.meta.kind, "chat");
+  assert.equal(v.meta.scenarioId, "restaurant");
+  assert.equal(v.meta.title, "Order at a restaurant");
+  assert.match(seen, /# Session: role-play/);
+  assert.match(seen, /You are the server/);
+  assert.match(seen, /picked a role-play/);
+  assert.equal((chat(v.meta.id).at(-1) as Extract<ChatEvent, { type: "done" }>).message.text, "欢迎光临！请问几位？");
+});
+
 test("eraseData: stops a running turn, deletes learner data, keeps dictionaries and extensions; sign-ins optional", async () => {
   for (const keepSignIns of [true, false]) {
     const { dir, app, faux, ref } = await makeApp({ tokensPerSecond: 5 });
@@ -297,7 +323,49 @@ test("openings: skipped when no model is available", async () => {
   const v = await app.startPlacement("ja");
   await app.whenIdle();
   assert.equal(v.meta.kind, "placement");
+  assert.equal(v.meta.levelBand, undefined);
   assert.equal(chat().length, 0);
+  const b = await app.startPlacement("ja", "beginner");
+  assert.equal(b.meta.levelBand, "beginner", "the picked band is saved on the session");
+});
+
+test("startup recounts learner words once: the learner's own language stops counting", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "sayfern-app-"));
+  // Records from before the filter: every word of an English sentence counted as Spanish.
+  const old = new JsonRecordsStore({ dataDir: join(dir, "records") });
+  const s = await old.createSession({ language: "es", kind: "chat", feedbackMode: "inline" });
+  const text = "How do I say that I want coffee? Quiero café.";
+  await old.appendMessage({ id: "u1", sessionId: s.id, role: "user", text, at: 1 });
+  await old.recordLearnerWords({ language: "es", sessionId: s.id, messageId: "u1", sentence: text, words: ["how", "want", "coffee", "querer", "café"], at: 1 });
+
+  const { app } = await makeApp({ dir });
+  await app.whenIdle();
+  const records = new JsonRecordsStore({ dataDir: join(dir, "records") });
+  assert.equal(await records.getWordUsage("es", "want"), null);
+  assert.equal(await records.getWordUsage("es", "coffee"), null);
+  assert.equal((await records.getWordUsage("es", "querer"))?.count, 1);
+  assert.equal((await records.getWordUsage("es", "café"))?.firstSentence, text);
+});
+
+test("dictionaries download by themselves for the learner's languages, once, after onboarding", async () => {
+  const cedict = gzipSync(Buffer.from("#! version=1\n北京 北京 [Bei3 jing1] /Beijing/\n", "utf8"));
+  const calls: string[] = [];
+  const fetch = (async (input: string | URL | Request) => {
+    calls.push(String(input));
+    return String(input) === CEDICT_URL ? new Response(cedict, { headers: { "content-length": String(cedict.length) } }) : new Response("no", { status: 404 });
+  }) as typeof globalThis.fetch;
+  const { app } = await makeApp({ fetch });
+  await app.whenDictionariesReady();
+  assert.deepEqual(calls, [], "nothing before onboarding");
+  // English (WordNet) fails here (404): the error stays on its status, and the next check tries it again.
+  await app.setSettings({ onboarded: true, languages: ["zh", "en"], language: "zh" });
+  await app.whenDictionariesReady();
+  assert.equal((await app.dictionaryStatus("zh")).installed, true);
+  assert.deepEqual(calls, [CEDICT_URL, OEWN_URL]);
+  assert.ok((await app.dictionaryStatus("en")).error);
+  await app.setSettings({ language: "en" });
+  await app.whenDictionariesReady();
+  assert.deepEqual(calls, [CEDICT_URL, OEWN_URL, OEWN_URL], "an installed dictionary is not downloaded again; a failed one is");
 });
 
 test("setSelfLevel records all three skills; home no longer asks for placement", async () => {

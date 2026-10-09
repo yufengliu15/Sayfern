@@ -147,6 +147,8 @@ export class SayfernArm implements Arm {
     if (session.mode === "reading") {
       if (!this.docId) throw new Error("reading mode needs a reader in the fixture set");
       view = await this.app.openReading(this.docId);
+    } else if (session.mode === "unit") {
+      view = await this.app.startUnit(session.unit!, { explain: !!session.explain });
     } else {
       view = await this.app.newSession({ language: this.language, kind: session.mode === "practice" ? "practice" : "chat" });
     }

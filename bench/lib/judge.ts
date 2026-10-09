@@ -2,15 +2,17 @@
 // correctness of a fix, factual Anki answers, session-level checks). It sees
 // only what the learner saw, with arm names removed, and runs outside the
 // recording proxy so it never counts toward either harness.
-import { spawn } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { runClaude } from "./claude-cli";
 import type { BenchConfig } from "./config";
 import type { BlockResult } from "./runner";
 import { fixtureDir, loadManifest } from "./fixtures";
-import { RATINGS, type Rating, type Scenario } from "./scenarios";
+import { RATINGS, sessionTurns, sessionUnit, type Rating, type Scenario } from "./scenarios";
 import { surface } from "./score";
+
+/** Per-point verdicts on course units: explained in the opening overview; modeled or elicited in the conversation after it. */
+export const POINT_VERDICTS = ["explained", "modeled", "elicited"] as const;
+export type PointVerdict = (typeof POINT_VERDICTS)[number];
+export type PointResult = { id: string } & Partial<Record<PointVerdict, boolean>>;
 
 export interface JudgeItem {
   item: string;
@@ -26,6 +28,8 @@ export interface JudgeItem {
   movedOn?: boolean;
   /** stay turns: this reply engages with what the learner just raised or asked, without changing the subject. */
   stayed?: boolean;
+  /** Course unit items: one entry per unit grammar point. */
+  points?: PointResult[];
   note?: string;
 }
 
@@ -54,6 +58,9 @@ export interface Item {
   stay?: boolean;
   /** Turn items with moveOn/stay: the conversation so far, opening included. */
   before?: string;
+  /** Course unit items: the unit's grammar points, and the verdicts wanted for each. */
+  unitPoints?: { id: string; pattern: string; name: string }[];
+  pointVerdicts?: PointVerdict[];
 }
 
 /** A rating is an integer 1-5; anything else counts as no verdict. */
@@ -69,17 +76,27 @@ export function judgeItems(block: BlockResult, scenario: Scenario, level = "unkn
   for (const [si, session] of scenario.sessions.entries()) {
     const steps = block.steps.filter((s) => s.phase.session === si);
     const open = steps.find((s) => s.phase.step === "open");
-    if (open?.output && session.openChecks?.length) items.push({ item: `s${si}-open`, kind: "open", tutor: surface(open.output), checks: session.openChecks });
+    const unit = sessionUnit(session);
+    const unitPoints = unit?.grammar.map((g) => ({ id: g.id, pattern: g.pattern, name: g.name }));
+    const overview = !!unitPoints && !!session.explain;
+    if (open?.output && (session.openChecks?.length || overview)) {
+      items.push({
+        item: `s${si}-open`,
+        kind: "open",
+        tutor: surface(open.output),
+        ...(session.openChecks?.length ? { checks: session.openChecks } : {}),
+        ...(overview ? { unitPoints, pointVerdicts: ["explained" as const] } : {}),
+      });
+    }
     const said = (s: BlockResult["steps"][number]) =>
       `${s.phase.step === "turn" && s.input ? `LEARNER: ${s.input}\n` : ""}TUTOR${s.phase.step === "open" ? " (opening)" : ""}: ${surface(s.output)}`;
-    for (const [ti, turn] of session.turns.entries()) {
-      const step = steps.find((s) => s.phase.step === "turn" && s.phase.turn === ti);
+    for (const { turn: ti, text, gold, step } of sessionTurns(session, steps)) {
       if (!step?.output) continue;
-      const g = turn.gold ?? {};
+      const g = gold ?? {};
       items.push({
         item: `s${si}-t${ti}`,
         kind: "turn",
-        learner: turn.text,
+        learner: text,
         tutor: surface(step.output),
         ...(g.errors?.length ? { goldErrors: g.errors.map((e) => ({ id: e.id, original: e.original, accept: e.accept, pattern: e.pattern })) } : {}),
         ...(g.clean ? { clean: true } : {}),
@@ -96,9 +113,9 @@ export function judgeItems(block: BlockResult, scenario: Scenario, level = "unkn
           : {}),
       });
     }
-    if (session.checks?.length || session.rate?.length) {
-      // Rated sessions show the conversation only (opening and turns): the wrap-up at the end is not conversation.
-      const transcript = session.rate?.length
+    if (session.checks?.length || session.rate?.length || unitPoints) {
+      // Rated and unit sessions show the conversation only (opening and turns): the wrap-up at the end is not conversation.
+      const transcript = session.rate?.length || unitPoints
         ? steps.filter((s) => s.phase.step === "open" || s.phase.step === "turn").map(said).join("\n\n")
         : steps.map((s) => `${s.input ? `LEARNER: ${s.input}\n` : ""}TUTOR: ${surface(s.output)}`).join("\n\n");
       items.push({
@@ -107,14 +124,15 @@ export function judgeItems(block: BlockResult, scenario: Scenario, level = "unkn
         tutor: transcript,
         ...(session.checks?.length ? { checks: session.checks } : {}),
         ...(session.rate?.length ? { rate: session.rate, learnerLevel: level } : {}),
+        ...(unitPoints ? { unitPoints, pointVerdicts: ["modeled" as const, "elicited" as const] } : {}),
       });
     }
   }
   return items;
 }
 
-/** The verdicts an item must carry to count: one per gold error, falsePositive, correct, pass, each rating, movedOn, stayed. */
-export function needs(item: Item): { errors: string[]; clean: boolean; fact: boolean; checks: boolean; rate: Rating[]; movedOn: boolean; stayed: boolean } {
+/** The verdicts an item must carry to count: one per gold error, falsePositive, correct, pass, each rating, movedOn, stayed, each point verdict. */
+export function needs(item: Item) {
   return {
     errors: (item.goldErrors ?? []).map((e) => e.id),
     clean: !!item.clean,
@@ -123,8 +141,16 @@ export function needs(item: Item): { errors: string[]; clean: boolean; fact: boo
     rate: item.rate ?? [],
     movedOn: !!item.moveOn,
     stayed: !!item.stay,
+    points: (item.unitPoints ?? []).map((p) => p.id),
+    pointVerdicts: item.pointVerdicts ?? [],
   };
 }
+
+/** The judge's verdict for one point, or undefined when it gave none. */
+export const pointVerdict = (r: JudgeItem | undefined, id: string, v: PointVerdict) => {
+  const x = r?.points?.find((p) => p.id === id)?.[v];
+  return typeof x === "boolean" ? x : undefined;
+};
 
 /** Ids of items whose required verdicts are absent from `results`. */
 export function missingVerdicts(items: Item[], results: JudgeItem[]): string[] {
@@ -132,7 +158,7 @@ export function missingVerdicts(items: Item[], results: JudgeItem[]): string[] {
   return items
     .filter((it) => {
       const n = needs(it);
-      if (!n.errors.length && !n.clean && !n.fact && !n.checks && !n.rate.length && !n.movedOn && !n.stayed) return false;
+      if (!n.errors.length && !n.clean && !n.fact && !n.checks && !n.rate.length && !n.movedOn && !n.stayed && !n.points.length) return false;
       const r = byId.get(it.item);
       if (!r) return true;
       if (n.errors.some((id) => !r.errors?.some((e) => e.id === id))) return true;
@@ -142,6 +168,7 @@ export function missingVerdicts(items: Item[], results: JudgeItem[]): string[] {
       if (n.rate.some((k) => !validRating(r.ratings?.[k]))) return true;
       if (n.movedOn && typeof r.movedOn !== "boolean") return true;
       if (n.stayed && typeof r.stayed !== "boolean") return true;
+      if (n.points.some((id) => n.pointVerdicts.some((v) => pointVerdict(r, id, v) === undefined))) return true;
       return false;
     })
     .map((it) => it.item);
@@ -157,6 +184,16 @@ function mergeResults(a: JudgeItem[], b: JudgeItem[]): JudgeItem[] {
       for (const [k, v] of Object.entries(r)) if ((cur as Record<string, unknown>)[k] === undefined) (cur as Record<string, unknown>)[k] = v;
       // Ratings merge per quality, so a retry can fill in just the ones that were missing or invalid.
       for (const k of RATINGS) if (!validRating(cur.ratings?.[k]) && validRating(r.ratings?.[k])) cur.ratings = { ...cur.ratings, [k]: r.ratings[k] };
+      // Point verdicts merge per point and verdict, for the same reason.
+      if (r.points && cur.points !== r.points) {
+        const byId = new Map(cur.points?.map((p) => [p.id, { ...p }]));
+        for (const p of r.points) {
+          const have = byId.get(p.id);
+          if (!have) byId.set(p.id, { ...p });
+          else for (const v of POINT_VERDICTS) if (typeof have[v] !== "boolean" && typeof p[v] === "boolean") have[v] = p[v];
+        }
+        cur.points = [...byId.values()];
+      }
     }
   }
   return [...out.values()];
@@ -190,11 +227,21 @@ Rules:
     3 = mixed: some turns fit the level, others are clearly too easy or too hard.
     4 = mostly right: wording within or slightly above the level, questions invite full sentences with reasons or opinions.
     5 = well calibrated and rising: wording at the level with a few new words just above it, questions need opinions, reasons, comparisons or plans suited to the level, no needless simplification.
+  teaching (only for course units, where "unitPoints" lists the unit's grammar: how well does the tutor teach these points through the conversation after the opening?)
+    1 = the unit is dropped after the opening: ordinary chat, or a lecture or drill with no real conversation.
+    2 = few points come up, mostly only when the learner happens to use them; or several points are dumped into one reply.
+    3 = about half the points come up; some prompts feel artificial ("make a sentence with X"), or corrections of unit points only give the fixed sentence.
+    4 = most points come up one at a time in a natural context: the tutor uses the pattern itself and asks questions whose natural answer uses it; corrections of unit points briefly say the rule.
+    5 = nearly every point comes up, one at a time, at a sensible pace: used by the tutor in a natural sentence, then invited with a question; corrections tie back to the pattern; it never feels like a drill.
 - movedOn (only when "moveOn" is true; "before" is the conversation so far): the learner's topic is exhausted. true if the tutor's reply in this item, or any earlier tutor reply in the same stretch of conversation on this topic, changed the topic, opened a clearly new angle, or raised the challenge (a harder question, a new structure to use, a request for a longer answer). false if the tutor is still on the same topic with questions of the same easy kind.
 - stayed (only when "stay" is true): the learner is invested in a topic or asked the tutor something. true if the tutor's reply answers what the learner asked and engages with what the learner raised. false if it ignores the question, drags back to an earlier topic, or changes the subject while the learner's question is unresolved.
+- points (only when "unitPoints" is given): one entry {"id": ...} per unit point, in the same order, with each verdict listed in "pointVerdicts":
+  explained (opening only): the opening names this point, says what it does, and gives an example sentence that uses it correctly. false if the point is missing, the explanation is wrong, or the example misuses it.
+  modeled (whole session): in a reply AFTER the opening, the tutor itself uses this pattern correctly in a sentence of the conversation. The overview in the opening does not count, and neither does only repeating the learner's own sentence in a correction.
+  elicited (whole session): in a reply AFTER the opening, the tutor asks a question or sets up a situation whose natural answer uses this pattern, or asks the learner to try it. Correcting the learner's use of the pattern does not count by itself.
 - note: at most one short sentence.
 
-Answer with ONLY a JSON object: {"items":[{"item":"...", "errors":[{"id":"...","flagged":true,"correctFix":true}], "falsePositive":false, "tutorErrors":0, "correct":true, "pass":true, "ratings":{"engagement":4,"pacing":3,"level":5}, "movedOn":true, "stayed":true, "note":"..."}]}. Omit fields that do not apply.
+Answer with ONLY a JSON object: {"items":[{"item":"...", "errors":[{"id":"...","flagged":true,"correctFix":true}], "falsePositive":false, "tutorErrors":0, "correct":true, "pass":true, "ratings":{"engagement":4,"pacing":3,"level":5}, "movedOn":true, "stayed":true, "points":[{"id":"...","modeled":true,"elicited":false}], "note":"..."}]}. Omit fields that do not apply.
 
 Items:
 `;
@@ -210,7 +257,7 @@ export async function judgeBlock(config: BenchConfig, block: BlockResult, scenar
   let lastErr = "";
   for (let attempt = 0; attempt < 3 && todo.length; attempt++) {
     try {
-      const text = await runClaude(config, RUBRIC + JSON.stringify(todo, null, 1));
+      const text = await runClaude(config.judge, RUBRIC + JSON.stringify(todo, null, 1));
       const parsed = extractJudgeItems(text);
       if (parsed) results = mergeResults(results, parsed);
       else lastErr = `judge returned no usable JSON: ${text.slice(0, 200)}`;
@@ -274,37 +321,4 @@ export function extractJudgeItems(text: string): JudgeItem[] | null {
     }
   }
   return found ? items : null;
-}
-
-function runClaude(config: BenchConfig, prompt: string): Promise<string> {
-  const cwd = mkdtempSync(join(tmpdir(), "sayfern-judge-"));
-  const env = { ...process.env };
-  delete env.ANTHROPIC_BASE_URL; // never through the recording proxy
-  for (const k of ["ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_SMALL_FAST_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL"]) {
-    env[k] = config.judge.model;
-  }
-  return new Promise((resolve, reject) => {
-    const child = spawn(config.judge.command, ["-p", "--output-format", "json", "--model", config.judge.model, "--max-turns", "1"], {
-      cwd,
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let out = "";
-    let err = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (err += d));
-    const t = setTimeout(() => child.kill(), config.judge.timeoutSec * 1000);
-    child.on("error", reject);
-    child.on("close", (code) => {
-      clearTimeout(t);
-      try {
-        const j = JSON.parse(out) as { result?: string; is_error?: boolean };
-        if (j.is_error) return reject(new Error(`judge error: ${j.result ?? err}`));
-        resolve(j.result ?? "");
-      } catch {
-        reject(new Error(`judge exited ${code}: ${(err || out).slice(0, 300)}`));
-      }
-    });
-    child.stdin.end(prompt);
-  });
 }

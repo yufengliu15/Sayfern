@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { lemmatize } from "./lemma";
-import { KoreanPack, SpacedPack, VietnamesePack, type WordIndex } from "./spaced";
+import { COMMON_WORDS } from "./common-words";
+import { keepTarget, KoreanPack, SpacedPack, VietnamesePack, type WordIndex } from "./spaced";
 import { mergeRows, parseKaikki, parseKengdic, wikdictRows } from "./wordlists";
 
 function index(words: string[]): WordIndex {
@@ -117,4 +118,52 @@ test("wordlists: WikDict gloss markup is cleaned", async () => {
   assert.equal(cleanGloss("B<u>ü</u>cher"), "Bücher");
   assert.equal(cleanGloss("Buch  - s"), "Buch");
   assert.equal(cleanGloss("[[es geht]] um"), "es geht um");
+});
+
+/** A Spanish dictionary with English glosses: headwords, and the words its glosses use. */
+function bilingual(heads: Record<string, string>): WordIndex {
+  const glosses = new Map(Object.entries(heads).map(([h, g]) => [h, g.toLowerCase().split(/\W+/).filter(Boolean)]));
+  const glossWords = new Set([...glosses.values()].flat());
+  return {
+    hasIndex: () => true,
+    load: async () => undefined,
+    has: (w) => glosses.has(w),
+    ownWord: (w) => glossWords.has(w) || COMMON_WORDS.en.has(w),
+    glossWordsOf: (w) => glosses.get(w) ?? [],
+    ownLanguage: () => "en",
+  };
+}
+
+test("learner words: the learner's own language never counts (dictionary)", async () => {
+  const es = new SpacedPack(
+    "es",
+    bilingual({ querer: "want, love", café: "coffee", hotel: "hotel", chocolate: "chocolate", a: "to", no: "no, not", me: "me", i: "i", playa: "beach", ir: "go", hacer: "do, make" }),
+  );
+  await es.ready();
+  // Own language only: dropped. Shared with the same meaning (hotel): counts. Target only: counts.
+  assert.deepEqual(es.learnerWords("I want coffee"), []);
+  // "hotel" is Spanish too, with the same meaning, so it counts even inside an English sentence.
+  assert.deepEqual(es.learnerWords("Quiero un hotel. I want a hotel near the airport."), ["querer", "un", "hotel", "hotel"]);
+  assert.deepEqual(es.learnerWords("No me gusta el chocolate."), ["no", "me", "gusta", "el", "chocolate"]);
+  // Unclear words (in both with another meaning, or in neither) follow their clause.
+  assert.deepEqual(es.learnerWords("I said no"), ["no"], "no means no in both languages: it counts; I and said do not");
+  assert.deepEqual(es.learnerWords("voy a la playa"), ["ir", "a", "la", "playa"]);
+  assert.deepEqual(es.learnerWords("I like the beach, pero hace calor"), ["pero", "hacer", "calor"]);
+});
+
+test("learner words: wrong script never counts; built-in lists work without a dictionary", async () => {
+  assert.deepEqual(new KoreanPack().learnerWords("I want 안녕하세요"), ["안녕하세요"]);
+  assert.deepEqual(new SpacedPack("ru").learnerWords("I want привет"), ["привет"]);
+  // No dictionary: the common-word lists of both languages decide.
+  const ownEnglish: WordIndex = { hasIndex: () => false, load: async () => undefined, has: () => false, ownWord: (w) => COMMON_WORDS.en.has(w), ownLanguage: () => "en" };
+  const es = new SpacedPack("es", ownEnglish);
+  assert.deepEqual(es.learnerWords("How do I say I wanted coffee? Quiero café, me llamo Juan."), ["querer", "café", "me", "llamo", "juan"]);
+  assert.deepEqual(es.learnerWords("I don't know how to say this"), []);
+});
+
+test("keepTarget: unclear words count unless the clause leans to the own language", () => {
+  assert.deepEqual(keepTarget(["a", "b"], ["target", "unclear"]), ["a", "b"]);
+  assert.deepEqual(keepTarget(["a", "b"], ["own", "unclear"]), []);
+  assert.deepEqual(keepTarget(["a", "b", "c"], ["target", "target", "own"]), ["a", "b"]);
+  assert.deepEqual(keepTarget(["x"], ["unclear"]), ["x"]);
 });

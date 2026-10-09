@@ -1,0 +1,37 @@
+{
+  "id": "zh-course-unit",
+  "title": "Course unit: teach one HSK 3 unit's grammar",
+  "description": "The learner works through one course unit, HSK 3.0 \"Complex sentences\" (zh-hsk30-3-12: 不是…就是…, A是A就是…, 要是…就…, 只有…才…, 由于…所以…, 为了…, 了…就…), and asks for a quick overview first. Shows what Sayfern's course tooling adds over plain Claude Code: Sayfern opens the unit from its course (startUnit with explain: the unit's notes, topics, words and the learner's state per point); Claude Code gets only the unit's title and patterns in the learner's first message, as from a textbook (the skill has no course). A simulated learner writes the 20 messages, so it answers the tutor and tries the patterns the tutor invites. Its plan has five mistakes on unit patterns (one repeats an earlier mistake) and keeps three points out of its messages until the tutor brings them in. The judge checks each point: explained in the overview, then used by the tutor and invited from the learner in the conversation, and rates the teaching.",
+  "language": "zh",
+  "sessions": [
+    {
+      "mode": "unit",
+      "unit": "zh-hsk30-3-12",
+      "explain": true,
+      "openChecks": [
+        "The overview is short, a reminder of what is coming: about one line and one example per point, not a full lesson with tables, drills or long lists of exceptions.",
+        "After the overview, the opening starts the conversation with a question the learner can answer."
+      ],
+      "learner": {
+        "turns": 20,
+        "persona": "A heritage speaker of Mandarin: heard Chinese at home as a child, stopped formal study in elementary school, can hold basic conversations with family. A computer science student in their last year, building a four-legged robot dog for their graduation project in the lab. Likes robots, cooking and games. Today they opened one unit of their course, HSK 3 \"Complex sentences\", and asked for a quick overview of its grammar first. They have seen these patterns in their textbook but often get them wrong when speaking.",
+        "plan": [
+          "Talk about your own life: the robot dog, the lab, graduation, family, food. Keep it consistent from message to message.",
+          "The first time you use 不是…就是…, use 或者 for the second half (不是在家写代码，或者去实验室). Use it correctly after that.",
+          "The first two times you use 要是…就…, put 就 before the subject (要是你有时间，就我们一起去). Use it correctly after that.",
+          "Once, use 为了 to give a reason instead of a goal (为了下雨，比赛取消了).",
+          "The first time you use 只有…才…, write 就 instead of 才 (只有多练习，就能…). Use it correctly after that.",
+          "Never use A是A，就是/不过…, 由于…所以/因此… or V了…就… unless the tutor uses them first or asks you to try them.",
+          "If the tutor corrects a mistake, you may take the fix next time, except where a rule above says the mistake happens twice.",
+          "Answer in Chinese even when the tutor writes some English."
+        ]
+      },
+      "end": true,
+      "rate": [
+        "teaching",
+        "engagement",
+        "level"
+      ]
+    }
+  ]
+}

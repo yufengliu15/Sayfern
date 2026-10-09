@@ -34,6 +34,7 @@ import type {
   GrammarSummary,
   Language,
   LearnerProfile,
+  LevelBand,
   LevelEstimate,
   LibraryDoc,
   LibraryHit,
@@ -50,10 +51,12 @@ import type {
 import { SKILLS } from "../../shared/records";
 import { LANGUAGE_META } from "../../shared/languages";
 import { buildCourseView, findUnit, type CourseView } from "../../shared/course";
+import { findScenario } from "../../shared/scenarios";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "../../shared/types";
 import { SayfernTutor } from "../agent";
 import { lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
 import { TARGET_COUNT } from "../agent/turn";
+import { stripPasted } from "../agent/text";
 import { AnkiConnectService } from "../anki";
 import type { TutorEvent } from "../contracts";
 import { FileExtensionHost } from "../extensions";
@@ -108,6 +111,9 @@ export type CoreApi = Pick<SayfernApi, Exclude<ApiMethod, ElectronOnlyMethod>>;
 
 type ChatEventBody = ChatEvent extends infer E ? (E extends ChatEvent ? Omit<E, "requestId" | "sessionId"> : never) : never;
 
+/** Bump when learnerWords changes what counts as the target language: stored words are recounted once. */
+const WORD_FILTER_VERSION = 1;
+
 const OPENING_KINDS: ReadonlySet<SessionKind> = new Set(["practice", "reading", "placement"]);
 const RECENT_COUNT = 5;
 /** Background Anki refresh: sync when the snapshot is older than this. */
@@ -153,6 +159,8 @@ export class SayfernApp implements CoreApi {
   private readonly messageSessions = new Map<string, string>();
   private readonly pendingPrompts = new Map<string, (value: string | null) => void>();
   private loginAbort: AbortController | null = null;
+  /** The background dictionary downloads, chained so only one runs at a time. */
+  private dictionaryCheck: Promise<void> = Promise.resolve();
 
   constructor(deps: SayfernAppDeps) {
     this.dataDir = deps.dataDir;
@@ -246,6 +254,58 @@ export class SayfernApp implements CoreApi {
     }
     await this.extensions.load();
     for (const info of this.lang.languages()) this.refreshAnki(info.id);
+    this.recountWords(this.lang.languages().map((l) => l.id));
+    this.ensureDictionaries();
+  }
+
+  /**
+   * Dictionaries are required (ADR 31): downloads, one at a time and in the background, the missing
+   * dictionary of each language the learner learns. Runs after onboarding, at startup, and when the
+   * languages or the interface language change. A failed download stays on the dictionary's status
+   * (Settings > Dictionaries offers a retry) and is tried again at the next startup.
+   */
+  private ensureDictionaries(): Promise<void> {
+    this.dictionaryCheck = this.dictionaryCheck.then(async () => {
+      const s = await this.settings.get();
+      if (!s.onboarded) return;
+      for (const language of s.languages ?? [s.language]) {
+        const status = await this.lang.dictionaryStatus(language).catch(() => null);
+        // downloadMb 0: no dictionary exists for this pair; the built-in word lists stay.
+        if (!status || status.installed || status.installing || status.downloadMb === 0) continue;
+        await this.installDictionary(language).catch(() => undefined);
+      }
+    });
+    return this.dictionaryCheck;
+  }
+
+  /** Resolves when the background dictionary downloads are done (tests). */
+  whenDictionariesReady(): Promise<void> {
+    return this.dictionaryCheck;
+  }
+
+  /**
+   * Recounts stored learner words with the current target-language filter (ADR 30), in the background.
+   * Skips, without loading its pack, a language whose filter key (filter version + dictionary) has not
+   * changed or that has no stored learner words.
+   */
+  private recountWords(languages: Language[]): void {
+    const task = (async () => {
+      for (const language of languages) {
+        try {
+          const dict = await this.lang.dictionaryStatus(language).catch(() => null);
+          const key = `${WORD_FILTER_VERSION}|${dict?.installed ? dict.name : "none"}`;
+          // Loading a pack costs memory (dictionary, kuromoji): only when there is work to do.
+          if (!(await this.records.needsRecount(language, key))) continue;
+          const pack = this.lang.pack(language);
+          await pack.ready();
+          await this.records.recountLearnerWords(language, key, (m) => pack.learnerWords(stripPasted(m.text, m.pastedSpans)));
+        } catch (err) {
+          console.error(`Recounting ${language} learner words failed:`, errorText(err));
+        }
+      }
+    })();
+    this.running.add(task);
+    void task.finally(() => this.running.delete(task));
   }
 
   /**
@@ -277,8 +337,11 @@ export class SayfernApp implements CoreApi {
     return this.settings.get();
   }
 
-  setSettings(patch: Partial<Settings>): Promise<Settings> {
-    return this.settings.update(patch);
+  async setSettings(patch: Partial<Settings>): Promise<Settings> {
+    const next = await this.settings.update(patch);
+    // A new language or interface language can need a new dictionary.
+    if (patch.languages || patch.language || patch.uiLocale || patch.onboarded) void this.ensureDictionaries();
+    return next;
   }
 
   async systemLocale(): Promise<UiLocale> {
@@ -496,6 +559,11 @@ export class SayfernApp implements CoreApi {
     if (kind === "practice" && opts.unitId) return this.startUnit(opts.unitId);
     if (kind === "practice" && opts.focusGrammarId) return this.practiseGrammar(opts.focusGrammarId);
     if (kind === "placement") return this.startPlacement(opts.language);
+    const scenario = kind === "chat" ? findScenario(opts.scenarioId) : undefined;
+    if (scenario) {
+      const tr = await this.settings.translator();
+      return this.createAndOpen({ language: opts.language, kind, scenarioId: scenario.id, title: tr.t(scenario.title) });
+    }
     return this.createAndOpen({ language: opts.language, kind, focusGrammarId: opts.focusGrammarId });
   }
 
@@ -507,6 +575,8 @@ export class SayfernApp implements CoreApi {
     openWith?: "explain";
     unitId?: string;
     docId?: string;
+    levelBand?: LevelBand;
+    scenarioId?: string;
   }): Promise<SessionView> {
     const settings = await this.settings.get();
     const feedbackMode: FeedbackMode = settings.feedbackMode ?? "inline";
@@ -515,12 +585,12 @@ export class SayfernApp implements CoreApi {
     return this.viewWithOpening(meta.id);
   }
 
-  /** Returns the view; for practice/reading/placement sessions with nothing said yet, starts the tutor's opening. */
+  /** Returns the view; for practice/reading/placement and role-play sessions with nothing said yet, starts the tutor's opening. */
   private async viewWithOpening(sessionId: string): Promise<SessionView> {
     const view = await this.getSession(sessionId);
     if (!view) throw new Error(`Session not found: ${sessionId}`);
     const needsOpening =
-      OPENING_KINDS.has(view.meta.kind) &&
+      (OPENING_KINDS.has(view.meta.kind) || !!view.meta.scenarioId) &&
       !view.meta.endedAt &&
       !view.messages.some((m) => m.role === "user" || !m.error) &&
       !this.openings.has(sessionId);
@@ -704,8 +774,11 @@ export class SayfernApp implements CoreApi {
     return this.lang.dictionaryStatus(language);
   }
 
-  installDictionary(language: Language): Promise<DictionaryStatus> {
-    return this.lang.installDictionary(language, (p) => this.emitEvent("dictionaryProgress", p));
+  async installDictionary(language: Language): Promise<DictionaryStatus> {
+    const status = await this.lang.installDictionary(language, (p) => this.emitEvent("dictionaryProgress", p));
+    // A dictionary tells target words from own-language words better than the built-in lists.
+    if (status.installed) this.recountWords([language]);
+    return status;
   }
 
   saveWord(input: SaveWordInput): Promise<SavedWord> {
@@ -941,8 +1014,8 @@ export class SayfernApp implements CoreApi {
     }
   }
 
-  startPlacement(language: Language): Promise<SessionView> {
-    return this.createAndOpen({ language, kind: "placement", title: LANGUAGE_META[language].titles.placement });
+  startPlacement(language: Language, band?: LevelBand): Promise<SessionView> {
+    return this.createAndOpen({ language, kind: "placement", title: LANGUAGE_META[language].titles.placement, ...(band ? { levelBand: band } : {}) });
   }
 
   // ============================================================ data & extensions

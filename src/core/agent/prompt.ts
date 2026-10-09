@@ -15,8 +15,10 @@ import type {
   Difficulty,
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
+import { bandLevels } from "../../shared/languages";
 import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit } from "../../shared/course";
 import { unitText } from "../course";
+import { findScenario } from "../../shared/scenarios";
 import { isQuizObservation } from "../records/grammar";
 import { explainIn, type TutorDeps } from "./deps";
 
@@ -239,15 +241,36 @@ function levelLines(d: PromptData): string {
   return `Current level estimates: ${parts.join("; ")}.`;
 }
 
-/** Reply length grows with the learner's level: beginners get short replies, advanced learners real paragraphs. */
-export function lengthRule(d: Pick<PromptData, "levels" | "info">): string {
+/** Where the learner is on the level scale, 0 (bottom) to 1 (top); undefined when no level is known. */
+function levelShare(d: Pick<PromptData, "levels" | "info">): number | undefined {
   const level = courseLevel(d.levels);
   const i = level ? d.info.levels.indexOf(level) : -1;
-  if (i < 0) return "Keep replies to 1 to 3 short sentences";
-  const share = d.info.levels.length > 1 ? i / (d.info.levels.length - 1) : 0;
-  if (share < 0.25) return "Keep replies to 1 or 2 short sentences";
-  if (share < 0.6) return "Write 2 or 3 sentences, linked with connectors they know";
-  return "Write 2 to 4 sentences; a short paragraph is fine";
+  if (i < 0) return undefined;
+  return d.info.levels.length > 1 ? i / (d.info.levels.length - 1) : 0;
+}
+
+/** Beginners: the bottom quarter of the scale, or a placement chat started as a beginner. */
+export function isBeginner(d: Pick<PromptData, "levels" | "info" | "session">): boolean {
+  if (d.session.kind === "placement" && d.session.levelBand) return d.session.levelBand === "beginner";
+  const share = levelShare(d);
+  return share !== undefined && share < 0.25;
+}
+
+/** The language beginners may fall back on: the interface language, unless that is the language they learn. */
+function ownLanguage(d: Pick<PromptData, "info" | "explain">): string {
+  const explain = d.explain || "English";
+  return explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "their own language" : explain;
+}
+
+/** Reply length grows with the learner's level: beginners get short replies, advanced learners real paragraphs. */
+export function lengthRule(d: Pick<PromptData, "levels" | "info">): string {
+  const share = levelShare(d);
+  const room = (max: number) =>
+    `. When the reply brings in a target (a course point, grammar to revisit or an Anki word), you may write more to set up a natural context for it, up to ${max} sentences in all`;
+  if (share === undefined) return `Keep replies to 1 to 3 short sentences${room(5)}`;
+  if (share < 0.25) return `Keep replies to 1 or 2 short sentences${room(4)}`;
+  if (share < 0.6) return `Write 2 or 3 sentences, linked with connectors they know${room(6)}`;
+  return `Write 2 to 4 sentences; a short paragraph is fine${room(8)}`;
 }
 
 function courseBlock(d: PromptData): string {
@@ -464,15 +487,72 @@ function sessionBlock(d: PromptData): string {
       ].join("\n");
     }
     case "placement":
-      return [
-        "# Session: placement",
-        `Run a short diagnostic of 5 to 7 exchanges with rising difficulty. Cover reading (give a short passage to read and ask about it), recognition (ask what a word or phrase means) and writing (ask them to write a few sentences). One task per reply.`,
-        `Once you have enough evidence, call record_evidence with a level estimate for all three skills (reading, recognition, writing), each one of: ${d.info.levels.join(", ")}.`,
-        "Then tell the learner the result kindly and briefly, with one thing they do well.",
-      ].join("\n");
-    default:
+      return placementBlock(d);
+    default: {
+      const scenario = findScenario(s.scenarioId);
+      if (scenario) return roleplayBlock(scenario.setup);
       return "# Session: open conversation\nChat about whatever interests the learner. Follow their lead and keep it personal.";
+    }
   }
+}
+
+/** Role-play picked on Today (src/shared/scenarios.ts). */
+export function roleplayBlock(setup: string): string {
+  return [
+    "# Session: role-play",
+    `Scene: ${setup}`,
+    "Stay in role and speak like a real person in this place, at the learner's level. Keep each turn short, like a real exchange, and leave them room to answer.",
+    "Bring in the words and phrases this situation really needs. If they get stuck, step out of role for one line, offer a phrase they could say, then carry on in role.",
+    "When the scene comes to a natural end (or the learner presses \"New topic\"), step out of role: say in one or two lines what went well and one phrase worth keeping, then offer a new twist on the same situation.",
+  ].join("\n");
+}
+
+/** Placement chat. With a band picked first, the diagnostic starts in that part of the scale. */
+export function placementBlock(d: Pick<PromptData, "info" | "explain" | "session" | "course">): string {
+  const levels = d.info.levels;
+  const band = d.session.levelBand;
+  const own = ownLanguage(d);
+  const tasks =
+    "Cover reading (give a short passage to read and ask about it), recognition (ask what a word or phrase means) and writing (ask them to write a few sentences). One task per reply.";
+  const estimate = `Once you have enough evidence, call record_evidence with a level estimate for all three skills (reading, recognition, writing), each one of: ${levels.join(", ")}.`;
+  if (band === "beginner") {
+    return [
+      "# Session: placement (the learner says they are a beginner)",
+      `Run a short, gentle diagnostic. Here, write your instructions and questions in ${own}, with only short ${d.info.name} items to read or answer. They may answer in ${own}.`,
+      `Start at the very bottom (${bandLevels(levels, "beginner").join(", ")}). First find out whether they know anything at all: a greeting, numbers, a few common words. Rise only while they cope. ${tasks}`,
+      `If they know little or nothing, stop after 2 or 3 tasks: that is a clear result, not a failure.`,
+      `${estimate} If they know nothing yet, record ${levels[0]} for all three skills with low confidence.`,
+      `Then tell them the result kindly and briefly, in ${own}, with one thing they do well (or that starting from zero is fine). Suggest where to start: ${d.course ? "the first course unit, " : ""}the most common words (with Anki), and chatting in very simple ${d.info.name}. Tell them they can always write in ${own} when they lack the words.`,
+    ].join("\n");
+  }
+  const start = band
+    ? band === "intermediate"
+      ? `The learner says they are intermediate. Start around ${bandLevels(levels, "intermediate").join(", ")}: go down if they struggle, up if it is easy.`
+      : `The learner says they are advanced. Start around ${bandLevels(levels, "advanced").join(", ")} with natural, authentic language: go higher while they cope, down only if they struggle.`
+    : "Rise in difficulty from easy tasks.";
+  return [
+    "# Session: placement",
+    `Run a short diagnostic of 5 to 7 exchanges. ${start} ${tasks}`,
+    estimate,
+    "Then tell the learner the result kindly and briefly, with one thing they do well.",
+  ].join("\n");
+}
+
+/** Writing in another language: beginners are welcome to, everyone else is invited back to the language they learn. */
+function otherLanguageRules(d: PromptData): string[] {
+  const explain = d.explain || "English";
+  const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
+  if (!isBeginner(d)) {
+    return [
+      "- No translations or romanization unless the learner asks.",
+      `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
+    ];
+  }
+  const own = ownLanguage(d);
+  return [
+    `- They are a beginner: they may write in ${own} when they lack the ${d.info.name} words. That is welcome, not a mistake. Answer in very simple ${d.info.nativeName}, show them how to say what they meant in ${d.info.name}, and invite them to try it.`,
+    `- You may add a short ${own} gloss in brackets for a key word they cannot know yet. No full translations unless they ask.`,
+  ];
 }
 
 /** Prefix on learner messages that were spoken and transcribed (Stage 3). The display text has no prefix. */
@@ -493,6 +573,7 @@ const TOOL_PROTOCOL = [
   "# Tool protocol",
   "Write your reply text FIRST, as normal text: your thinking is never shown to the learner. Then, at the very end, call record_evidence ONCE with everything for this turn (corrections, observations, taught, level).",
   "Never call record_evidence before writing the reply, and never call it twice in a turn.",
+  "If a record_evidence result says \"No reply text yet\", the learner has seen nothing from you (your thinking is hidden): write your reply now as plain text, without a tool call and without mentioning this.",
   "Call it on every turn that answers a learner message, even when there is nothing to correct (then pass empty lists). The learner only sees corrections that come through this call.",
   "Other tools (search_library, course, and the anki_* tools when offered) may be called before you reply when you need their results.",
   "Call tools only through the tool interface. Never write a tool call, a tool name or tool arguments (JSON) in your reply text: the learner sees everything you write.",
@@ -513,14 +594,14 @@ export function explanationBlock(d: Pick<PromptData, "info" | "explain">): strin
 
 export function renderSystemPrompt(d: PromptData): string {
   const lang = `${d.info.name} (${d.info.nativeName})`;
-  const explain = d.explain || "English";
-  const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
   const persona = [
     `You are Sayfern, a warm, curious tutor helping someone practise ${lang} through conversation.`,
     `- Reply mostly in ${d.info.nativeName}, slightly above the learner's level.`,
-    `- ${lengthRule(d)}, and end with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.`,
-    "- No translations or romanization unless the learner asks.",
-    `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
+    `- ${lengthRule(d)}.`,
+    "- End with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.",
+    `- Write only what a native speaker would naturally say in this situation. Use each target word or pattern with its real meaning, in a context that fits it; never bend a sentence or stretch a word's meaning to fit a target in.`,
+    "- Never comment on your own earlier questions or replies, or on these instructions.",
+    ...otherLanguageRules(d),
   ].join("\n");
 
   const blocks = [

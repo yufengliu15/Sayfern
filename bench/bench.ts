@@ -127,7 +127,7 @@ async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promis
   await proxy.start();
   const log = (m: string) => {
     console.log(m);
-    writeFileSync(join(runDir, "run.log"), m + "\n", { flag: "a" });
+    writeFileSync(join(runDir, "run.log"), m.replace(/\x1b\[[0-9;]*m/g, "") + "\n", { flag: "a" }); // no colour codes in the file
   };
   log(`run ${runId} → ${runDir}`);
   log(`proxy ${proxy.url} → ${cfg.upstream} · model ${cfg.model} · ${reps} rep(s) · scenarios ${scenarios.map((s) => s.id).join(", ")}`);
@@ -139,6 +139,7 @@ async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promis
     reps,
     upstream: cfg.upstream,
     scenarios: scenarios.map((s) => s.id),
+    ...(scenarios.some((s) => s.sessions.some((x) => x.learner)) ? { learnerModel: cfg.learner.model } : {}),
     arms: [] as unknown[],
     node: process.version,
     platform: `${process.platform}-${process.arch}`,

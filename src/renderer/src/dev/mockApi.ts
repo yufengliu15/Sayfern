@@ -50,6 +50,7 @@ import { LANGUAGE_META, languageInfo } from "../../../shared/languages";
 import { matchLocale } from "../../../shared/locales";
 import { LANGUAGES } from "../../../shared/records";
 import { buildCourseView, findUnit } from "../../../shared/course";
+import { findScenario } from "../../../shared/scenarios";
 import { t } from "../i18n";
 
 const MIN = 60_000;
@@ -519,6 +520,18 @@ const UNIT_OPENERS: Partial<Record<Language, string>> = {
   it: "Facciamo pratica con questa unità. Prima di tutto, che cosa hai fatto oggi?",
   de: "Lass uns diese Einheit üben. Erzähl mal: Was hast du heute gemacht?",
   pt: "Vamos praticar esta unidade. Primeiro, o que fizeste hoje?",
+};
+
+const ROLEPLAY_OPENERS: Partial<Record<Language, string>> = {
+  zh: "（你走进来。）你好！有什么可以帮你的吗？",
+  ja: "（お店に入ります。）いらっしゃいませ！何かお手伝いしましょうか？",
+  ko: "(가게에 들어갑니다.) 어서 오세요! 뭘 도와드릴까요?",
+  fr: "(Vous entrez.) Bonjour ! Je peux vous aider ?",
+  es: "(Entras.) ¡Hola! ¿En qué te puedo ayudar?",
+  en: "(You walk in.) Hi there! What can I do for you?",
+  it: "(Entri.) Buongiorno! Come posso aiutarla?",
+  de: "(Du kommst herein.) Hallo! Wie kann ich helfen?",
+  pt: "(Entras.) Olá! Em que posso ajudar?",
 };
 
 export function createMockApi(): SayfernApi {
@@ -1042,7 +1055,7 @@ export function createMockApi(): SayfernApi {
     const id = uid("s");
     const now = Date.now();
     const rec: SessionRec = {
-      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, ...(opts.unitId ? { unitId: opts.unitId } : {}), feedbackMode: settings.feedbackMode ?? "inline" }),
+      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, ...(opts.unitId ? { unitId: opts.unitId } : {}), ...(opts.scenarioId ? { scenarioId: opts.scenarioId } : {}), feedbackMode: settings.feedbackMode ?? "inline" }),
       messages: [],
       targets: ankiConfig.enabled ? freshTargets(opts.language) : [],
       grammarIds: opts.focusGrammarId ? [opts.focusGrammarId] : [],
@@ -1474,6 +1487,8 @@ export function createMockApi(): SayfernApi {
       if (opts.kind === "practice" && opts.focusGrammarId) return api.practiseGrammar(opts.focusGrammarId);
       if (opts.kind === "reading" && opts.docId) return api.openReading(opts.docId);
       if (opts.kind === "placement") return api.startPlacement(opts.language);
+      const scenario = findScenario(opts.scenarioId);
+      if (scenario) return createSession(opts, t(scenario.title), ROLEPLAY_OPENERS[opts.language] ?? ROLEPLAY_OPENERS.en);
       return createSession(opts, "New session");
     },
     renameSession: async (id, title) => {
@@ -1755,10 +1770,18 @@ export function createMockApi(): SayfernApi {
       for (const skill of ["reading", "recognition", "writing"] as Skill[])
         levels.push({ language, skill, level, confidence: "low", evidence: "Set by you.", examples: [], at: Date.now(), by: "self" });
     },
-    startPlacement: async (language) => {
+    startPlacement: async (language, band) => {
       await wait(150);
-      const opener = language === "zh" ? "我们先轻松地聊五分钟。你平时周末喜欢做什么？" : "まず五分ぐらい話しましょう。週末はよく何をしますか？";
-      return createSession({ language, kind: "placement" }, language === "zh" ? "水平测试" : "レベルチェック", opener);
+      const opener =
+        band === "beginner"
+          ? "Let's see where you are. No pressure: do you know any words yet, like hello or thank you?"
+          : language === "zh"
+            ? "我们先轻松地聊五分钟。你平时周末喜欢做什么？"
+            : "まず五分ぐらい話しましょう。週末はよく何をしますか？";
+      const v = createSession({ language, kind: "placement" }, language === "zh" ? "水平测试" : "レベルチェック", opener);
+      if (!band) return v;
+      sessions.get(v.meta.id)!.meta.levelBand = band;
+      return view(v.meta.id);
     },
 
     // data & extensions

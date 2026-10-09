@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import type { HomeView } from "../../../shared/api";
 import type { CourseView } from "../../../shared/course";
 import type { Language, Skill } from "../../../shared/records";
+import { SCENARIOS } from "../../../shared/scenarios";
 import { api, errorText } from "../api";
 import { FeatureActivities } from "../components/FeatureActivities";
 import { Icon } from "../components/icons";
+import { PlacementStart } from "../components/PlacementStart";
 import { UnitStart } from "../components/UnitStart";
 import { useApp } from "../context";
 import { cls, fmtDuration, fmtNumber, fmtShortDate, KIND_LABEL } from "../lib/format";
@@ -26,6 +28,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [course, setCourse] = useState<CourseView | null>(null);
   const [askUnit, setAskUnit] = useState(false);
+  const [askBand, setAskBand] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -62,6 +65,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
     } catch (e) {
       setError(errorText(e));
       setAskUnit(false);
+      setAskBand(false);
     } finally {
       setBusy(null);
     }
@@ -210,8 +214,8 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
               <p>{t("A 5-minute chat so the tutor can pitch everything right. No test, no score to worry about.")}</p>
             </div>
             <div className="place-a">
-              <button className="btn btn-f" disabled={busy === "placement"} onClick={() => void act("placement", () => api.startPlacement(language))}>
-                {busy === "placement" ? t("Starting…") : t("5-minute chat")}
+              <button className="btn btn-f" disabled={busy === "placement"} onClick={() => setAskBand(true)}>
+                {t("5-minute chat")}
               </button>
               <button className="linkb" onClick={() => navigate(settingsRoute("languages"))}>
                 {t("I know my level")}
@@ -247,6 +251,24 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
             <span className="tt">{t("Practise a pattern")}</span>
             <span className="td">{t("Pick one from Grammar")}</span>
           </button>
+        </div>
+
+        <div className="eyebrow sub">{t("Role-play a situation")}</div>
+        <div className="tiles scen">
+          {SCENARIOS.map((s) => (
+            <button
+              key={s.id}
+              className="tile"
+              disabled={busy === `scenario:${s.id}`}
+              onClick={() => void act(`scenario:${s.id}`, () => api.newSession({ language, kind: "chat", scenarioId: s.id }))}
+            >
+              <span className="ti">
+                <Icon name={s.icon} size={20} />
+              </span>
+              <span className="tt">{t(s.title)}</span>
+              <span className="td">{t(s.description)}</span>
+            </button>
+          ))}
         </div>
         <FeatureActivities language={language} />
         {error && (
@@ -315,6 +337,15 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
           busy={busy === "unit"}
           onStart={(explain) => void act("unit", () => api.startUnit(nextUnit.id, { explain }))}
           onClose={() => setAskUnit(false)}
+        />
+      )}
+      {askBand && (
+        <PlacementStart
+          language={language}
+          levels={app.lang.levels}
+          busy={busy === "placement"}
+          onStart={(band) => void act("placement", () => api.startPlacement(language, band))}
+          onClose={() => setAskBand(false)}
         />
       )}
     </main>

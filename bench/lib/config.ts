@@ -58,6 +58,8 @@ export interface BenchConfig {
   prices: Record<string, Price>;
   arms: ArmConfig[];
   judge: { enabled: boolean; command: string; model: string; timeoutSec: number };
+  /** The simulated learner for scenario sessions with `learner` (outside the proxy, like the judge). */
+  learner: { command: string; model: string; timeoutSec: number };
   resultsDir: string;
 }
 

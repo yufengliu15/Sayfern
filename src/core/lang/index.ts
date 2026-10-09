@@ -9,12 +9,13 @@ import { localeLanguage, uiLocaleInfo, type UiLocale } from "../../shared/locale
 import { LANGUAGES, type AnkiCard, type Language } from "../../shared/records";
 import type { DictionaryProvider, LanguagePack, LanguageService } from "../contracts";
 import { CedictProvider } from "./cedict";
+import { COMMON_WORDS } from "./common-words";
 import type { FetchFn } from "./dictionary";
 import { JapanesePack } from "./ja";
 import { JMDICT_GLOSS, JmdictProvider } from "./jmdict";
 import { KoreanPack, SpacedPack, VietnamesePack, type WordIndex } from "./spaced";
 import { Lru } from "./text";
-import { KAIKKI_VI_URL, KaikkiProvider, KengdicProvider, WIKDICT_LANGS, WikdictProvider } from "./wordlists";
+import { KAIKKI_VI_URL, KaikkiProvider, KengdicProvider, OewnProvider, WIKDICT_LANGS, WikdictProvider } from "./wordlists";
 import { ChinesePack } from "./zh";
 import { msg } from "../../shared/i18n";
 
@@ -38,7 +39,15 @@ export interface LanguageServiceOptions {
   glossLocale?: () => Promise<UiLocale> | UiLocale;
 }
 
-type Dict = DictionaryProvider & { hasIndex?(): boolean; has?(word: string): boolean; load?(): Promise<unknown> };
+type Dict = DictionaryProvider & {
+  hasIndex?(): boolean;
+  has?(word: string): boolean;
+  load?(): Promise<unknown>;
+  glossWord?(word: string): boolean;
+  glossWordsOf?(word: string): string[];
+  /** Base code of the language the glosses are written in. */
+  glossLanguage?: string;
+};
 
 /** One dictionary a language can use: where it lives and how to make it. */
 interface DictChoice {
@@ -131,8 +140,11 @@ export class DefaultLanguageService implements LanguageService {
           make: () => new WikdictProvider({ dir: dir(`${language}@${g}`), language, gloss: g, glossName: name, targetName: target, fetch }),
         });
         const out: DictChoice[] = [];
-        if (gloss !== language && WIKDICT_LANGS.has(gloss)) out.push(pair(gloss, glossName));
+        // WikDict also has English–Chinese (simplified and traditional mixed), but no other pairs with Chinese.
+        if (gloss !== language && (WIKDICT_LANGS.has(gloss) || (language === "en" && gloss === "zh"))) out.push(pair(gloss, glossName));
         if (language !== "en" && gloss !== "en") out.push(pair("en", "English"));
+        // English always has a dictionary: English definitions when no pair exists (en, ko, vi interfaces) or as the fallback.
+        if (language === "en") out.push({ key: "en", make: () => new OewnProvider({ dir: dir("en"), fetch }) });
         return out;
       }
     }
@@ -160,15 +172,38 @@ export class DefaultLanguageService implements LanguageService {
     return { preferred: dicts[0], usable };
   }
 
-  /** Sync word index for the packs: whatever dictionary the language resolved to last. */
+  /**
+   * Sync word index for the packs: whatever dictionary the language resolved to last. The learner's own
+   * language is the interface language (its common words) and the dictionary's gloss language.
+   */
   private wordIndex(language: Language): WordIndex {
+    let own: string | undefined;
+    const loaded = () => {
+      const d = this.active.get(language);
+      return d?.hasIndex?.() ? d : undefined;
+    };
     return {
       hasIndex: () => !!this.active.get(language)?.hasIndex?.(),
       has: (w) => !!this.active.get(language)?.has?.(w),
       load: async () => {
+        const base = localeLanguage(await this.locale());
+        own = base === language ? undefined : base;
         const { usable } = await this.resolve(language);
         await usable?.load?.();
       },
+      // Gloss words are own-language words only when the glosses are in the learner's own language
+      // (not in English–English WordNet for an English learner with a Korean interface).
+      ownWord: (w) => {
+        if (!own) return false;
+        const d = loaded();
+        return !!COMMON_WORDS[own]?.has(w) || (d?.glossLanguage === own && !!d.glossWord?.(w));
+      },
+      // Same-meaning check: only for bilingual dictionaries.
+      glossWordsOf: (w) => {
+        const d = loaded();
+        return d && d.glossLanguage !== language ? (d.glossWordsOf?.(w) ?? []) : [];
+      },
+      ownLanguage: () => own,
     };
   }
 

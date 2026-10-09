@@ -227,3 +227,38 @@ describe("export", () => {
     assert.doesNotThrow(() => JSON.stringify(out));
   });
 });
+
+describe("recountLearnerWords", () => {
+  it("recounts stored messages with a new filter once per key, and rebuilds first use", async () => {
+    const { store } = makeStore();
+    const s = await store.createSession({ language: "es", kind: "chat", feedbackMode: "inline" });
+    const m1 = msg(s.id, "user", "I want coffee", 1, "u1");
+    const m2 = msg(s.id, "user", "quiero café", 2, "u2");
+    for (const m of [m1, m2]) {
+      await store.appendMessage(m);
+      // The old filter counted every word.
+      await store.recordLearnerWords({ language: "es", sessionId: s.id, messageId: m.id, sentence: m.text, words: m.text.toLowerCase().split(" "), at: m.at });
+    }
+    assert.equal((await store.getWordUsage("es", "coffee"))!.count, 1);
+
+    const english = new Set(["i", "want", "coffee"]);
+    const wordsOf = (m: { text: string }) => m.text.toLowerCase().split(" ").filter((w) => !english.has(w));
+    assert.equal(await store.recountLearnerWords("es", "v1|none", wordsOf), true);
+    assert.equal(await store.getWordUsage("es", "coffee"), null);
+    assert.equal(await store.getWordUsage("es", "want"), null);
+    const cafe = (await store.getWordUsage("es", "café"))!;
+    assert.deepEqual([cafe.count, cafe.firstMessageId, cafe.firstSentence], [1, "u2", "quiero café"]);
+    // Same key: nothing to do. A new key (dictionary installed) runs again.
+    assert.equal(await store.recountLearnerWords("es", "v1|none", wordsOf), false);
+    assert.equal(await store.recountLearnerWords("es", "v1|WikDict", wordsOf), true);
+    assert.equal((await store.getWordUsage("es", "café"))!.count, 1);
+  });
+
+  it("needsRecount: false for the same key, and for a language with no stored words (key saved)", async () => {
+    const { store } = makeStore();
+    assert.equal(await store.needsRecount("fr", "v1|none"), false);
+    await store.recordLearnerWords({ language: "fr", sessionId: "s", messageId: "m", sentence: "bonjour", words: ["bonjour"], at: 1 });
+    assert.equal(await store.needsRecount("fr", "v1|none"), false, "key was saved while there was nothing to recount");
+    assert.equal(await store.needsRecount("fr", "v2|none"), true);
+  });
+});

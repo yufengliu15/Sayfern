@@ -46,6 +46,9 @@ export function kickoffText(session: SessionMeta, opts: { newTopic?: boolean } =
   if (session.kind === "practice" && session.openWith === "explain") {
     return "(The learner opened a practice session and asked you to explain the focus pattern again, with a new example. Start.)";
   }
+  if (session.scenarioId) {
+    return "(The learner picked a role-play. Set the scene in one short line, then speak your first line in role. Start.)";
+  }
   return `(The learner opened a ${session.kind} session. Start.)`;
 }
 
@@ -394,9 +397,10 @@ const EVIDENCE_TOOL = "record_evidence";
  * Added to a recording tool's result when no reply text exists yet. Some models (Sonnet 5.5 with
  * adaptive thinking) write the reply inside their thinking, call record_evidence, read "Recorded."
  * and end the turn: the learner gets an empty reply (bench run 2026-10-06T17-15-47, 3 of 20 turns).
+ * It states a fact only: the system prompt's tool protocol says what to do. An instruction here
+ * read as a prompt injection, and the model told the learner so (bench run 2026-10-08T05-41-04).
  */
-export const NO_REPLY_YET =
-  "The learner has not seen any reply yet: your thinking is hidden from them. Write your reply to the learner now, as plain text. Do not call record_evidence again.";
+export const NO_REPLY_YET = "No reply text yet.";
 
 /** One tool-only request for record_evidence. Never throws: a failed pass just records nothing. */
 async function evidencePass(

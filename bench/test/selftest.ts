@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { ClaudeCodeArm } from "../lib/arms/claude-code";
 import { SayfernArm } from "../lib/arms/sayfern";
 import { BENCH_DIR, type BenchConfig, type ClaudeCodeArmConfig, type SayfernArmConfig } from "../lib/config";
+import { learnerPrompt, parseLearner } from "../lib/learner";
 import { extractJudgeItems, judgeItems, learnerLevel, missingVerdicts, needs, type Item, type JudgeItem } from "../lib/judge";
 import { RecordingProxy } from "../lib/proxy";
 import { computeMetrics, renderReport } from "../lib/report";
@@ -26,7 +27,15 @@ export async function selftest(base: BenchConfig): Promise<void> {
     skill: join(BENCH_DIR, "test", "skill"),
     isolation: "clean",
   };
-  const cfg: BenchConfig = { ...base, upstream: mock.url, model: "claude-sonnet-5-5", reps: 1, judge: { ...base.judge, enabled: false }, arms: [sayfern, cc] };
+  const cfg: BenchConfig = {
+    ...base,
+    upstream: mock.url,
+    model: "claude-sonnet-5-5",
+    reps: 1,
+    judge: { ...base.judge, enabled: false },
+    learner: { command: join(BENCH_DIR, "test", "fake-learner.mjs"), model: "claude-haiku-5-5", timeoutSec: 30 },
+    arms: [sayfern, cc],
+  };
   const proxy = new RecordingProxy({ upstream: mock.url, logFile: join(runDir, "wire.jsonl"), bodiesDir: join(runDir, "bodies"), probe: true });
   await proxy.start();
   const scenarios = loadScenarios();
@@ -42,6 +51,12 @@ export async function selftest(base: BenchConfig): Promise<void> {
   assert.equal(failed.length, 0, `blocks failed:\n${lines.join("\n")}`);
   const step = (m: string) => console.log(`✓ ${m}`);
   step(`${blocks.length} blocks ran (${scenarios.length} scenarios × 2 arms)`);
+  const strip = (l: string) => l.replace(/\x1b\[[0-9;]*m/g, "");
+  const stepLines = lines.map(strip).filter((l) => /[✓✗] session \d+ · /.test(l));
+  assert.ok(stepLines.length > 0 && stepLines.every((l) => /^\s*\[(Sayfern|Claude Code \+ skill)\] [✓✗] session/.test(l)), "every step line names its arm");
+  assert.ok(lines.map(strip).some((l) => l.startsWith("▶ [Claude Code + skill] zh-long-chat #1")), "block headers name the arm");
+  step("run log: every block header and step line names its arm");
+  console.log(lines.map(strip).filter((l) => l.includes("zh-level-fit")  || /\] [✓✗] session 1 · (open|turn 1) /.test(l)).slice(0, 8).join("\n"));
 
   for (const b of blocks) {
     assert.ok(b.requests > 0, `${b.arm}/${b.scenario}: requests reached the proxy`);
@@ -166,6 +181,77 @@ export async function selftest(base: BenchConfig): Promise<void> {
   assert.match(row("Replies with exactly one question"), /100% \(\d+\/\d+\) \| 100%/);
   assert.match(row("Mean reply length, Han characters"), /\d+\.\d \| \d+\.\d/);
   step("report: Conversation quality section with ratings, move-on and stay rates, reply-style numbers");
+  assert.ok(!row("Judge: teaching"), "no teaching row when no unit session was rated");
+
+  // Course unit: Sayfern opens the unit from its course, Claude Code gets the patterns in the first message.
+  const unitSc = scenarios.find((x) => x.id === "zh-course-unit")!;
+  const sfUnitKey = blockKeys.find((k) => k.startsWith("sayfern__zh-course-unit"))!;
+  const ccUnitKey = blockKeys.find((k) => k.startsWith("claude-code__zh-course-unit"))!;
+  const sfUnit = load(sfUnitKey);
+  assert.ok(sfUnit.steps.find((s) => s.phase.step === "open")?.output?.reply, "Sayfern opened the unit with a tutor turn");
+  const bodies = readdirSync(join(runDir, "bodies")).map((f) => readFileSync(join(runDir, "bodies", f), "utf8"));
+  assert.ok(bodies.some((b) => b.includes("Unit zh-hsk30-3-12 (HSK 3)") && b.includes("Session: course unit")), "Sayfern's prompt carries the unit block");
+  assert.ok(bodies.some((b) => b.includes("HSK 3, \\\"Complex sentences\\\"") && b.includes("- 只有…才… (only if with 只有…才…)") && b.includes("Go over them quickly first")), "Claude Code's first message names the unit and lists its patterns");
+  // Simulated learner: one message per turn, gold from the mistakes it reports, phantom mistakes dropped.
+  const learnerTurns = sfUnit.steps.filter((x) => x.phase.step === "turn");
+  assert.equal(learnerTurns.length, 20, "the simulated learner wrote 20 messages");
+  assert.equal(learnerTurns[1].input, "要是你有时间，就我们一起去看比赛吧！");
+  assert.deepEqual(learnerTurns[1].gold?.errors?.map((e) => [e.id, e.original, e.accept[0]]), [["t2-yaoshi-jiu", "就我们一起去", "我们就一起去"]]);
+  assert.ok(learnerTurns[2].gold?.clean && learnerTurns[2].droppedErrors?.[0] === "或者去实验室", "a reported mistake not in the message is dropped");
+  assert.equal(learnerTurns[3].input, "好的，这是我的第4条消息。", "JSON wrapped in prose is parsed");
+  assert.ok(learnerTurns.every((x, i) => x.phase.turn === i && x.output?.reply), "every learner message got a tutor reply");
+  assert.equal(parseLearner("no json", 0), null);
+  assert.equal(parseLearner('{"text":"   "}', 0), null);
+  const lp = learnerPrompt(unitSc.sessions[0].learner!, "HSK 3", "TUTOR: 你好！", 19);
+  assert.ok(lp.includes("Level: HSK 3.") && lp.includes("TUTOR: 你好！") && lp.includes("message 20 of 20") && lp.includes("last one"), "learner prompt carries level, conversation and the last-message cue");
+  const sfUnitMetrics = computeMetrics(cfg, runDir, scenarios).blocks.find((b) => b.arm === "sayfern" && b.scenario === "zh-course-unit")!;
+  assert.deepEqual(sfUnitMetrics.learner, { turns: 20, withMistakes: 1, dropped: 1 });
+  step("simulated learner: answers each tutor reply, reported mistakes become gold, phantom mistakes dropped");
+  const uItems = judgeItems(sfUnit, unitSc, "HSK 3");
+  const t1 = uItems.find((i) => i.item === "s0-t1")!;
+  assert.equal(t1.learner, "要是你有时间，就我们一起去看比赛吧！");
+  assert.deepEqual(t1.goldErrors?.map((e) => e.id), ["t2-yaoshi-jiu"]);
+  assert.ok(uItems.find((i) => i.item === "s0-t0")?.clean, "a message without reported mistakes is a clean turn");
+  const uOpen = uItems.find((i) => i.item === "s0-open")!;
+  const uSess = uItems.find((i) => i.item === "s0-session")!;
+  assert.equal(uOpen.unitPoints?.length, 7);
+  assert.deepEqual(uOpen.pointVerdicts, ["explained"]);
+  assert.deepEqual(uSess.pointVerdicts, ["modeled", "elicited"]);
+  assert.deepEqual(uSess.rate, ["teaching", "engagement", "level"]);
+  assert.ok(uSess.tutor.startsWith("TUTOR (opening):") && uSess.tutor.split("LEARNER:").length - 1 === 20, "unit session shows the opening and all twenty turns");
+  const unitVerdicts = (items: Item[], yes: (id: string, v: string) => boolean): JudgeItem[] =>
+    items.map((it) => {
+      const n = needs(it);
+      return {
+        item: it.item,
+        ...(n.errors.length ? { errors: n.errors.map((id) => ({ id, flagged: true, correctFix: true })) } : {}),
+        ...(n.clean ? { falsePositive: false } : {}),
+        ...(n.checks ? { pass: true } : {}),
+        ...(n.rate.length ? { ratings: { teaching: 4, engagement: 4, level: 4 } } : {}),
+        ...(n.points.length ? { points: n.points.map((id) => ({ id, ...Object.fromEntries(n.pointVerdicts.map((v) => [v, yes(id, v)])) })) } : {}),
+      };
+    });
+  const sfU = unitVerdicts(uItems, () => true);
+  assert.deepEqual(missingVerdicts(uItems, sfU), []);
+  // A point the judge skipped counts as missing, so the next attempt asks again.
+  const partial = sfU.map((r) => (r.item === "s0-session" ? { ...r, points: r.points!.slice(1) } : r));
+  assert.deepEqual(missingVerdicts(uItems, partial), ["s0-session"]);
+  const ccU = unitVerdicts(judgeItems(load(ccUnitKey), unitSc, "HSK 3"), (id, v) => v === "explained" || (v === "modeled" && id === "zh:yaoshi-jiu"));
+  writeFileSync(join(runDir, "judge.json"), JSON.stringify(blockKeys.map((k) => ({ block: k, items: k === sfUnitKey ? sfU : k === ccUnitKey ? ccU : [] }))));
+  const md4 = renderReport(cfg, runDir, scenarios, { runId: "selftest", startedAt: new Date().toISOString(), fixtures: "synthetic", reps: 1, learnerModel: "claude-haiku-5-5", arms: [{ id: "sayfern", label: "Sayfern", version: "selftest" }, { id: "claude-code", label: "Claude Code + skill", version: "fake" }] });
+  const row4 = (name: string) => md4.split("\n").find((l) => l.startsWith(`| ${name}`)) ?? "";
+  assert.ok(md4.includes("## Course unit teaching"));
+  assert.match(row4("Points explained correctly"), /100% \(7\/7\) \| 100% \(7\/7\)/);
+  assert.match(row4("Points used by the tutor"), /100% \(7\/7\) \| 14% \(1\/7\)/);
+  assert.match(row4("Points invited from the learner"), /100% \(7\/7\) \| 0% \(0\/7\)/);
+  assert.match(row4("Points brought into the conversation"), /100% \(7\/7\) \| 14% \(1\/7\)/);
+  assert.match(row4("要是…，就…"), /1\/1 · 1\/1 · 1\/1 \| 1\/1 · 1\/1 · 0\/1/);
+  assert.match(row4("Judge: teaching"), /4\.00 \(n=1\)/);
+  assert.ok(md4.includes("## Simulated learner") && md4.includes("`claude-haiku-5-5`"));
+  assert.match(row4("Reported mistakes dropped"), /\| 1 \| 1 \|$/);
+  assert.match(row4("Messages with a planned mistake"), /\| 1 \| 1 \|$/);
+  step("course unit: Sayfern opens from the course, Claude Code gets the patterns; per-point verdicts, missing points and report rows");
   console.log(`\n${md3.slice(md3.indexOf("## Conversation quality"), md3.indexOf("## Plan utilization"))}`);
+  console.log(md4.slice(md4.indexOf("## Course unit teaching"), md4.indexOf("## Plan utilization")));
   console.log(`✓ bench selftest passed (${runDir})`);
 }

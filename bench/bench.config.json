@@ -123,12 +123,19 @@
         "open": {
           "chat": "Start my Mandarin practice session. Just conversation today, no reading.",
           "practice": "Start my Mandarin practice session. Just conversation today, no reading.",
-          "reading": "Start my Mandarin practice session. Let's continue the reader today."
+          "reading": "Start my Mandarin practice session. Let's continue the reader today.",
+          "unit": "Start my Mandarin practice session. Today I want to work through one grammar unit from my course: {{LEVEL}}, \"{{TITLE}}\". Its grammar points:\n{{POINTS}}\nPractise them with me in conversation.",
+          "unit-explain": "Start my Mandarin practice session. Today I want to work through one grammar unit from my course: {{LEVEL}}, \"{{TITLE}}\". Its grammar points:\n{{POINTS}}\nGo over them quickly first, then practise them with me in conversation."
         },
         "end": "That's all for today, let's wrap up."
       }
     }
   ],
+  "learner": {
+    "command": "claude",
+    "model": "claude-haiku-5-5",
+    "timeoutSec": 300
+  },
   "judge": {
     "enabled": false,
     "command": "claude",

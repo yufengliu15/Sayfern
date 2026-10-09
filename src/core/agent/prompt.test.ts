@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { GrammarObservation } from "../../shared/records";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import { buildSystemPrompt, computePacing, difficultyBlock, lastConversationVerdicts, lengthRule, MOVE_ON_TURNS } from "./prompt";
-import { languageInfo } from "../../shared/languages";
+import { bandLevels, languageInfo } from "../../shared/languages";
 import { makeHarness } from "./testkit";
 
 test("system prompt: persona, level, learner, follow-ups (skipping focus), targets, catalogue, tool protocol", async () => {
@@ -78,6 +78,47 @@ test("system prompt: placement lists the level scale; extensions add paragraphs"
   assert.match(p, /5 to 7 exchanges/);
   assert.match(p, /HSK 1, HSK 2, HSK 3/);
   assert.match(p, /EXT for zh/);
+});
+
+test("level bands split the scale in thirds", () => {
+  assert.deepEqual(bandLevels(languageInfo("es").levels, "beginner"), ["A1", "A2"]);
+  assert.deepEqual(bandLevels(languageInfo("es").levels, "advanced"), ["C1", "C2"]);
+  assert.deepEqual(bandLevels(languageInfo("ja").levels, "intermediate"), ["N3"]);
+  assert.deepEqual(bandLevels(languageInfo("zh").levels, "beginner"), ["HSK 1", "HSK 2"]);
+  assert.deepEqual(bandLevels(languageInfo("zh").levels, "advanced"), ["HSK 6", "HSK 7-9"]);
+});
+
+test("placement: the picked band sets where the diagnostic starts; beginners may use their own language", async () => {
+  const h = makeHarness();
+  const prompt = async (levelBand: "beginner" | "intermediate" | "advanced") =>
+    buildSystemPrompt(h.deps, (await h.records.getSession(await h.newSession("placement", { levelBand })))!);
+
+  const beginner = await prompt("beginner");
+  assert.match(beginner, /# Session: placement \(the learner says they are a beginner\)/);
+  assert.match(beginner, /Start at the very bottom \(HSK 1, HSK 2\)/);
+  assert.match(beginner, /stop after 2 or 3 tasks/);
+  assert.match(beginner, /record HSK 1 for all three skills/);
+  assert.match(beginner, /they may write in English when they lack the Chinese words/);
+  assert.doesNotMatch(beginner, /invite them to try saying it/);
+
+  const intermediate = await prompt("intermediate");
+  assert.match(intermediate, /says they are intermediate\. Start around HSK 3, HSK 4, HSK 5/);
+  assert.match(intermediate, /invite them to try saying it/, "only beginners are told writing in English is welcome");
+
+  assert.match(await prompt("advanced"), /says they are advanced\. Start around HSK 6, HSK 7-9/);
+});
+
+test("beginner rule follows the level estimate outside placement", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession("chat");
+  const p = async () => buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
+  assert.doesNotMatch(await p(), /They are a beginner/, "unknown level: no beginner rule");
+  for (const skill of ["reading", "recognition", "writing"] as const)
+    await h.records.recordLevel({ language: "zh", skill, level: "HSK 1", confidence: "low", evidence: "", examples: [], at: 1, by: "self" });
+  const beginner = await p();
+  assert.match(beginner, /They are a beginner/);
+  assert.match(beginner, /short English gloss in brackets/);
+  assert.doesNotMatch(beginner, /No translations or romanization unless/);
 });
 
 test("follow-up verdicts ignore quiz evidence (S2-09)", () => {
@@ -174,6 +215,11 @@ test("reply length grows with the level", () => {
   assert.match(at("HSK 3"), /2 or 3 sentences/);
   assert.match(at("HSK 6"), /2 to 4 sentences/);
   assert.match(lengthRule({ info: languageInfo("es"), levels: { writing: { level: "B2" } as never } }), /2 to 4 sentences/);
+  // More room only to set up a target, with a hard cap that also grows with the level.
+  assert.match(at(), /up to 5 sentences in all/);
+  assert.match(at("HSK 1"), /up to 4 sentences in all/);
+  assert.match(at("HSK 3"), /up to 6 sentences in all/);
+  assert.match(at("HSK 6"), /up to 8 sentences in all/);
 });
 
 test("course block: next unit and its open points in chat; Beta languages say there is no course", async () => {

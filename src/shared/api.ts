@@ -22,6 +22,7 @@ import type {
   ProgressRange,
   ProgressStats,
   SavedWord,
+  LevelBand,
   SessionKind,
   SessionMeta,
   Skill,
@@ -135,6 +136,8 @@ export interface NewSessionOptions {
   /** practice: a course unit (src/shared/course). */
   unitId?: string;
   docId?: string;
+  /** chat: a role-play scenario (src/shared/scenarios.ts). */
+  scenarioId?: string;
 }
 
 export interface SaveWordInput {
@@ -263,7 +266,8 @@ export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, Voi
   setProfile(patch: Partial<LearnerProfile>): Promise<LearnerProfile>;
   getLevels(language: Language): Promise<{ current: Partial<Record<Skill, LevelEstimate>>; history: LevelEstimate[] }>;
   setSelfLevel(language: Language, level: string): Promise<void>;
-  startPlacement(language: Language): Promise<SessionView>;
+  /** `band`: the learner's own rough level, picked before the chat; the diagnostic starts there. */
+  startPlacement(language: Language, band?: LevelBand): Promise<SessionView>;
 
   // data & extensions (F-09, F-11)
   exportData(): Promise<{ path: string } | null>;

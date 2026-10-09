@@ -64,6 +64,8 @@ test("zh: dictionary not loaded yet → Intl.Segmenter fallback", () => {
 test("zh: learnerWords and normalize", () => {
   const pack = new ChinesePack({ dictionary: fakeDict(["今天", "烤鸭", "好吃"]) });
   assert.deepEqual(pack.learnerWords("今天，烤鸭 very 好吃！"), ["今天", "烤鸭", "好吃"]);
+  // A clause with kana is Japanese, not Chinese: none of its kanji count.
+  assert.deepEqual(pack.learnerWords("今日は烤鸭を食べた。今天好吃！"), ["今天", "好吃"]);
   assert.equal(pack.normalize(" 你好，世界！ Ｈｉ. "), "你好世界Hi");
   assert.equal(pack.normalize("「我」、（你）。"), "我你");
   assert.match(pack.promptNotes(), /simplified/);

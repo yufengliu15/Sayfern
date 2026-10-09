@@ -66,7 +66,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | S1-01 | Language workspaces | Done | `settings.languages` / `settings.language`, sidebar language picker, per-language records | Language type is fixed to `zh` and `ja`. |
 | S1-02 | Session history, resume | Partial | `records` sessions; Today resume card (`HomeView.resume`); sidebar recent list | Sidebar shows the 12 most recent sessions, Today 5; no full history view. `deleteSession` exists in the API but no UI uses it. |
 | S1-03 | Personal tutor context | Done | `LearnerProfile` (name, about, goals) in Settings > About you and onboarding; `kind: "personal"` library docs → prompt (`personalContext`, 1500 chars) | |
-| S1-04 | Level assessment | Done | Self level (`setSelfLevel`), placement session (`startPlacement`), `record_evidence.level`, `levels.json` history | Onboarding places only the first language set to "find my level". |
+| S1-04 | Level assessment | Done | Self level (`setSelfLevel`), placement session (`startPlacement`), `record_evidence.level`, `levels.json` history | Onboarding places only the first language set to "find my level". Before placement the learner picks a band (Beginner, Intermediate, Advanced; v0.17.0, ADR 29). |
 | S1-05 | Adaptive conversation | Done | `src/core/agent/prompt.ts` (level, learner, session kind, follow-ups, targets, Anki knowledge, catalogue) | |
 | S1-06 | Inline corrections | Done | `record_evidence.corrections`, `CorrectionCard`: retry → reveal, inline or end-of-session (`feedbackMode`) | |
 | S1-07 | Hover lookup | Done | `lang.annotate` + `lang.lookup`, `AnnotatedText`, `WordPopover`, dictionary install from the popover | Chinese segmentation is greedy longest match. JMdict download never verified live. |
@@ -85,7 +85,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | S1-20 | Revisable judgments | Partial | `disputeObservation` (verdict changed, original kept); `disputeCorrection`; `style` corrections are suggestions | A disputed correction still counts in Progress, its note is never given to the tutor, and the linked observation keeps its verdict. |
 | S1-21 | Structured corrections | Done | `corrections.json` from day one (original, corrected, explanation, kind, grammar id, retries, status) | |
 | S1-22 | Words first used | Done | `records.recordLearnerWords`, `word-usage-<lang>.json`; Progress and word popover show first use | |
-| S1-23 | Total/distinct words | Partial | `writing-<lang>.json`; learner words only; tutor text and pasted spans excluded | Retry after a failed turn re-sends the learner message and counts its words twice. |
+| S1-23 | Total/distinct words | Partial | `writing-<lang>.json`; learner words only; tutor text, pasted spans and own-language words excluded (ADR 30) | Retry after a failed turn re-sends the learner message and counts its words twice. |
 | S1-24 | Practice time | Done | `useActivityTracker` (focused, visible, input in the last 60 s) → `trackActivity` → `activity.json` | Text practice only. |
 | S1-25 | Local analytics | Done | `records.getProgress` / `computeProgress`, no model calls | |
 | S1-26 | Recording-only tool | Done | `record_evidence` stores data; code updates stats | |

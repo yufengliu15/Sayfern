@@ -1,7 +1,7 @@
 // First run: (1) connect a model, (2) languages and level, (3) vocabulary with Anki (S2-14),
 // (4) optional extras. In dev builds Settings > Preferences can reopen it (previewing).
 import { useState, type ReactNode } from "react";
-import type { Language } from "../../../shared/records";
+import type { Language, LevelBand } from "../../../shared/records";
 import { sharedDecksUrl } from "../../../shared/stage2";
 import { api, errorText } from "../api";
 import { Connect } from "../components/Connect";
@@ -12,6 +12,7 @@ import { LocalePicker } from "../components/LocalePicker";
 import { deckRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
+import { LevelBands } from "../components/PlacementStart";
 import { langName, msg, t } from "../i18n";
 
 export interface OnboardingScreenProps {
@@ -37,6 +38,8 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
   // First run: nothing picked yet. Reopened from Settings: the learner's current languages.
   const [langs, setLangs] = useState<Language[]>(app.settings.onboarded ? (app.settings.languages ?? [app.settings.language]) : []);
   const [levels, setLevels] = useState<Partial<Record<Language, string>>>({});
+  // "Not sure" languages: the learner's rough level, so the level chat starts in the right place.
+  const [bands, setBands] = useState<Partial<Record<Language, LevelBand>>>({});
   const [about, setAbout] = useState("");
   const [ankiPlan, setAnkiPlan] = useState<AnkiPlan | null>(null);
   // Reopened from Settings (dev builds): finishing still saves, but the learner can just close it.
@@ -46,7 +49,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
 
   const ordered = app.allLanguages.map((l) => l.id).filter((id) => langs.includes(id));
   const langInfo = (id: Language) => app.allLanguages.find((l) => l.id === id);
-  const levelsDone = ordered.length > 0 && ordered.every((l) => levels[l]);
+  const levelsDone = ordered.length > 0 && ordered.every((l) => levels[l] && (levels[l] !== PLACE || bands[l]));
   const canContinue = step === 0 ? connected.length > 0 : step === 1 ? levelsDone : step === 2 ? ankiPlan !== null : true;
 
   const finish = async (then?: "settings" | "decks") => {
@@ -63,7 +66,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
         return navigate(deckRoute());
       }
       if (placeIn) {
-        const v = await api.startPlacement(placeIn);
+        const v = await api.startPlacement(placeIn, bands[placeIn]);
         await app.refreshSessions();
         navigate(sessionRoute(v.meta.id));
       } else {
@@ -171,6 +174,12 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
                         </option>
                       ))}
                     </select>
+                    {levels[l] === PLACE && (
+                      <>
+                        <p className="wstep-sub">{t("Roughly, how much do you know? The chat starts there.")}</p>
+                        <LevelBands levels={info?.levels ?? []} value={bands[l]} onPick={(b) => setBands((cur) => ({ ...cur, [l]: b }))} />
+                      </>
+                    )}
                   </div>
                 );
               })}

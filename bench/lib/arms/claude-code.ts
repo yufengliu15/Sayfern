@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, extname, join } from "node:path";
 import { expandPath, type ClaudeCodeArmConfig, type Rewrite } from "../config";
 import { copyTree } from "../fixtures";
-import type { Scenario, ScenarioSession } from "../scenarios";
+import { sessionUnit, type Scenario, type ScenarioSession } from "../scenarios";
 import type { TurnOutput } from "../types";
 import type { Arm, ArmContext } from "./arm";
 
@@ -125,8 +125,20 @@ export class ClaudeCodeArm implements Arm {
 
   async open(session: ScenarioSession): Promise<TurnOutput | null> {
     this.sessionId = undefined; // each scenario session is a fresh Claude Code conversation
-    const prompt = session.prompt ?? this.cfg.prompts.open[session.mode] ?? this.cfg.prompts.open.chat;
-    return this.turn(prompt);
+    return this.turn(session.prompt ?? this.openPrompt(session));
+  }
+
+  /** Unit sessions: the learner names the unit and lists its patterns, as they would from their textbook. No course in the skill. */
+  private openPrompt(session: ScenarioSession): string {
+    const open = this.cfg.prompts.open;
+    const unit = sessionUnit(session);
+    if (!unit) return open[session.mode] ?? open.chat;
+    const template = (session.explain && open["unit-explain"]) || open.unit;
+    if (!template) throw new Error('claude-code prompts.open needs "unit" (and "unit-explain") for unit sessions');
+    return template
+      .replaceAll("{{LEVEL}}", unit.level)
+      .replaceAll("{{TITLE}}", unit.title)
+      .replaceAll("{{POINTS}}", unit.grammar.map((g) => `- ${g.pattern} (${g.name})`).join("\n"));
   }
 
   send(text: string): Promise<TurnOutput> {

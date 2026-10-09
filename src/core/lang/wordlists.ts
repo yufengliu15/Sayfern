@@ -3,8 +3,11 @@
 //     English, Spanish, French, German, Italian, Portuguese, Russian and Japanese glosses.
 //   - Kengdic (Korean-English, Joe Speigle via garfieldnate/kengdic, MPL 2.0 / LGPL).
 //   - Wiktionary (English Wiktionary's Vietnamese entries, via kaikki.org/wiktextract, CC BY-SA).
-// All three are stored as compact rows (SimpleRow) and looked up by exact headword, case-folded.
+//   - Open English WordNet (English definitions of English words, CC BY 4.0): English when no
+//     bilingual WikDict pair exists for the interface language (and for an English interface).
+// All four are stored as compact rows (SimpleRow) and looked up by exact headword, case-folded.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import JSZip from "jszip";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { DictEntry } from "../../shared/lang";
@@ -19,6 +22,10 @@ export abstract class SimpleDictionary extends StoredDictionary<SimpleRow> {
   private rows: SimpleRow[] = [];
   private byWord = new Map<string, number[]>();
   private byLower = new Map<string, number[]>();
+  /** Base code of the language the glosses are written in ("en", "zh"). */
+  readonly glossLanguage: string = "en";
+  /** Every word used in a gloss, lower case: words of the gloss language. Built on first use. */
+  private glossWordSet: Set<string> | null = null;
 
   constructor(
     dir: string,
@@ -31,6 +38,7 @@ export abstract class SimpleDictionary extends StoredDictionary<SimpleRow> {
 
   protected buildIndex(rows: SimpleRow[]): void {
     this.rows = rows;
+    this.glossWordSet = null;
     this.byWord = new Map();
     this.byLower = new Map();
     const add = (map: Map<string, number[]>, key: string, i: number) => {
@@ -49,6 +57,20 @@ export abstract class SimpleDictionary extends StoredDictionary<SimpleRow> {
     return this.byWord.has(word) || this.byLower.has(word.toLocaleLowerCase());
   }
 
+  /** The word (lower case) is used in some gloss, so it is a word of the gloss language. Sync; false until loaded. */
+  glossWord(word: string): boolean {
+    if (!this.glossWordSet) {
+      this.glossWordSet = new Set();
+      for (const row of this.rows) for (const [glosses] of row[2]) for (const g of glosses) for (const w of glossWords(g)) this.glossWordSet.add(w);
+    }
+    return this.glossWordSet.has(word);
+  }
+
+  /** The words (lower case) of every gloss of the headword. Sync; empty until loaded. */
+  glossWordsOf(word: string): string[] {
+    return this.find(word).flatMap((e) => e.senses.flatMap((s) => s.glosses.flatMap(glossWords)));
+  }
+
   protected find(word: string): DictEntry[] {
     const idx = this.byWord.get(word) ?? this.byLower.get(word.toLocaleLowerCase()) ?? [];
     return [...idx]
@@ -63,6 +85,15 @@ export abstract class SimpleDictionary extends StoredDictionary<SimpleRow> {
         };
       });
   }
+}
+
+const GLOSS_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "word" });
+
+/** The words of a gloss, lower case. */
+function glossWords(gloss: string): string[] {
+  const out: string[] = [];
+  for (const s of GLOSS_SEGMENTER.segment(gloss)) if (s.isWordLike) out.push(s.segment.toLocaleLowerCase());
+  return out;
 }
 
 /** Groups rows with the same headword into one row (senses in order), keeping the best importance. */
@@ -88,7 +119,7 @@ export const WIKDICT_LANGS = new Set(["en", "es", "fr", "de", "it", "pt", "ru", 
 const MAX_GLOSSES = 6;
 
 /** Rough download sizes (MB) for the common pairs; others default to 8. */
-const WIKDICT_MB: Record<string, number> = { "es-en": 11, "en-es": 14, "fr-en": 18, "de-en": 22, "it-en": 12, "pt-en": 8, "ru-en": 14, "en-fr": 16, "en-de": 18 };
+const WIKDICT_MB: Record<string, number> = { "en-zh": 5, "es-en": 11, "en-es": 14, "fr-en": 18, "de-en": 22, "it-en": 12, "pt-en": 8, "ru-en": 14, "en-fr": 16, "en-de": 18 };
 
 /** WikDict glosses carry some wiki markup: <u>, [[links]], stray "- s" plural hints. */
 export function cleanGloss(g: string): string {
@@ -117,6 +148,7 @@ export function wikdictRows(records: Iterable<{ written_rep: unknown; trans_list
 
 export class WikdictProvider extends SimpleDictionary {
   private readonly url: string;
+  override readonly glossLanguage: string;
 
   constructor(opts: { dir: string; language: Language; gloss: string; glossName: string; targetName: string; fetch?: FetchFn; baseUrl?: string }) {
     const pair = `${opts.language}-${opts.gloss}`;
@@ -127,6 +159,7 @@ export class WikdictProvider extends SimpleDictionary {
       opts.fetch,
     );
     this.url = `${opts.baseUrl ?? WIKDICT_BASE}/${pair}.sqlite3`;
+    this.glossLanguage = opts.gloss;
   }
 
   protected async fetchRows(onProgress: ProgressFn) {
@@ -262,5 +295,72 @@ export class KaikkiProvider extends SimpleDictionary {
     const rows = parseKaikki(new TextDecoder().decode(bytes), this.langCode);
     if (!rows.length) throw new Error(`${this.info.name} download contained no entries`);
     return { version: new Date().toISOString().slice(0, 10), rows };
+  }
+}
+
+// ---------------------------------------------------------------- Open English WordNet
+
+export const OEWN_URL = "https://github.com/globalwordnet/english-wordnet/releases/download/2025-edition/english-wordnet-2025-json.zip";
+
+/** Senses kept per part of speech: lookups show 3, and every sense costs memory (128,000 words). */
+const OEWN_SENSES = 3;
+
+const OEWN_POS: Record<string, string> = { n: "noun", v: "verb", a: "adjective", s: "adjective", r: "adverb" };
+
+type OewnEntries = Record<string, Record<string, { sense?: { synset?: string }[] }>>;
+
+/**
+ * Rows from Open English WordNet's JSON release: `entries-*.json` (word → part of speech → senses in
+ * frequency order) and the synset files (synset id → definition). One row per word, one sense per synset.
+ */
+export function parseOewn(definitions: ReadonlyMap<string, string>, entryFiles: Iterable<OewnEntries>): SimpleRow[] {
+  const out: SimpleRow[] = [];
+  for (const entries of entryFiles) {
+    for (const [word, byPos] of Object.entries(entries)) {
+      if (!word || word.length > 60) continue;
+      const senses: [string[], string[]][] = [];
+      let count = 0;
+      // The part of speech with the most senses first (run: verb before noun).
+      const groups = Object.entries(byPos).sort((x, y) => (y[1].sense?.length ?? 0) - (x[1].sense?.length ?? 0));
+      for (const [pos, e] of groups) {
+        count += e.sense?.length ?? 0;
+        const defs = (e.sense ?? []).map((s) => (s.synset ? definitions.get(s.synset) : undefined)).filter((d): d is string => !!d);
+        for (const def of [...new Set(defs)].slice(0, OEWN_SENSES)) senses.push([[def], OEWN_POS[pos] ? [OEWN_POS[pos]] : []]);
+      }
+      // More senses = a more common word: it ranks first among same-spelling rows.
+      if (senses.length) out.push([word, "", senses, count]);
+    }
+  }
+  return mergeRows(out);
+}
+
+export class OewnProvider extends SimpleDictionary {
+  private readonly url: string;
+
+  constructor(opts: { dir: string; fetch?: FetchFn; url?: string }) {
+    super(opts.dir, { language: "en", name: "Open English WordNet", license: "CC BY 4.0", downloadMb: 9 }, "WordNet", opts.fetch);
+    this.url = opts.url ?? OEWN_URL;
+  }
+
+  protected async fetchRows(onProgress: ProgressFn) {
+    onProgress({ language: "en", phase: "download", fraction: 0 });
+    const bytes = await download(this.fetchFn, this.url, (fraction) => onProgress({ language: "en", phase: "download", fraction }));
+    onProgress({ language: "en", phase: "parse", message: `Reading ${this.info.name}` });
+    const zip = await JSZip.loadAsync(bytes);
+    const files = Object.values(zip.files).filter((f) => !f.dir && f.name.endsWith(".json"));
+    const base = (name: string) => name.split("/").pop() ?? name;
+    // Synset files first (only definitions are kept), then the word entries, one file at a time.
+    const definitions = new Map<string, string>();
+    for (const f of files) {
+      const name = base(f.name);
+      if (name.startsWith("entries-") || name === "frames.json") continue;
+      const synsets = JSON.parse(await f.async("string")) as Record<string, { definition?: string[] }>;
+      for (const [id, s] of Object.entries(synsets)) if (s.definition?.[0]) definitions.set(id, s.definition[0]);
+    }
+    const entryFiles = files.filter((f) => base(f.name).startsWith("entries-"));
+    const rows: SimpleRow[] = [];
+    for (const f of entryFiles) rows.push(...parseOewn(definitions, [JSON.parse(await f.async("string")) as OewnEntries]));
+    if (!rows.length) throw new Error(`${this.info.name} contained no entries`);
+    return { version: "2025", rows };
   }
 }

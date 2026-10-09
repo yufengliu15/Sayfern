@@ -6,6 +6,77 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-09
+
+### Added
+
+- **An English dictionary for every interface language.** Open English WordNet (English definitions, 9 MB) for English, Korean and Vietnamese interfaces, and as the fallback for the others; WikDict English–Chinese (5 MB) for Chinese interfaces. Lookups show up to 3 senses per part of speech, the most used one first. It downloads by itself like the other dictionaries, and English words are recounted with it (ADR 32).
+
+### Fixed
+
+- **Definitions in English no longer count as the learner's own language when they are not.** The word filter now knows each dictionary's gloss language. English glosses mark own-language words only for an English speaker, and never when English is the language learned.
+
+## [0.19.0] - 2026-10-09
+
+### Added
+
+- **Role-play a situation.** Today has 16 everyday scenes under the start tiles: order at a restaurant, order a coffee, ask a shop assistant, at the checkout, ask for directions, check in at a hotel, buy a train ticket, see a doctor, book by phone, return something, meet someone new, job interview, rent a flat, at the airport, at the pharmacy, talk to a neighbour. Pick one and the tutor sets the scene and plays the other person (the server, the cashier, the doctor) at your level. Corrections work as in any chat. When the scene ends, the tutor steps out of role, says what went well and offers a new twist.
+
+### Changed
+
+- **Today, Course and Grammar use the full window width.** On wide screens these pages no longer stop at a fixed width and leave an empty strip on the right. The start tiles, the role-play tiles and the course units fill the extra space; on small windows they wrap as before.
+
+## [0.18.0] - 2026-10-08
+
+### Changed
+
+- **Dictionaries are required and download by themselves.** After the welcome page, Sayfern downloads the dictionary of every language you learn (4 to 22 MB each), one at a time, in the background: at startup if one is missing, and when you add a language or change the interface language. You can practise during the download; your words are recounted with the dictionary when it finishes. A failed download shows in Settings > Dictionaries with a retry. English with a Chinese, Korean or Vietnamese interface has no dictionary yet and keeps the built-in word lists (ADR 31).
+
+### Fixed
+
+- **Startup no longer loads every language to recount words.** The one-time recount from 0.17.1 loaded each language's dictionary (and the Japanese tokenizer) at every startup, even for languages you do not learn. It now checks first, without loading anything, and loads a language only when it has stored words to recount under a new filter key.
+
+## [0.17.1] - 2026-10-08
+
+### Fixed
+
+- **Words in the learner's own language no longer count as learned words.** Since beginners may write in their own language (0.17.0), English words in a Spanish session counted as Spanish words you wrote. Now only words of the language you learn count (ADR 30):
+  - Words in the wrong script never count (English in a Korean or Russian session; a Japanese clause in a Chinese session).
+  - In languages written in the Latin alphabet, each word is checked against the dictionary. A word only in your own language never counts. A word in both languages with the same meaning (hotel, no) counts. Unclear words follow the rest of their clause.
+  - Without a dictionary, built-in lists of common words decide. Installing the dictionary makes the check better.
+- **Stored words are recounted once.** At startup, Sayfern recounts the words of every message you wrote with the new check and rebuilds "Words you wrote" and first uses. It runs again after you install a dictionary for that language.
+
+## [0.17.0] - 2026-10-08
+
+### Added
+
+- **Mission: from 1 to infinity.** Sayfern is for learners who already know some of a language and want to go much further through conversation. It does not try to replace a first course (0 to 1), but beginners are welcome. Written down in the README, `AGENTS.md` and ADR 29.
+- **Pick a band before placement.** "5-minute chat" (Today), "Find my level" (Settings > Languages) and "Not sure" (welcome page) now ask Beginner, Intermediate or Advanced first. Each card shows the levels it covers (a third of the scale: A1-A2, B1-B2, C1-C2). The band is saved on the session (`SessionMeta.levelBand`, `startPlacement(language, band)`), and the diagnostic starts there instead of guessing.
+- **Gentle placement for beginners.** A placement chat started as a beginner writes its instructions in the learner's language, first checks whether they know any words at all, and stops after 2 or 3 tasks if they do not (lowest level, low confidence). It then suggests where to start.
+
+### Changed
+
+- **Beginners may write in their own language.** At the bottom quarter of the scale (or in a beginner placement chat), the tutor no longer asks the learner to switch back to the target language. It answers in very simple target language, shows how to say what they meant, and may add a short gloss for a key word. Other learners keep the old rule.
+
+## [0.16.2] - 2026-10-08
+
+### Fixed
+
+- **Fewer unnatural sentences from the tutor.** In bench run `2026-10-08T05-41-04` the judge found 9 Mandarin errors in Sayfern's replies against 2 for Claude Code. Most came from targets forced into a short reply: 敢 and 需要 from the course unit ("我也很敢说错", "敢不敢早点回家休息"), an Anki word ("你今天和朋友一起去食堂的吗"). At HSK 3 a reply had 2 or 3 sentences to answer, bridge, use a target and ask one question, so the target went into the question. The targets stay the same; a reply that brings one in may now grow to set up a natural context for it, with a hard cap of 4, 6 or 8 sentences by level (5 when the level is unknown; `lengthRule`). The persona also says to use each target with its real meaning, and not to comment on its own earlier questions.
+- **The "no reply yet" note no longer reads as a prompt injection.** The model took the instruction inside the `record_evidence` result for an injection and told the learner so. The result now says only "No reply text yet."; the tool protocol in the system prompt says what to do.
+
+## [0.16.1] - 2026-10-07
+
+### Added
+
+- **Benchmark: course unit scenario** (`bench/scenarios/08-course-unit.json`, `zh-course-unit`). Shows what Sayfern's course tooling adds over plain Claude Code. The learner works through HSK 3.0 unit `zh-hsk30-3-12` ("Complex sentences", 7 points) with a quick overview first. Sayfern opens it with `startUnit`; Claude Code keeps its skill without a course and gets the unit's patterns in the learner's first message (`prompts.open.unit` / `unit-explain`). New session mode `unit` (`unit`, `explain`).
+- **Benchmark: simulated learner** (`bench/lib/learner.ts`). A session can set `learner` (turns, persona, plan) instead of fixed turns: a model (`learner.model`, default `claude-haiku-5-5`, outside the proxy) writes each message after reading the tutor's reply, and reports the mistakes it made on purpose, which become the gold. `zh-course-unit` uses it for 20 messages, with five planned mistakes on unit patterns and three points kept out until the tutor brings them in. The report has a "Simulated learner" section. The judge's `claude -p` call moved to `bench/lib/claude-cli.ts`, shared with the learner.
+- **Benchmark: per-point judge verdicts and a teaching rating.** For unit sessions the judge returns, per grammar point, `explained` (opening overview), `modeled` and `elicited` (conversation after the opening), and a 1-5 `teaching` rating. The report has a new "Course unit teaching" section with totals and a table per point. Missing point verdicts count as ungraded and are asked again. See `docs/benchmark.md`.
+
+### Changed
+
+- **Benchmark run log names the arm on every line.** Block headers and step lines start with `[Sayfern]` or `[Claude Code + skill]` (green and magenta on a terminal; `run.log` stays plain), and steps read `session 1 · turn 3` instead of `s1 turn 3`, which looked like an arm name.
+
 ## [0.16.0] - 2026-10-07
 
 ### Added

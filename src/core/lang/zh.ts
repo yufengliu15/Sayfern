@@ -5,6 +5,8 @@ import type { LanguagePack } from "../contracts";
 import { joinSyllables } from "./pinyin";
 import { isHanChar, normalizeText, otherTokens, runs } from "./text";
 
+const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
 /** What the pack needs from a dictionary for segmentation. */
 export interface SegmentationDictionary {
   longestMatch(text: string, index: number): number;
@@ -95,8 +97,12 @@ export class ChinesePack implements LanguagePack {
     return tokens;
   }
 
+  /** Han words only. A clause with kana is Japanese (a Japanese speaker's own language), so none of it counts. */
   learnerWords(text: string): string[] {
-    return this.segment(text)
+    return text
+      .split(/[。！？!?，,；;：:\n]/u)
+      .filter((clause) => !KANA.test(clause))
+      .flatMap((clause) => this.segment(clause))
       .filter((t) => t.isWord)
       .map((t) => t.text);
   }

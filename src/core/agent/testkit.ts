@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createModels, fauxProvider, type Api, type Model } from "@earendil-works/pi-ai";
-import type { AnkiCard, AnkiConfig, AnkiSnapshot, AnkiWordFilter, Language, PracticeTarget, SessionKind } from "../../shared/records";
+import type { AnkiCard, AnkiConfig, AnkiSnapshot, AnkiWordFilter, Language, LevelBand, PracticeTarget, SessionKind } from "../../shared/records";
 import { aggregateWords, buildOverview, checkWordsIn, wordPage } from "../anki/words";
 import type { AnkiAddResult, AnkiNoteInput, AnkiNoteType, AnkiService, TutorEvent } from "../contracts";
 import { JsonRecordsStore } from "../records";
@@ -99,7 +99,7 @@ export interface Harness {
   tutor: SayfernTutor;
   deps: TutorDeps;
   ankiOn: { value: boolean };
-  newSession(kind?: SessionKind, extra?: { focusGrammarId?: string; docId?: string }): Promise<string>;
+  newSession(kind?: SessionKind, extra?: { focusGrammarId?: string; docId?: string; levelBand?: LevelBand }): Promise<string>;
   /** Collects events of a turn. */
   events(): { list: TutorEvent[]; onEvent: (e: TutorEvent) => void; deltas: () => string };
 }

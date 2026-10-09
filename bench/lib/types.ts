@@ -2,6 +2,7 @@
 // Everything here describes what crossed a boundary (HTTP to the model API,
 // HTTP to AnkiConnect, text shown to the learner). Nothing depends on the
 // internals of either harness, so results stay comparable across versions.
+import type { GoldTurn } from "./scenarios";
 
 /** Which part of a run a request belongs to. Set by the runner before each step. */
 export interface Phase {
@@ -80,7 +81,6 @@ export interface AnkiCallRecord {
   resultSize: number;
   t: number;
 }
-
 /** What the learner saw after one step. */
 export interface TurnOutput {
   /** Tutor reply text. */
@@ -99,6 +99,10 @@ export interface StepResult {
   phase: Phase;
   input?: string;
   output: TurnOutput | null;
+  /** Simulated learner turns: the gold the learner reported for its own message (scripted turns take gold from the scenario). */
+  gold?: GoldTurn;
+  /** Simulated learner turns: errors the learner reported that are not in its message (dropped from the gold). */
+  droppedErrors?: string[];
 }
 
 export interface Price {

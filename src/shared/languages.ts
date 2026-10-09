@@ -2,7 +2,7 @@
 // Pure data, shared by core, main and renderer. Language packs (src/core/lang) build their
 // LanguageInfo from these entries; the renderer uses them before the backend answers.
 import type { LanguageInfo } from "./lang";
-import type { Language } from "./records";
+import type { Language, LevelBand } from "./records";
 
 /** Writing system, for script checks (deck cards, retry comparison) and fonts. */
 export type Script = "han" | "japanese" | "hangul" | "latin" | "cyrillic";
@@ -14,6 +14,15 @@ export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 export const TOPIK_LEVELS = ["TOPIK 1", "TOPIK 2", "TOPIK 3", "TOPIK 4", "TOPIK 5", "TOPIK 6"] as const;
 export const HSK_LEVELS = ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6", "HSK 7-9"] as const;
 export const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
+
+/** The levels of one band: the scale split in thirds (CEFR: A1-A2, B1-B2, C1-C2; JLPT: N5-N4, N3, N2-N1). */
+export function bandLevels(levels: readonly string[], band: LevelBand): string[] {
+  const a = Math.round(levels.length / 3);
+  const b = Math.round((2 * levels.length) / 3);
+  if (band === "beginner") return levels.slice(0, a);
+  if (band === "intermediate") return levels.slice(a, b);
+  return levels.slice(b);
+}
 
 export interface LanguageMeta {
   id: Language;

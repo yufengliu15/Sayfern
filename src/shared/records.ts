@@ -21,6 +21,10 @@ export type FeedbackMode = "inline" | "end";
 export type Difficulty = -2 | -1 | 0 | 1 | 2;
 export const DIFFICULTIES: readonly Difficulty[] = [-2, -1, 0, 1, 2];
 
+/** Where the learner says they are before a placement chat. The diagnostic starts in that part of the level scale. */
+export type LevelBand = "beginner" | "intermediate" | "advanced";
+export const LEVEL_BANDS: readonly LevelBand[] = ["beginner", "intermediate", "advanced"];
+
 export interface SessionMeta {
   id: string;
   language: Language;
@@ -40,6 +44,10 @@ export interface SessionMeta {
   openWith?: "explain";
   /** reading sessions: the document being read (S1-11). */
   docId?: string;
+  /** chat sessions: the role-play scenario (src/shared/scenarios.ts); the tutor opens in role. */
+  scenarioId?: string;
+  /** placement sessions: the learner's own rough level, picked before the chat. */
+  levelBand?: LevelBand;
   /** Active (non-idle) milliseconds, text practice only (S1-24). */
   activeMs: number;
   /** Stage 3 (S3-04): speaking and listening milliseconds, counted apart from activeMs. */

@@ -187,6 +187,53 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 32. An English dictionary for every interface language (v0.20.0)
+
+Owner request, 2026-10-09: add an English dictionary.
+
+- **Context.** English had a dictionary only with an interface in a WikDict language (es, fr, de, it, pt, ru, ja). With an English, Chinese, Korean or Vietnamese interface it had none, so ADR 31 skipped it and ADR 30 fell back to the short word lists.
+- **Decision.**
+  1. **Open English WordNet** (2025 edition, CC BY 4.0, 9 MB JSON zip from the project's GitHub release) as the English–English dictionary: definitions in English, which suits the 1-to-infinity learner (ADR 29). It is the only choice for English, Korean and Vietnamese interfaces and the last fallback for the others. Up to 3 senses per part of speech (lookups show 3); the part of speech with the most senses first.
+  2. **WikDict English–Chinese** for zh-Hans and zh-Hant interfaces (5 MB, 30,743 words, simplified and traditional mixed).
+  3. **Dictionaries know their gloss language** (`glossLanguage`). WordNet's glosses are English, the language learned: they never mark words as own-language, and the "same meaning" check runs only with bilingual dictionaries. This also fixes a German speaker learning Spanish with only the Spanish–English fallback installed: English gloss words no longer count as their own language.
+- **Consequences.** Every learning language now has a dictionary for every interface language, so ADR 31 downloads one for everyone. WordNet has no function words (the, of, I): lookups find nothing for them, and the filter takes them from the built-in English list. WordNet costs 16 MB on disk and about 94 MB of memory when loaded. No English–Korean or English–Vietnamese pair exists yet (roadmap gap 24).
+- **Where.** `OewnProvider`, `parseOewn`, `OEWN_URL`, `glossLanguage` in `src/core/lang/wordlists.ts`; `choices` and `wordIndex` in `src/core/lang/index.ts`.
+
+## ADR 31. Dictionaries are required and download by themselves (v0.18.0)
+
+Owner request, 2026-10-08: dictionaries should be mandatory to install.
+
+- **Context.** ADR 30 tells the learner's own language from the target language with the dictionary; without one, short built-in lists decide, and rare own-language words slip through. Dictionaries were optional and installed by hand.
+- **Decision (owner choice: auto-install, no gate).** After onboarding, Sayfern downloads the preferred dictionary of every language the learner learns, in the background, one at a time: at startup, and when the languages or the interface language change. Sessions are never blocked; the built-in lists cover the download time, then the language's words are recounted. Pairs with no dictionary (English with a Chinese, Korean or Vietnamese interface) keep the lists. A failed download stays on the status and is tried again at the next startup.
+- **Consequences.** 4 to 22 MB of download per language. A loaded dictionary costs memory (WikDict Spanish–English: about 80 MB of heap, plus about 10 MB for the gloss-word set ADR 30 builds on first use); a dictionary is loaded only when its language is used (session, lookup) or recounted, but a fresh download stays loaded until the app quits. A failure keeps the old Install button as a retry.
+- **Where.** `ensureDictionaries`, `setSettings`, `installDictionary` in `src/core/app/index.ts`; Settings > Dictionaries subtitle.
+
+## ADR 30. Only the target language counts as learner words (v0.17.1)
+
+Owner report, 2026-10-08: a beginner's own language must never count toward their learned words. With ADR 29, beginners write in their own language, and in Latin-script pairs every English word became a "Spanish word you wrote".
+
+- **Context.** `learnerWords` returned every word-like token. Chinese and Japanese packs already dropped Latin letters, but a Japanese clause counted as Chinese, English counted in Korean and Russian sessions, and in Latin-script pairs nothing separated the two languages.
+- **Decision (owner rule).** Use the dictionaries, in code only (owner choice: no help from the tutor model).
+  1. **Script first.** A word in the wrong script never counts (Latin in Korean or Russian; in Chinese, a clause with kana).
+  2. **Per word, from the dictionary.** Target only: counts. In both languages with the same meaning (the dictionary's glosses for it contain the word itself: hotel, chocolate, no): counts, since the word works the same in both. Own language only: never counts.
+  3. **Unclear words follow their clause.** Single letters, words in neither list, and words in both with another meaning (Spanish a = to) count only when the clause has no own-language words, or fewer than target words. Clauses split at sentence ends and at commas, colons, brackets, quotes and dashes, where learners switch language.
+  4. **Sources.** Target: the installed dictionary's headwords and lemmas, plus built-in common words (`common-words.ts`, which also cover contractions some dictionaries lack). Own: words used in the dictionary's glosses (the gloss language is the interface language) plus the interface language's common words. Without a dictionary, the lists decide alone.
+  5. **Clean up once.** At startup, `SayfernApp` recounts every stored learner message per language with the new filter (`recountLearnerWords`) and rebuilds word usage. It runs again only when the key changes: `WORD_FILTER_VERSION` or the installed dictionary (installing one recounts that language).
+- **Consequences.** "Words you wrote", distinct words and "Words you used for the first time" drop for learners who wrote in their own language; first-use dates can move later. Anki targets already marked `used` stay as they were. Known limits: roadmap gap 27.
+- **Where.** `learnerWords`, `side`, `keepTarget` in `src/core/lang/spaced.ts`; `src/core/lang/common-words.ts`; `glossWord`, `glossWordsOf` in `wordlists.ts`; `wordIndex` in `src/core/lang/index.ts`; `ChinesePack.learnerWords`; `recountLearnerWords` in `src/core/records/store.ts`; `recountWords`, `WORD_FILTER_VERSION` in `src/core/app/index.ts`.
+
+## ADR 29. Mission: from 1 to infinity; beginners may use their own language; a level band before placement (v0.17.0)
+
+Owner report, 2026-10-08: Sayfern is not the best tool to take a learner from zero to their first words (0 to 1). It is best at taking someone who already knows some of the language much further (1 to infinity). A placement chat in a language the owner did not know at all went badly: the tutor wrote in the language and expected answers.
+
+- **Context.** Placement always ran 5 to 7 exchanges of rising difficulty in the target language, with no idea where to start. The persona told the tutor to invite every learner who wrote in another language back to the target language, even a learner with no words yet.
+- **Decision.**
+  1. **Mission (1 to infinity).** Sayfern is for learners who know some of the language and want to keep going through conversation, up to advanced. Absolute beginners are welcome, but the app does not try to replace a first course: it points them to the first course unit, the most common words in Anki, and very simple chat. The welcome page's Anki step already says this ("Sayfern assumes you can read some words").
+  2. **Beginners may write in their own language.** When the learner is a beginner (lowest quarter of the scale, `isBeginner`), the persona says writing in the interface language is welcome, not a mistake: the tutor answers in very simple target language, shows how to say what they meant, and may add a short gloss for a key word. Other learners keep the old rule.
+  3. **A level band before placement.** Before a placement chat, the learner picks Beginner, Intermediate or Advanced (`LevelBand`, saved as `SessionMeta.levelBand`). Each band is a third of the level scale (`bandLevels`: CEFR A1-A2, B1-B2, C1-C2). The diagnostic starts in that band. As a beginner it is gentle: instructions in the learner's language, a check for any words at all, and an early stop with the lowest level when they know nothing.
+- **Consequences.** Placement estimates still come from `record_evidence` (S1-25): the band only sets the start, never a level. A beginner's own-language words were then recorded as learner words; ADR 30 fixes that. Sessions without a band (old ones, `newSession({ kind: "placement" })`) keep the old diagnostic.
+- **Where.** `README.md`, `AGENTS.md` (mission); `LevelBand`, `LEVEL_BANDS` in `src/shared/records.ts`; `bandLevels` in `src/shared/languages.ts`; `placementBlock`, `isBeginner`, `otherLanguageRules` in `src/core/agent/prompt.ts`; `startPlacement(language, band)`; `components/PlacementStart.tsx` (Today, Settings > Languages, Onboarding).
+
 ## ADR 28. Packaging with electron-builder; CI releases on push to main; Flatpak from the tar.gz (v0.16.0)
 
 Owner request, 2026-10-07: a .dmg, an .exe and a Flathub-ready Flatpak, built automatically after each push to `main`.

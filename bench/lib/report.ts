@@ -3,7 +3,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { priceFor, type BenchConfig } from "./config";
-import { judgeItems, needs, validRating, type JudgeResult } from "./judge";
+import { judgeItems, needs, pointVerdict, POINT_VERDICTS, validRating, type JudgeResult, type PointVerdict } from "./judge";
 import { blockKey, type BlockResult } from "./runner";
 import { RATINGS, type Rating, type Scenario } from "./scenarios";
 import { addReply, emptyStyle, scoreTurn, type ReplyStyle } from "./score";
@@ -47,8 +47,10 @@ export interface BlockMetrics {
   steps: { label: string; requests: number; prompt: number; output: number; peak: number; wallMs: number; error?: string }[];
   grammar: { gold: number; flagged: number };
   anki: { checks: number; passed: number };
-  /** Deterministic reply-style counts over the tutor replies to learner turns in chat sessions. */
+  /** Deterministic reply-style counts over the tutor replies to learner turns in chat and unit sessions. */
   style: ReplyStyle;
+  /** Simulated learner turns: messages, messages with planned mistakes, reported mistakes dropped (not in the message). */
+  learner: { turns: number; withMistakes: number; dropped: number };
   judge?: {
     errors: number;
     flagged: number;
@@ -66,8 +68,10 @@ export interface BlockMetrics {
     moveOn: { turns: number; passed: number };
     /** stay turns: how many, and how many the tutor stayed with. */
     stay: { turns: number; passed: number };
+    /** Course units: one entry per expected point verdict (value undefined when the judge gave none). */
+    points: { id: string; pattern: string; verdict: PointVerdict; value?: boolean }[];
     /** Expected verdicts the judge did not return (denominators above still count them). */
-    ungraded: { errors: number; clean: number; facts: number; checks: number; ratings: number; moveOn: number; stay: number };
+    ungraded: { errors: number; clean: number; facts: number; checks: number; ratings: number; moveOn: number; stay: number; points: number };
     error?: string;
   };
   reportedVsWire?: { reported: number; wire: number };
@@ -166,6 +170,7 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
       grammar: { gold: 0, flagged: 0 },
       anki: { checks: 0, passed: 0 },
       style: emptyStyle(),
+      learner: { turns: 0, withMistakes: 0, dropped: 0 },
       utilDelta: {},
     };
     for (const r of msgs) {
@@ -205,12 +210,17 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
       const su = (s.output?.extra as Record<string, unknown> | undefined)?.skillUsed;
       if (typeof su === "boolean") m.skillUsed = !!m.skillUsed || su;
       m.permissionDenials += Number((s.output?.extra as Record<string, unknown> | undefined)?.permissionDenials ?? 0);
+      if (s.phase.step === "turn" && s.gold) {
+        m.learner.turns++;
+        if (s.gold.errors?.length) m.learner.withMistakes++;
+        m.learner.dropped += s.droppedErrors?.length ?? 0;
+      }
       if (s.phase.step === "turn" && scenario) {
-        const gold = scenario.sessions[s.phase.session]?.turns[s.phase.turn]?.gold;
+        const gold = s.gold ?? scenario.sessions[s.phase.session]?.turns[s.phase.turn]?.gold;
         const sc = scoreTurn(gold, s.output);
         m.grammar.gold += sc.errors.length;
         m.grammar.flagged += sc.errors.filter((e) => e.flagged).length;
-        if (scenario.sessions[s.phase.session]?.mode === "chat" && s.output && !s.output.error) addReply(m.style, s.output.reply);
+        if (["chat", "unit"].includes(scenario.sessions[s.phase.session]?.mode ?? "") && s.output && !s.output.error) addReply(m.style, s.output.reply);
         if (sc.anki && sc.anki.expected) {
           m.anki.checks++;
           if (sc.anki.pass) m.anki.passed++;
@@ -229,8 +239,9 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
     const j = judge.find((x) => x.block === blockKey(b.arm, b.scenario, b.rep));
     if (scenario && !b.skipped && (j || judge.length)) {
       const jm = { errors: 0, flagged: 0, correctFix: 0, cleanTurns: 0, falsePositives: 0, tutorErrors: 0, facts: 0, factsCorrect: 0, checks: 0, checksPassed: 0,
-        ratings: { engagement: [], pacing: [], level: [] } as Record<Rating, number[]>, moveOn: { turns: 0, passed: 0 }, stay: { turns: 0, passed: 0 },
-        ungraded: { errors: 0, clean: 0, facts: 0, checks: 0, ratings: 0, moveOn: 0, stay: 0 }, ...(j?.error ? { error: j.error } : !j ? { error: "not judged" } : {}) };
+        ratings: Object.fromEntries(RATINGS.map((k) => [k, []])) as unknown as Record<Rating, number[]>, moveOn: { turns: 0, passed: 0 }, stay: { turns: 0, passed: 0 },
+        points: [] as NonNullable<BlockMetrics["judge"]>["points"],
+        ungraded: { errors: 0, clean: 0, facts: 0, checks: 0, ratings: 0, moveOn: 0, stay: 0, points: 0 }, ...(j?.error ? { error: j.error } : !j ? { error: "not judged" } : {}) };
       const got = new Map((j?.items ?? []).map((it) => [it.item, it]));
       for (const it of j?.items ?? []) jm.tutorErrors += Number(it.tutorErrors ?? 0) || 0;
       for (const item of judgeItems(b, scenario)) {
@@ -275,6 +286,13 @@ export function computeMetrics(cfg: BenchConfig, runDir: string, scenarios: Scen
           if (typeof r?.stayed !== "boolean") jm.ungraded.stay++;
           else if (r.stayed) jm.stay.passed++;
         }
+        for (const p of item.unitPoints ?? []) {
+          for (const verdict of n.pointVerdicts) {
+            const value = pointVerdict(r, p.id, verdict);
+            if (value === undefined) jm.ungraded.points++;
+            jm.points.push({ id: p.id, pattern: p.pattern, verdict, ...(value !== undefined ? { value } : {}) });
+          }
+        }
       }
       m.judge = jm;
     }
@@ -308,6 +326,66 @@ function ratio(a: number, b: number): string {
   return r >= 1 ? `${r.toFixed(1)}×` : `${r.toFixed(2)}×`;
 }
 
+const POINT_LABEL: Record<PointVerdict, string> = {
+  explained: "explained correctly in the opening overview",
+  modeled: "used by the tutor in the conversation",
+  elicited: "invited from the learner in the conversation",
+};
+
+/** "## Course unit teaching": per-point judge verdicts on unit sessions, totals and per point. */
+function courseUnit(L: string[], good: BlockMetrics[], arms: string[], armLabel: (id: string) => string): void {
+  const pts = (arm: string) => good.filter((b) => b.arm === arm).flatMap((b) => b.judge?.points ?? []);
+  if (!arms.some((a) => pts(a).length)) return;
+  L.push(`## Course unit teaching`, "");
+  L.push("Course unit sessions, judged per grammar point of the unit. Sayfern opens the unit from its course; Claude Code gets the unit's title and patterns in the learner's first message (the skill has no course). \"Brought in\" = used by the tutor or invited from the learner after the opening. Totals add up over repetitions.", "");
+  L.push(`| Metric | ${arms.map(armLabel).join(" | ")} |`, `|---|${arms.map(() => "---:").join("|")}|`);
+  const row = (name: string, f: (arm: string) => string) => L.push(`| ${name} | ${arms.map(f).join(" | ")} |`);
+  const rate = (xs: { value?: boolean }[]) => {
+    const yes = xs.filter((x) => x.value).length;
+    const un = xs.filter((x) => x.value === undefined).length;
+    return xs.length ? `${pct(yes, xs.length)} (${yes}/${xs.length}${un ? `, ⚠ ${un} ungraded` : ""})` : "–";
+  };
+  for (const v of POINT_VERDICTS) row(`Points ${POINT_LABEL[v]}`, (a) => rate(pts(a).filter((p) => p.verdict === v)));
+  // Brought in: modeled or elicited, per point and repetition (pairs line up because both come from the same session item).
+  const brought = (arm: string) =>
+    good
+      .filter((b) => b.arm === arm)
+      .flatMap((b) => {
+        const ps = b.judge?.points ?? [];
+        const ids = [...new Set(ps.filter((p) => p.verdict !== "explained").map((p) => p.id))];
+        return ids.map((id) => {
+          const vs = ps.filter((p) => p.id === id && p.verdict !== "explained");
+          return { id, value: vs.some((p) => p.value) ? true : vs.every((p) => p.value === false) ? false : undefined };
+        });
+      });
+  row("Points brought into the conversation", (a) => rate(brought(a)));
+  L.push("");
+  // Per point: explained · used · invited, as hits/judged repetitions.
+  const ids = [...new Map(good.flatMap((b) => b.judge?.points ?? []).map((p) => [p.id, p.pattern])).entries()];
+  L.push("Per point: explained in the overview · used by the tutor · invited from the learner (repetitions with a yes / repetitions).", "");
+  L.push(`| Point | ${arms.map(armLabel).join(" | ")} |`, `|---|${arms.map(() => "---:").join("|")}|`);
+  for (const [id, pattern] of ids) {
+    L.push(`| ${pattern} | ${arms.map((a) => POINT_VERDICTS.map((v) => {
+      const xs = pts(a).filter((p) => p.id === id && p.verdict === v);
+      return xs.length ? `${xs.filter((x) => x.value).length}/${xs.length}` : "–";
+    }).join(" · ")).join(" | ")} |`);
+  }
+  L.push("");
+}
+
+/** "## Simulated learner": what the learner model wrote, so readers can see how many planned mistakes each arm met. */
+function simulatedLearner(L: string[], good: BlockMetrics[], arms: string[], armLabel: (id: string) => string, model: unknown): void {
+  const sum = (arm: string, k: keyof BlockMetrics["learner"]) => good.filter((b) => b.arm === arm).reduce((t, b) => t + b.learner[k], 0);
+  if (!arms.some((a) => sum(a, "turns"))) return;
+  L.push(`## Simulated learner`, "");
+  L.push(`Scenarios with \`learner\`: a model${typeof model === "string" ? ` (\`${model}\`)` : ""} writes each learner message after reading the tutor's reply, outside the proxy (not counted for either arm). The conversations differ per arm and repetition, so gold errors come from the mistakes the learner reports; a reported mistake that is not in its message is dropped.`, "");
+  L.push(`| Metric | ${arms.map(armLabel).join(" | ")} |`, `|---|${arms.map(() => "---:").join("|")}|`);
+  L.push(`| Learner messages | ${arms.map((a) => sum(a, "turns")).join(" | ")} |`);
+  L.push(`| Messages with a planned mistake | ${arms.map((a) => sum(a, "withMistakes")).join(" | ")} |`);
+  L.push(`| Reported mistakes dropped (not in the message) | ${arms.map((a) => sum(a, "dropped")).join(" | ")} |`);
+  L.push("");
+}
+
 /** "## Conversation quality": judge ratings and move-on / stay verdicts next to deterministic reply-style numbers. */
 function conversationQuality(L: string[], good: BlockMetrics[], arms: string[], armLabel: (id: string) => string): void {
   const of = (arm: string) => good.filter((b) => b.arm === arm);
@@ -316,11 +394,12 @@ function conversationQuality(L: string[], good: BlockMetrics[], arms: string[], 
   const rated = judged && good.some((b) => b.judge && (RATINGS.some((k) => b.judge!.ratings[k].length) || b.judge.moveOn.turns || b.judge.stay.turns || b.judge.ungraded.ratings));
   if (!arms.some((a) => sty(a).replies) && !rated) return;
   L.push(`## Conversation quality`, "");
-  L.push("Mandarin chat sessions. Ratings are 1-5 from the judge over each whole session (anchors in `docs/benchmark.md`); a higher number is better. The judge sees only what the learner saw, so it may be able to tell the arms apart. The learner script is fixed and cannot follow a topic change by the tutor. Reply-style numbers are counted in code over the tutor's replies to learner turns.", "");
+  L.push("Mandarin chat and course unit sessions. Ratings are 1-5 from the judge over each whole session (anchors in `docs/benchmark.md`); a higher number is better. The judge sees only what the learner saw, so it may be able to tell the arms apart. The learner script is fixed and cannot follow a topic change by the tutor. Reply-style numbers are counted in code over the tutor's replies to learner turns.", "");
   L.push(`| Metric | ${arms.map(armLabel).join(" | ")} |`, `|---|${arms.map(() => "---:").join("|")}|`);
   const row = (name: string, f: (arm: string) => string) => L.push(`| ${name} | ${arms.map(f).join(" | ")} |`);
   if (rated) {
-    for (const k of RATINGS) {
+    // A quality no scenario asked for (teaching, without a unit scenario) gets no row.
+    for (const k of RATINGS.filter((k) => good.some((b) => b.judge?.ratings[k].length))) {
       row(`Judge: ${k} (mean 1-5)`, (a) => {
         const xs = of(a).flatMap((b) => b.judge?.ratings[k] ?? []);
         return xs.length ? `${fmt(mean(xs), 2)} (n=${xs.length})` : "–";
@@ -434,6 +513,8 @@ export function renderReport(cfg: BenchConfig, runDir: string, scenarios: Scenar
   }
 
   conversationQuality(L, good, arms, armLabel);
+  courseUnit(L, good, arms, armLabel);
+  simulatedLearner(L, good, arms, armLabel, meta.learnerModel);
 
   L.push(`## Plan utilization (rate-limit headers)`, "");
   if (!utilKeys.length) {

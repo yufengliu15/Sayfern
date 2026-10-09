@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AnkiStatus, ExtensionInfo } from "../../../shared/api";
 import type { DictionaryProgress, DictionaryStatus, LanguageInfo } from "../../../shared/lang";
-import type { AnkiDeckMapping, AnkiOverview, Language, LearnerProfile, LevelEstimate, Skill } from "../../../shared/records";
+import type { AnkiDeckMapping, AnkiOverview, Language, LearnerProfile, LevelBand, LevelEstimate, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { Connect } from "../components/Connect";
 import { Icon, type IconName } from "../components/icons";
@@ -17,6 +17,7 @@ import { LocalePicker } from "../components/LocalePicker";
 import { GOAL_PLACEHOLDER } from "../lib/samples";
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
+import { PlacementStart } from "../components/PlacementStart";
 import { langName, msg, t, tj } from "../i18n";
 import { SpeakButtons } from "../components/Speak";
 import { loadVoiceStatus, setVoiceStatus, useVoiceStatus, VOICE_SAMPLES } from "../lib/voice";
@@ -35,7 +36,7 @@ const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string
   { id: "about", label: msg("About you"), icon: "user", title: msg("About you"), sub: msg("A few lines the tutor keeps in mind, so conversations are about your life.") },
   { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
   { id: "voice", label: msg("Voice"), icon: "speaker", title: msg("Voice"), sub: msg("Listen to the tutor and to words, and talk instead of typing.") },
-  { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Hover lookups use free dictionaries stored on this Mac.") },
+  { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Free dictionaries stored on this Mac, for lookups and for counting your words. Sayfern downloads one for each language you learn.") },
   { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
   { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this Mac, in plain files you can export.") },
   { id: "extensions", label: msg("Extensions"), icon: "tool", title: msg("Extensions"), sub: msg("Add tools, prompt additions and language packs.") },
@@ -226,6 +227,7 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [askBand, setAskBand] = useState(false);
 
   const load = useCallback(() => api.getLevels(info.id).then(setData).catch((e) => setError(errorText(e))), [info.id]);
   useEffect(() => {
@@ -246,16 +248,17 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
     }
   };
 
-  const place = async () => {
+  const place = async (band: LevelBand) => {
     setBusy("place");
     try {
-      const v = await api.startPlacement(info.id);
+      const v = await api.startPlacement(info.id, band);
       if (info.id !== app.language) app.setLanguage(info.id);
       await app.refreshSessions();
       navigate(sessionRoute(v.meta.id));
     } catch (e) {
       setError(errorText(e));
       setBusy(null);
+      setAskBand(false);
     }
   };
 
@@ -318,13 +321,22 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
           ))}
         </select>
         <span className="lvl-or">{t("or")}</span>
-        <button className="btn btn-f btn-s" onClick={() => void place()} disabled={busy === "place"}>
+        <button className="btn btn-f btn-s" onClick={() => setAskBand(true)} disabled={busy === "place"}>
           <Icon name="compass" size={15} />
-          {busy === "place" ? t("Starting…") : t("Find my level")}
+          {t("Find my level")}
         </button>
         <span className="muted small">{t("A 5-minute chat, no test.")}</span>
       </div>
       {error && <p className="err">{t(error)}</p>}
+      {askBand && (
+        <PlacementStart
+          language={info.id}
+          levels={info.levels}
+          busy={busy === "place"}
+          onStart={(band) => void place(band)}
+          onClose={() => setAskBand(false)}
+        />
+      )}
     </Group>
   );
 }

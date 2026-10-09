@@ -2,7 +2,7 @@
 /* Point states, shared by the map dots, unit segments, chips and drawer rows. */
 .cr { --st-new: var(--line-2); --st-introduced: #c9d8cc; --st-with_help: var(--fern-mid); --st-independent: var(--fern); }
 .cr-in { padding-top: 44px; gap: 0; }
-.cr-in > * { width: 100%; max-width: 1320px; }
+.cr-in > * { width: 100%; }
 
 /* Head: title on the left, overall progress ring on the right */
 .cr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 28px; }

@@ -4,9 +4,10 @@
 // Segmentation is Intl.Segmenter; lemmas come from lemma.ts, checked against the installed
 // dictionary when there is one.
 import type { LanguageInfo, Token } from "../../shared/lang";
-import { LANGUAGE_META, languageInfo } from "../../shared/languages";
+import { LANGUAGE_META, languageInfo, type Script } from "../../shared/languages";
 import type { Language } from "../../shared/records";
 import type { LanguagePack } from "../contracts";
+import { COMMON_WORDS, wordForms } from "./common-words";
 import { lemmatize } from "./lemma";
 import { normalizeText } from "./text";
 
@@ -18,9 +19,39 @@ export interface WordIndex {
   load(): Promise<unknown>;
   /** Exact headword check (case as given). */
   has(word: string): boolean;
+  /** Sync, after load: a word (lower case) of the learner's own language: used in the dictionary's glosses,
+   *  or one of the interface language's common words. */
+  ownWord?(word: string): boolean;
+  /** Sync, after load: the words (lower case) of the headword's glosses. */
+  glossWordsOf?(word: string): string[];
+  /** Sync, after load: base code of the learner's own language ("en", "pt"), for plural and past forms. */
+  ownLanguage?(): string | undefined;
 }
 
 const LETTER = /\p{L}/u;
+
+/** A learner word must be written in the target language's script: English in a Korean session never counts. */
+const SCRIPT_LETTER: Partial<Record<Script, RegExp>> = {
+  latin: /\p{Script=Latin}/u,
+  cyrillic: /\p{Script=Cyrillic}/u,
+  hangul: /\p{Script=Hangul}/u,
+};
+
+const CLAUSE_BREAK = /[,;:()\[\]"“”«»„—–]/u;
+
+/** Which language a word of a learner message is in. "unclear" words follow the rest of their sentence. */
+export type WordSide = "target" | "own" | "unclear";
+
+/**
+ * The words of one sentence that count as the target language. A word of the learner's own language
+ * never counts; an unclear word counts when the sentence has no own-language words, or fewer than target words.
+ */
+export function keepTarget<T>(words: readonly T[], sides: readonly WordSide[]): T[] {
+  const own = sides.filter((s) => s === "own").length;
+  const target = sides.filter((s) => s === "target").length;
+  const unclearCounts = own === 0 || own < target;
+  return words.filter((_, i) => sides[i] === "target" || (sides[i] === "unclear" && unclearCounts));
+}
 
 /** Elided articles and pronouns written onto the next word: l'homme, dell'anno, c'est. */
 const ELISION: Partial<Record<Language, RegExp>> = {
@@ -64,6 +95,7 @@ export function spacedPromptNotes(language: Language): string {
 export class SpacedPack implements LanguagePack {
   readonly info: LanguageInfo;
   protected readonly segmenter: Intl.Segmenter;
+  private readonly sentences: Intl.Segmenter;
 
   constructor(
     readonly language: Language,
@@ -71,6 +103,7 @@ export class SpacedPack implements LanguagePack {
   ) {
     this.info = languageInfo(language);
     this.segmenter = new Intl.Segmenter(LANGUAGE_META[language].bcp47, { granularity: "word" });
+    this.sentences = new Intl.Segmenter(LANGUAGE_META[language].bcp47, { granularity: "sentence" });
   }
 
   async ready(): Promise<void> {
@@ -113,15 +146,46 @@ export class SpacedPack implements LanguagePack {
     return out;
   }
 
+  /** Only words in the target language: right script, and (Latin script) not a word of the learner's own language. */
   learnerWords(text: string): string[] {
-    const tag = LANGUAGE_META[this.language].bcp47;
-    return this.segment(text)
-      .filter((t) => t.isWord)
-      .map((t) => {
+    const meta = LANGUAGE_META[this.language];
+    const script = SCRIPT_LETTER[meta.script];
+    const out: string[] = [];
+    // Learners switch language at clause breaks ("I like the beach, pero hace calor"): judge each clause alone.
+    const clauses = [...this.sentences.segment(text)].flatMap((s) => s.segment.split(CLAUSE_BREAK));
+    for (const clause of clauses) {
+      const words = this.segment(clause).filter((t) => t.isWord && (!script || script.test(t.text)));
+      const kept = meta.script === "latin" ? keepTarget(words, words.map((t) => this.side(t))) : words;
+      for (const t of kept) {
         const w = t.lemma ?? t.text;
         // German nouns keep their capital letter; other languages compare in lower case.
-        return this.language === "de" && t.lemma ? w : w.toLocaleLowerCase(tag);
-      });
+        out.push(this.language === "de" && t.lemma ? w : w.toLocaleLowerCase(meta.bcp47));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Target: a headword of the target language that the learner's own language lacks, or has with the same
+   * meaning (the dictionary's glosses contain the word itself: hotel, chocolate). Own: a word of the learner's
+   * own language only. Unclear: in neither, a single letter (I, a), or in both with another meaning (a = to).
+   */
+  protected side(t: Token): WordSide {
+    const word = t.text.replace(/[’]/g, "'").toLocaleLowerCase(LANGUAGE_META[this.language].bcp47);
+    const d = this.dictionary;
+    const common = COMMON_WORDS[this.language];
+    // The common words also cover forms some dictionaries leave out (del, al).
+    const inTarget = !!common?.has(word) || (!!d?.hasIndex() && (this.has(t.text) || this.has(word) || (!!t.lemma && this.has(t.lemma))));
+    const inOwn = !!d?.ownWord && wordForms(word, this.ownBase()).some((f) => d.ownWord!(f));
+    if (inTarget && !inOwn) return "target";
+    if (inOwn && !inTarget) return "own";
+    if (inTarget && [...word].length > 1 && d?.glossWordsOf?.(t.text).includes(word)) return "target";
+    return "unclear";
+  }
+
+  /** Base code of the learner's own language for `wordForms`; English unless the index says otherwise. */
+  protected ownBase(): string {
+    return this.dictionary?.ownLanguage?.() ?? "en";
   }
 
   normalize(text: string): string {

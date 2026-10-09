@@ -73,6 +73,8 @@ export class JsonRecordsStore implements RecordsStore {
   private readonly profileFile: JsonFile<LearnerProfile>;
   private readonly usageFiles = new Map<Language, JsonFile<Map<string, WordUsage>>>();
   private readonly writingFiles = new Map<Language, JsonFile<WritingRow[]>>();
+  /** word-filter.json: per language, the key of the filter the learner words were last counted with. */
+  private readonly wordFilterFile: JsonFile<Partial<Record<Language, string>>>;
 
   private sessionIndex: Promise<Map<string, JsonFile<SessionFile>>> | null = null;
 
@@ -87,6 +89,7 @@ export class JsonRecordsStore implements RecordsStore {
     this.activityFile = new JsonFile(f("activity.json"), () => []);
     this.levelsFile = new JsonFile(f("levels.json"), () => []);
     this.profileFile = new JsonFile(f("profile.json"), () => ({ about: "", goals: {} }));
+    this.wordFilterFile = new JsonFile(f("word-filter.json"), () => ({}));
   }
 
   // ============================================================ files
@@ -199,6 +202,8 @@ export class JsonRecordsStore implements RecordsStore {
     if (input.openWith) meta.openWith = input.openWith;
     if (input.unitId) meta.unitId = input.unitId;
     if (input.docId) meta.docId = input.docId;
+    if (input.levelBand) meta.levelBand = input.levelBand;
+    if (input.scenarioId) meta.scenarioId = input.scenarioId;
     await this.addSessionFile({ meta, messages: [], transcript: [], targets: [] });
     return clone(meta);
   }
@@ -561,6 +566,65 @@ export class JsonRecordsStore implements RecordsStore {
       }
       return clone(fresh);
     });
+  }
+
+  async needsRecount(language: Language, key: string): Promise<boolean> {
+    if ((await this.wordFilterFile.get())[language] === key) return false;
+    if ((await this.writingFile(language).get()).length > 0) return true;
+    // Nothing stored yet: nothing to recount under this key.
+    await this.wordFilterFile.update((keys) => {
+      keys[language] = key;
+    });
+    return false;
+  }
+
+  async recountLearnerWords(language: Language, key: string, wordsOf: (message: ChatMessage) => string[]): Promise<boolean> {
+    if ((await this.wordFilterFile.get())[language] === key) return false;
+    const recount = new Map<string, { words: string[]; sentence: string }>();
+    for (const s of await this.allSessions()) {
+      if (s.meta.language !== language) continue;
+      for (const m of s.messages) {
+        if (m.role !== "user") continue;
+        recount.set(`${s.meta.id}\u0000${m.id}`, { words: wordsOf(m).map((w) => w.trim()).filter((w) => w !== ""), sentence: m.text });
+      }
+    }
+    const rows = await this.writingFile(language).update((list) => {
+      for (const r of list) {
+        const fresh = recount.get(`${r.sessionId}\u0000${r.messageId}`);
+        if (fresh) r.words = fresh.words;
+      }
+      return clone(list);
+    });
+    // Rebuild usage from the rows, oldest first: counts, first use and its sentence.
+    await this.usageFile(language).update((usage) => {
+      const old = new Map(usage);
+      usage.clear();
+      for (const r of [...rows].sort((a, b) => a.at - b.at)) {
+        for (const word of r.words) {
+          const u = usage.get(word);
+          if (u) {
+            u.count++;
+            continue;
+          }
+          const before = old.get(word);
+          const sentence =
+            recount.get(`${r.sessionId}\u0000${r.messageId}`)?.sentence ?? (before?.firstMessageId === r.messageId ? before.firstSentence : "");
+          usage.set(word, {
+            word,
+            language,
+            count: 1,
+            firstUsedAt: r.at,
+            firstSessionId: r.sessionId,
+            firstMessageId: r.messageId,
+            firstSentence: sentence,
+          });
+        }
+      }
+    });
+    await this.wordFilterFile.update((keys) => {
+      keys[language] = key;
+    });
+    return true;
   }
 
   async getWordUsage(language: Language, word: string): Promise<WordUsage | null> {

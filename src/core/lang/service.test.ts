@@ -9,6 +9,8 @@ import type { DictionaryProgress } from "../../shared/lang";
 import type { AnkiCard } from "../../shared/records";
 import { CEDICT_URL, DefaultLanguageService, JMDICT_RELEASE_API } from "./index";
 import { readTarFile } from "./jmdict";
+import { OEWN_URL } from "./wordlists";
+import type { UiLocale } from "../../shared/locales";
 import { assertCovers } from "./testutil";
 
 const CEDICT_FIXTURE = [
@@ -280,4 +282,39 @@ test("service: registerPack adds a language", async () => {
   assert.deepEqual(await svc.annotate("yue" as never, "你好"), [{ text: "你好", start: 0, end: 2, isWord: true }]);
   const r = await svc.lookup("yue" as never, "你好");
   assert.deepEqual(r, { query: "你好", entries: [] });
+});
+
+/** A tiny Open English WordNet JSON release: synset files plus word entries. */
+async function oewnZip(): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file("verb.motion.json", JSON.stringify({ "1-v": { definition: ["move fast on foot"], members: ["run"], partOfSpeech: "v" } }));
+  zip.file("noun.act.json", JSON.stringify({ "2-n": { definition: ["the act of running"], members: ["run"], partOfSpeech: "n" } }));
+  zip.file("noun.artifact.json", JSON.stringify({ "3-n": { definition: ["an airfield for planes"], members: ["airport"], partOfSpeech: "n" } }));
+  zip.file("entries-r.json", JSON.stringify({ run: { n: { sense: [{ synset: "2-n" }] }, v: { sense: [{ synset: "1-v" }, { synset: "1-v" }] } } }));
+  zip.file("entries-a.json", JSON.stringify({ airport: { n: { sense: [{ synset: "3-n" }] } } }));
+  zip.file("frames.json", JSON.stringify({}));
+  return zip.generateAsync({ type: "uint8array" });
+}
+
+test("service: English always has a dictionary; WordNet's English glosses never mark English words as own-language", async () => {
+  const bytes = await oewnZip();
+  const fetch = (async (input: string | URL | Request) =>
+    String(input) === OEWN_URL ? new Response(bytes, { headers: { "content-length": String(bytes.length) } }) : new Response("no", { status: 404 })) as typeof globalThis.fetch;
+  const status = (locale: UiLocale) => new DefaultLanguageService({ dataDir: tmp(), glossLocale: () => locale, fetch }).dictionaryStatus("en");
+  assert.equal((await status("en")).name, "Open English WordNet");
+  assert.equal((await status("ko")).name, "Open English WordNet");
+  assert.equal((await status("vi")).name, "Open English WordNet");
+  assert.equal((await status("zh-Hans")).name, "WikDict English–Chinese");
+  assert.equal((await status("es")).name, "WikDict English–Spanish");
+
+  const dir = tmp();
+  const svc = new DefaultLanguageService({ dataDir: dir, glossLocale: () => "ko", fetch });
+  const s = await svc.installDictionary("en", () => undefined);
+  assert.equal(s.entries, 2);
+  const run = (await svc.lookup("en", "run")).entries[0];
+  assert.deepEqual(run.senses.map((x) => [x.tags?.[0], x.glosses[0]]), [["verb", "move fast on foot"], ["noun", "the act of running"]], "most senses first, one per synset");
+  // "act", "fast" and "planes" are in WordNet's glosses, but those are English, the language learned.
+  const pack = new DefaultLanguageService({ dataDir: dir, glossLocale: () => "ko" }).pack("en");
+  await pack.ready();
+  assert.deepEqual(pack.learnerWords("I run fast to the airport, 그리고 커피를 마셨어요."), ["i", "run", "fast", "to", "the", "airport"]);
 });
