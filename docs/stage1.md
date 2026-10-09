@@ -82,7 +82,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | S1-17 | Counts & rates | Partial | `records.listGrammar` / `summarizeGrammar` (local) | Catalogue list doesn't refresh after a dispute until the screen reloads. |
 | S1-18 | Assistance states | Done | `introduced` / `with_help` / `independent`; corrected retries recorded as `corrected_retry` | |
 | S1-19 | Targeted practice | Done | `practiseGrammar` (practice session with an opening) + follow-ups in the prompt (never names the pattern). "Explain again" = `practiseGrammar(id, { explain: true })` → `openWith: "explain"` (0.2.2) | |
-| S1-20 | Revisable judgments | Partial | `disputeObservation` (verdict changed, original kept); `disputeCorrection`; `style` corrections are suggestions | A disputed correction still counts in Progress, its note is never given to the tutor, and the linked observation keeps its verdict. |
+| S1-20 | Revisable judgments | Partial | `disputeObservation` (verdict changed, original kept); `disputeCorrection`; `typo` and `speaking` corrections are not grammar errors (ADR 33) | A disputed correction still counts in Progress, its note is never given to the tutor, and the linked observation keeps its verdict. |
 | S1-21 | Structured corrections | Done | `corrections.json` from day one (original, corrected, explanation, kind, grammar id, retries, status) | |
 | S1-22 | Words first used | Done | `records.recordLearnerWords`, `word-usage-<lang>.json`; Progress and word popover show first use | |
 | S1-23 | Total/distinct words | Partial | `writing-<lang>.json`; learner words only; tutor text, pasted spans and own-language words excluded (ADR 30) | Retry after a failed turn re-sends the learner message and counts its words twice. |

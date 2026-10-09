@@ -37,6 +37,7 @@ import {
   DEFAULT_TITLES,
   type SessionFile,
   titleFrom,
+  correctionsCodec,
   wordUsageCodec,
   type WritingRow,
 } from "./files";
@@ -82,7 +83,7 @@ export class JsonRecordsStore implements RecordsStore {
     this.dataDir = opts.dataDir;
     this.now = opts.now ?? Date.now;
     const f = (name: string) => join(this.dataDir, name);
-    this.correctionsFile = new JsonFile(f("corrections.json"), () => []);
+    this.correctionsFile = new JsonFile(f("corrections.json"), () => [], correctionsCodec);
     this.grammarFile = new JsonFile(f("grammar.json"), () => []);
     this.observationsFile = new JsonFile(f("observations.json"), () => []);
     this.savedWordsFile = new JsonFile(f("saved-words.json"), () => []);

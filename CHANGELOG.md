@@ -6,6 +6,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-09
+
+### Added
+
+- **Copy a message.** Every tutor message has a copy button next to the speaker. Your own messages show one to the left of the bubble when you point at it. It copies the whole message.
+
+### Fixed
+
+- **The Dock says Sayfern, not Electron, when you run from source.** macOS showed the dev bundle's folder name. The bundle now has a translated display name, which macOS shows instead.
+
+## [0.21.1] - 2026-10-09
+
+### Fixed
+
+- **Select chat text from anywhere.** A drag can now start anywhere in the chat, also between lines or in a message's margin, not only on a letter. Dragging across words no longer opens the word popup, and a drag inside one word no longer pins it. Hovering and clicking a word work as before.
+
+## [0.21.0] - 2026-10-09
+
+### Added
+
+- **Speaking corrections.** When you talk to the tutor, it can now point out things people write but do not say aloud, such as reading "lol" or "etc." as letters.
+
+### Changed
+
+- **Corrections have three kinds: grammar, typo and speaking.** Grammar means the sentence does not make grammatical sense (this includes wrong words and word order). Typo means the sentence makes sense but looks wrong written out: spelling, capitals, punctuation, spacing. Old vocabulary and phrasing corrections become grammar, and old style suggestions become typos, in Review, Progress and exports.
+- **Spoken messages get no typo corrections.** Their spelling, capitals and punctuation come from the speech recognition, not from you.
+- **Only grammar corrections keep a topic going and feed quizzes.** A typo no longer stops the tutor from moving on, and quizzes no longer ask about typos.
+
 ## [0.20.0] - 2026-10-09
 
 ### Added

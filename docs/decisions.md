@@ -187,6 +187,21 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 33. Corrections are grammar, typo or speaking (v0.21.0)
+
+Owner request, 2026-10-09: the four kinds (grammar, vocabulary, phrasing, style) overlapped and "style" mixed suggestions with errors. Three kinds replace them.
+
+- **Decision.**
+  - **`grammar`**: the sentence does not make grammatical sense (wrong form, word, word order, measure word). Old vocabulary and phrasing errors are grammar now.
+  - **`typo`**: the sentence makes sense but looks wrong written out (spelling, capitals, punctuation, spacing, a character with the same sound; "tv" → "TV").
+  - **`speaking`**: only for spoken messages (`spoken: true`): the learner said aloud what people only write ("lol", "etc." read as letters, "slash", emoji names).
+  - **Decision rule in the prompt**: ask first whether the sentence makes grammatical sense. No → grammar. Yes, but it looks wrong written → typo.
+  - **Legacy mapping on read** (`correctionsCodec`, one point when `corrections.json` loads): vocabulary, phrasing → grammar; style → typo. The next write stores the new value, so every reader (review, quiz, stats, export) sees three kinds. `record_evidence` maps the same old values if a model still sends them.
+  - **Spoken messages are transcripts.** Spelling, capitals and punctuation come from the transcriber, so a `typo` on a spoken message is dropped. A `speaking` on a typed message is stored as `typo`. `TurnState.userSpoken` carries the flag to the tool.
+  - **Only `grammar` counts for pacing and quizzes.** A typo or a spoken-register slip does not show that the learner struggles with the topic (pacing: no clean-streak reset) and makes a poor quiz question (`countableCorrection`). Typo and speaking still appear in Review, Progress and Anki export (tag `sayfern::<kind>`; hint "naturally").
+- **Consequences.** Old `style` suggestions now count as typos. Stored `byKind` in Progress has the three keys. Built features: the SDK exposes no correction kinds (`FEATURE_RPC_METHODS` has no corrections call), so the public builder kit is unchanged. Extensions that read `Correction.kind` through `ToolContext.records` see only the three kinds.
+- **Where.** `src/shared/records.ts` (`CorrectionKind`, `LegacyCorrectionKind`), `src/core/agent/tools.ts`, `prompt.ts` (`FEEDBACK_RULES`, pacing), `src/core/records/files.ts` (`correctionsCodec`), `stats.ts`, `src/core/quiz/material.ts`, `src/core/review/cards.ts`, `list.ts`; tests in `turn.test.ts`, `prompt.test.ts`, `corrections.test.ts`.
+
 ## ADR 32. An English dictionary for every interface language (v0.20.0)
 
 Owner request, 2026-10-09: add an English dictionary.

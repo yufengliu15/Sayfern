@@ -1,7 +1,7 @@
 // On-disk record shapes that are private to the records store.
 import type { Message } from "@earendil-works/pi-ai";
 import { LANGUAGE_META, spaceSeparated } from "../../shared/languages";
-import { LANGUAGES, type ChatMessage, type Language, type PracticeTarget, type SessionMeta, type WordUsage } from "../../shared/records";
+import { LANGUAGES, type ChatMessage, type Correction, type CorrectionKind, type LegacyCorrectionKind, type Language, type PracticeTarget, type SessionMeta, type WordUsage } from "../../shared/records";
 import type { JsonCodec } from "./io";
 
 /** sessions/<id>.json */
@@ -40,6 +40,21 @@ export const wordUsageCodec: JsonCodec<Map<string, WordUsage>> = {
   encode(data) {
     return [...data.values()].sort((a, b) => a.firstUsedAt - b.firstUsedAt);
   },
+};
+
+/** Kinds stored before v0.21.0 and what they are now. */
+const LEGACY_KIND: Record<LegacyCorrectionKind, CorrectionKind> = { vocabulary: "grammar", phrasing: "grammar", style: "typo" };
+
+/** corrections.json: old kinds are mapped on load, so every reader sees only the current kinds (the next write keeps them). */
+export const correctionsCodec: JsonCodec<Correction[]> = {
+  decode(raw) {
+    if (!Array.isArray(raw)) return [];
+    return (raw as (Correction | { kind: LegacyCorrectionKind })[]).map((c) => {
+      const mapped = LEGACY_KIND[c.kind as LegacyCorrectionKind];
+      return mapped ? ({ ...c, kind: mapped } as Correction) : (c as Correction);
+    });
+  },
+  encode: (data) => data,
 };
 
 export const DEFAULT_TITLES = Object.fromEntries(LANGUAGES.map((l) => [l, LANGUAGE_META[l].titles.chat])) as Record<Language, string>;

@@ -21,9 +21,8 @@ const RANGES: { id: ProgressRange; label: string }[] = [
 ];
 const KINDS: { id: CorrectionKind; label: string }[] = [
   { id: "grammar", label: msg("Grammar") },
-  { id: "vocabulary", label: msg("Vocabulary") },
-  { id: "phrasing", label: msg("Phrasing") },
-  { id: "style", label: msg("Style, not errors") },
+  { id: "typo", label: msg("Typo") },
+  { id: "speaking", label: msg("Speaking") },
 ];
 const MIN = 60_000;
 const day = (iso: string) => new Date(`${iso}T12:00:00`);
@@ -206,7 +205,7 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
                   ) : (
                     <div className="kbars">
                       {KINDS.map((k) => (
-                        <HBar key={k.id} label={t(k.label)} value={s.corrections.byKind[k.id]} max={cMax} tone={k.id === "style" ? "soft" : undefined} />
+                        <HBar key={k.id} label={t(k.label)} value={s.corrections.byKind[k.id]} max={cMax} tone={k.id !== "grammar" ? "soft" : undefined} />
                       ))}
                     </div>
                   )}

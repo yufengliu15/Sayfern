@@ -14,11 +14,10 @@ import { msg, t } from "../../i18n";
 
 export const KIND_LABEL: Record<Correction["kind"], string> = {
   grammar: msg("Grammar"),
-  vocabulary: msg("Vocabulary"),
-  phrasing: msg("Phrasing"),
-  style: msg("Phrasing · style"),
+  typo: msg("Typo"),
+  speaking: msg("Speaking"),
 };
-const KIND_CLASS: Record<Correction["kind"], string> = { grammar: "k-g", vocabulary: "k-v", phrasing: "k-p", style: "k-p" };
+const KIND_CLASS: Record<Correction["kind"], string> = { grammar: "k-g", typo: "k-t", speaking: "k-s" };
 
 export interface CorrectionsItemProps {
   item: ReviewItem;
@@ -242,11 +241,9 @@ export function CorrectionsItem({ item, fontClass: L, hideAnswers, selecting, se
                   {t("Try again")}
                 </button>
               )}
-              {c.kind !== "style" && (
-                <button className="linkb" onClick={() => setMode("dispute")}>
-                  {t("Not a mistake?")}
-                </button>
-              )}
+              <button className="linkb" onClick={() => setMode("dispute")}>
+                {t("Not a mistake?")}
+              </button>
             </span>
           )}
         </div>

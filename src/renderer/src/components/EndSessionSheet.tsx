@@ -24,7 +24,6 @@ export function EndSessionSheet({ summary, language, messages, model, onCorrecti
   const textOf = (id: string) => messages.find((m) => m.id === id)?.text;
   const grammarById = Object.fromEntries(summary.grammar.map((g) => [g.summary.point.id, g.summary]));
   const used = summary.targets.filter((x) => x.status === "used");
-  const errors = summary.corrections.filter((c) => c.kind !== "style");
   const L = fontOf(language);
 
   useEffect(() => {
@@ -50,7 +49,7 @@ export function EndSessionSheet({ summary, language, messages, model, onCorrecti
         </header>
 
         <div className="sheet-stats">
-          <Stat n={errors.length} label={tn(errors.length, "thing to fix", "things to fix")} />
+          <Stat n={summary.corrections.length} label={tn(summary.corrections.length, "thing to fix", "things to fix")} />
           <Stat n={summary.grammar.length} label={tn(summary.grammar.length, "pattern used", "patterns used")} />
           <Stat n={summary.newWords.length} label={tn(summary.newWords.length, "new word used", "new words used")} />
           <Stat n={used.length} label={tn(summary.targets.length, "of {count} Anki word", "of {count} Anki words")} />

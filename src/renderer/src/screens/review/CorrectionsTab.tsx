@@ -23,8 +23,8 @@ export interface CorrectionsTabProps {
 const KINDS: { id: ReviewKindFilter; label: string }[] = [
   { id: "all", label: msg("All") },
   { id: "grammar", label: msg("Grammar") },
-  { id: "vocabulary", label: msg("Vocabulary") },
-  { id: "phrasing", label: msg("Phrasing") },
+  { id: "typo", label: msg("Typo") },
+  { id: "speaking", label: msg("Speaking") },
 ];
 
 const STATUSES: { id: ReviewStatusFilter; label: string }[] = [

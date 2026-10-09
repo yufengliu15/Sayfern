@@ -92,7 +92,8 @@ export const AnnotatedText = memo(function AnnotatedText({
             aria-expanded={selected}
             className={cls("w", isTarget && "anki", selected && "sel")}
             onPointerEnter={(e) => {
-              if (e.pointerType !== "mouse") return;
+              // A held button means a text selection drag: no popover.
+              if (e.pointerType !== "mouse" || e.buttons) return;
               const el = e.currentTarget;
               cancelCloseWordPopover();
               window.clearTimeout(hoverTimer.current);
@@ -107,6 +108,8 @@ export const AnnotatedText = memo(function AnnotatedText({
             }}
             onClick={(e) => {
               window.clearTimeout(hoverTimer.current);
+              // The click that ends a drag inside one word keeps the selection.
+              if (!window.getSelection()?.isCollapsed) return;
               show(e.currentTarget, t, true);
             }}
             onKeyDown={(e: KeyboardEvent<HTMLSpanElement>) => {

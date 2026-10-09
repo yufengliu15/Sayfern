@@ -207,6 +207,25 @@ test("pacing block: rules always, move-on nudge once the topic is used up", asyn
   assert.match(late, /The topic is used up: unless they are clearly invested, move on in this reply\./);
 });
 
+test("pacing: only grammar corrections keep a topic going; the prompt teaches the three kinds", async () => {
+  const h = makeHarness();
+  const sid = await h.newSession();
+  for (let i = 1; i <= MOVE_ON_TURNS; i++) {
+    await h.records.appendMessage({ id: `u${i}`, sessionId: sid, role: "user", text: "还可以。", at: h.clock.t + i });
+    await h.records.appendMessage({ id: `t${i}`, sessionId: sid, role: "tutor", text: "好。", at: h.clock.t + i });
+    await h.records.addCorrection({ sessionId: sid, messageId: `u${i}`, original: "可以", corrected: "可以。", explanation: "x", kind: i % 2 ? "typo" : "speaking" });
+  }
+  const session = (await h.records.getSession(sid))!;
+  const p = await buildSystemPrompt(h.deps, session);
+  assert.match(p, /previous replies had no mistakes/, "typo and speaking are not struggle signals");
+  assert.match(p, /does the sentence make grammatical sense\? If not, the kind is "grammar"/);
+  assert.match(p, /the kind is "typo"/);
+  assert.match(p, /Use "speaking" only on a spoken message/);
+  assert.match(p, /Never record a "typo" for a spoken message/);
+  await h.records.addCorrection({ sessionId: sid, messageId: `u${MOVE_ON_TURNS - 1}`, original: "还", corrected: "很", explanation: "x", kind: "grammar" });
+  assert.doesNotMatch(await buildSystemPrompt(h.deps, session), /previous replies had no mistakes/);
+});
+
 test("reply length grows with the level", () => {
   const info = languageInfo("zh");
   const at = (level?: string) => lengthRule({ info, levels: level ? { writing: { level } as never } : {} });

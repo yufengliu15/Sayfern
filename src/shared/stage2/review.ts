@@ -1,23 +1,15 @@
 // Stage 2 · Corrections review and correction-to-Anki export (S2-01..S2-03).
 // Owned by the review feature. Types only (compiled by both node and web TS projects), plus
-// two tiny pure helpers (REVIEW_KIND, clozeFront) that the core and the UI must agree on.
+// one tiny pure helper (clozeFront) that the core and the UI must agree on.
 // Every invokable method added to ReviewApi must also be listed in REVIEW_METHODS (compile-time check).
 import type { Correction, CorrectionKind, Language, SessionKind } from "../records";
 import type { ModelRef } from "../types";
 
 // ---------------------------------------------------------------- review list (S2-01, S2-02)
 
-/** The three filter chips. */
-export type ReviewKind = "grammar" | "vocabulary" | "phrasing";
+/** The three filter chips: one per correction kind. */
+export type ReviewKind = CorrectionKind;
 export type ReviewKindFilter = "all" | ReviewKind;
-
-/** Chip for each correction kind. "style" suggestions are listed under Phrasing (wireframe: "Phrasing · style"). */
-export const REVIEW_KIND: Record<CorrectionKind, ReviewKind> = {
-  grammar: "grammar",
-  vocabulary: "vocabulary",
-  phrasing: "phrasing",
-  style: "phrasing",
-};
 
 /**
  * - `practise`: not fixed yet (open, retried wrong, or answer revealed)

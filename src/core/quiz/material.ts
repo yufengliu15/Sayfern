@@ -59,7 +59,7 @@ export interface PastQuizMistake {
 }
 
 export function countableCorrection(c: Correction): boolean {
-  return c.kind !== "style" && c.status !== "disputed";
+  return c.kind === "grammar" && c.status !== "disputed";
 }
 
 export function toGrammar(g: GrammarSummary): MaterialGrammar {

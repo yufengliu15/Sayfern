@@ -129,7 +129,7 @@ describe("progress", () => {
     await store.appendMessage(msg(s4.id, "user", "嗯", day(2)));
 
     clock.t = day(8);
-    await store.addCorrection({ sessionId: s2.id, messageId: "b", original: "x", corrected: "y", explanation: "", kind: "vocabulary" });
+    await store.addCorrection({ sessionId: s2.id, messageId: "b", original: "x", corrected: "y", explanation: "", kind: "typo" });
     clock.t = day(1);
     await store.addCorrection({ sessionId: s1.id, messageId: "a", original: "x", corrected: "y", explanation: "", kind: "grammar" });
     await store.addCorrection({ sessionId: s1.id, messageId: "a", original: "z", corrected: "y", explanation: "", kind: "grammar" });
@@ -161,7 +161,7 @@ describe("progress", () => {
       ["猫", "我", "喜欢", "狗"],
     );
     assert.equal(p.corrections.total, 2);
-    assert.deepEqual(p.corrections.byKind, { grammar: 2, vocabulary: 0, phrasing: 0, style: 0 });
+    assert.deepEqual(p.corrections.byKind, { grammar: 2, typo: 0, speaking: 0 });
     assert.deepEqual(p.grammar, { introduced: 1, with_help: 1, independent: 1 });
     assert.equal(p.anki, undefined);
   });
@@ -176,7 +176,7 @@ describe("progress", () => {
     assert.equal(p.wordsWritten, 8);
     assert.equal(p.distinctWords, 5);
     assert.equal(p.firstUsed.length, 5);
-    assert.deepEqual(p.corrections.byKind, { grammar: 2, vocabulary: 1, phrasing: 0, style: 0 });
+    assert.deepEqual(p.corrections.byKind, { grammar: 2, typo: 1, speaking: 0 });
   });
 
   it("all, with anki", async () => {

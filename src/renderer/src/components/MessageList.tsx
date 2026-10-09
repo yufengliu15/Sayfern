@@ -1,6 +1,6 @@
 // The conversation column: tutor messages (annotated), learner bubbles, correction cards,
 // the streaming reply and inline errors.
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ChatMessage, Correction, FeedbackMode, GrammarSummary, Language, SourceRef, ToolActivity } from "../../../shared/records";
 import type { ModelRef } from "../../../shared/types";
 import { activityText, cls, fmtDay, fontOf } from "../lib/format";
@@ -178,9 +178,10 @@ function TutorMessage({
           source={{ kind: "session", sessionId: m.sessionId, messageId: m.id }}
         />
       )}
-      {m.text && !m.error && (
+      {m.text && (
         <div className="msg-voice">
-          <SpeakButtons id={m.id} text={m.text} language={language} kind="message" sessionId={m.sessionId} small />
+          {!m.error && <SpeakButtons id={m.id} text={m.text} language={language} kind="message" sessionId={m.sessionId} small />}
+          <CopyButton text={m.text} />
         </div>
       )}
       {translation && (
@@ -223,31 +224,53 @@ function LearnerMessage({ m, language, corrections }: { m: ChatMessage; language
 
   const pending = m.id.startsWith("pending-");
   return (
-    <div className={cls("umsg", pending && "pending")}>
-      <p className={cls("msg-text", fontOf(language))}>
-        {segs.map((s, i) =>
-          s.c ? (
-            <mark
-              key={i}
-              className={cls("mk", s.c.kind === "style" && "mk-style", (s.c.status === "revealed" || s.c.status === "retried_ok") && "mk-done")}
-            >
-              {s.text}
-            </mark>
-          ) : (
-            <Fragment key={i}>{s.text}</Fragment>
-          ),
+    <div className="umsg-row">
+      {!pending && <CopyButton text={m.text} />}
+      <div className={cls("umsg", pending && "pending")}>
+        <p className={cls("msg-text", fontOf(language))}>
+          {segs.map((s, i) =>
+            s.c ? (
+              <mark
+                key={i}
+                className={cls("mk", s.c.kind !== "grammar" && "mk-light", (s.c.status === "revealed" || s.c.status === "retried_ok") && "mk-done")}
+              >
+                {s.text}
+              </mark>
+            ) : (
+              <Fragment key={i}>{s.text}</Fragment>
+            ),
+          )}
+        </p>
+        {m.spoken && (
+          <div className="pasted-note" title={t("Transcribed from your voice. Pronunciation isn't judged from the text.")}>
+            <Icon name="mic" size={12} /> {t("Spoken")}
+          </div>
         )}
-      </p>
-      {m.spoken && (
-        <div className="pasted-note" title={t("Transcribed from your voice. Pronunciation isn't judged from the text.")}>
-          <Icon name="mic" size={12} /> {t("Spoken")}
-        </div>
-      )}
-      {m.pastedSpans && m.pastedSpans.length > 0 && (
-        <div className="pasted-note" title={t("Pasted text doesn't count toward your own words")}>
-          <Icon name="quote" size={12} /> {t("Includes pasted text")}
-        </div>
-      )}
+        {m.pastedSpans && m.pastedSpans.length > 0 && (
+          <div className="pasted-note" title={t("Pasted text doesn't count toward your own words")}>
+            <Icon name="quote" size={12} /> {t("Includes pasted text")}
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Copies a whole message; shows a check for a moment after. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const copy = () =>
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => setCopied(false), 1500);
+    });
+  const label = copied ? t("Copied") : t("Copy");
+  return (
+    <button className={cls("iconb sm msg-copy", copied && "on")} aria-label={label} title={label} onClick={copy}>
+      <Icon name={copied ? "check" : "copy"} size={15} />
+    </button>
   );
 }

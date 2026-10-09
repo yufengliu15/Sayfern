@@ -100,7 +100,14 @@ export interface ChatMessage {
 
 // ---------------------------------------------------------------- corrections (S1-06, S1-21)
 
-export type CorrectionKind = "grammar" | "vocabulary" | "phrasing" | "style";
+/**
+ * - `grammar`: the sentence does not make grammatical sense (wrong form, wrong word, wrong order).
+ * - `typo`: the sentence makes grammatical sense but looks wrong written down (spelling, capitals, punctuation).
+ * - `speaking`: only on spoken messages: something people write but would not say aloud.
+ */
+export type CorrectionKind = "grammar" | "typo" | "speaking";
+/** Kinds stored before v0.21.0. The store maps them on read: vocabulary, phrasing → grammar; style → typo. */
+export type LegacyCorrectionKind = "vocabulary" | "phrasing" | "style";
 export type CorrectionStatus =
   | "open" // shown, not acted on
   | "retried_ok" // learner fixed it on retry
@@ -120,7 +127,6 @@ export interface Correction {
   corrected: string;
   /** One short English sentence. */
   explanation: string;
-  /** "style" = improvement, not an error (S1-20). */
   kind: CorrectionKind;
   grammarId?: string;
   createdAt: number;

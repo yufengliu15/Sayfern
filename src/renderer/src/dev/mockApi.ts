@@ -1078,8 +1078,12 @@ export function createMockApi(): SayfernApi {
         make: (m) => ({ original: m[0], corrected: `去${m[1]}了`, explanation: `With 去 plus an activity, 了 closes the whole phrase: 去${m[1]}了.`, kind: "grammar", grammarId: "zh:le-completion" }),
       },
       {
-        re: /很好吃/,
-        make: () => ({ original: "很好吃", corrected: "特别好吃", explanation: "很好吃 is correct. 特别好吃 sounds livelier when you're telling a story.", kind: "style" }),
+        re: /\btv\b/,
+        make: () => ({ original: "tv", corrected: "TV", explanation: "TV is an abbreviation, so write it in capitals.", kind: "typo" }),
+      },
+      {
+        re: /因此/,
+        make: () => ({ original: "因此", corrected: "所以", explanation: "因此 is for writing. Say 所以 when you speak.", kind: "speaking" }),
       },
       {
         re: /比([一-鿿]{1,3})很([一-鿿])/,
@@ -1308,9 +1312,8 @@ export function createMockApi(): SayfernApi {
         total: corr.length + scale * (language === "zh" ? 5 : 2) * k,
         byKind: {
           grammar: corr.filter((c) => c.kind === "grammar").length + scale * (language === "zh" ? 3 : 1) * k,
-          vocabulary: scale * (language === "zh" ? 1 : 1) * k,
-          phrasing: scale * k,
-          style: corr.filter((c) => c.kind === "style").length + (language === "zh" ? scale * k : 0),
+          typo: corr.filter((c) => c.kind === "typo").length + scale * k,
+          speaking: corr.filter((c) => c.kind === "speaking").length + (language === "zh" ? scale * k : 0),
         },
       },
       anki: ankiConfig.enabled && !fresh ? { matureCount: language === "zh" ? 412 : 96, usedInWriting: language === "zh" ? 158 : 22, reviewedToday: 38, syncedAt: ankiSyncedAt[language] } : undefined,

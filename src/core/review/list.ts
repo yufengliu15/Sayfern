@@ -2,7 +2,6 @@
 // filter them and count them. Counts are computed here, never by a model (S1-25).
 import type { ChatMessage, Correction, GrammarPoint, SessionMeta } from "../../shared/records";
 import {
-  REVIEW_KIND,
   type ReviewFilter,
   type ReviewItem,
   type ReviewKindFilter,
@@ -84,8 +83,8 @@ export function reviewList(items: ReviewItem[], filter: ReviewFilter): ReviewLis
       (!filter.grammarId || it.correction.grammarId === filter.grammarId) &&
       matchesSearch(it, filter.search),
   );
-  const counts: Record<ReviewKindFilter, number> = { all: base.length, grammar: 0, vocabulary: 0, phrasing: 0 };
-  for (const it of base) counts[REVIEW_KIND[it.correction.kind]]++;
+  const counts: Record<ReviewKindFilter, number> = { all: base.length, grammar: 0, typo: 0, speaking: 0 };
+  for (const it of base) counts[it.correction.kind]++;
 
   const grammar = new Map<string, { id: string; pattern: string; name: string; count: number }>();
   for (const it of items) {
@@ -96,7 +95,7 @@ export function reviewList(items: ReviewItem[], filter: ReviewFilter): ReviewLis
   }
 
   const shown = base
-    .filter((it) => kind === "all" || REVIEW_KIND[it.correction.kind] === kind)
+    .filter((it) => kind === "all" || it.correction.kind === kind)
     .sort((a, b) => b.correction.createdAt - a.correction.createdAt || b.correction.id.localeCompare(a.correction.id));
   return {
     items: shown,

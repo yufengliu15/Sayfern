@@ -4,7 +4,6 @@
 import type { Correction, Language } from "../../../shared/records";
 import {
   clozeFront,
-  REVIEW_KIND,
   type AnkiCardDraft,
   type ExportAnkiCardsResult,
   type ReviewApi,
@@ -35,19 +34,19 @@ interface Seed {
 }
 
 const SEEDS: Seed[] = [
-  { id: "c-rv-zh-1", language: "zh", sessionId: "s-zh-film", sentence: "我很兴奋看这部电影。", original: "兴奋", corrected: "期待", explanation: "兴奋 is excitement in the moment. For looking forward to something, use 期待.", kind: "vocabulary", ago: 10 * MOCK_DAY + 3 * MOCK_MIN, situation: "Tell a friend you're looking forward to seeing this film." },
-  { id: "c-rv-zh-2", language: "zh", sessionId: "s-zh-food", sentence: "这家饭馆的菜很好吃的。", original: "很好吃的", corrected: "很好吃", explanation: "Style, not an error. The final 的 is fine in speech but sounds heavy here.", kind: "style", ago: 8 * MOCK_DAY + 2 * MOCK_MIN, situation: "Tell the waiter the food at this restaurant is delicious." },
-  { id: "c-rv-zh-3", language: "zh", sessionId: "s-zh-food", sentence: "服务员，我们想付钱。", original: "我们想付钱", corrected: "麻烦买单", explanation: "In a restaurant, ask for the bill with 买单. 麻烦 makes it polite.", kind: "phrasing", ago: 8 * MOCK_DAY + 9 * MOCK_MIN, exported: true, situation: "Politely ask the waiter for the bill." },
-  { id: "c-rv-zh-4", language: "zh", sessionId: "s-zh-uni", sentence: "我不了解他的电话号码。", original: "了解", corrected: "知道", explanation: "了解 means understanding someone or something in depth. For a fact like a phone number, use 知道.", kind: "vocabulary", ago: 5 * MOCK_DAY + 6 * MOCK_MIN, status: "retried_wrong", retries: [{ text: "我不明白他的电话号码。", ok: false, at: 0 }], situation: "Say you don't know his phone number." },
+  { id: "c-rv-zh-1", language: "zh", sessionId: "s-zh-film", sentence: "我很兴奋看这部电影。", original: "兴奋", corrected: "期待", explanation: "兴奋 is excitement in the moment. For looking forward to something, use 期待.", kind: "grammar", ago: 10 * MOCK_DAY + 3 * MOCK_MIN, situation: "Tell a friend you're looking forward to seeing this film." },
+  { id: "c-rv-zh-2", language: "zh", sessionId: "s-zh-food", sentence: "这个周末我想看 tv。", original: "tv", corrected: "TV", explanation: "TV is an abbreviation, so write it in capitals.", kind: "typo", ago: 8 * MOCK_DAY + 2 * MOCK_MIN, situation: "Tell a friend you want to watch TV this weekend." },
+  { id: "c-rv-zh-3", language: "zh", sessionId: "s-zh-food", sentence: "服务员，我们想付钱。", original: "我们想付钱", corrected: "麻烦买单", explanation: "In a restaurant, ask for the bill with 买单. 麻烦 makes it polite.", kind: "grammar", ago: 8 * MOCK_DAY + 9 * MOCK_MIN, exported: true, situation: "Politely ask the waiter for the bill." },
+  { id: "c-rv-zh-4", language: "zh", sessionId: "s-zh-uni", sentence: "我不了解他的电话号码。", original: "了解", corrected: "知道", explanation: "了解 means understanding someone or something in depth. For a fact like a phone number, use 知道.", kind: "grammar", ago: 5 * MOCK_DAY + 6 * MOCK_MIN, status: "retried_wrong", retries: [{ text: "我不明白他的电话号码。", ok: false, at: 0 }], situation: "Say you don't know his phone number." },
   { id: "c-rv-zh-5", language: "zh", sessionId: "s-zh-uni", sentence: "我的宿舍比他的宿舍很大。", original: "很大", corrected: "大一点儿", explanation: "比 comparisons don't take 很. Use the plain adjective, or add 一点儿 for a small difference.", kind: "grammar", grammarId: "zh:bi-comparison", ago: 5 * MOCK_DAY + 2 * MOCK_MIN, situation: "Say your dorm room is a little bigger than his." },
   { id: "c-rv-zh-6", language: "zh", sessionId: "s-zh-film", sentence: "他说中文说的很好。", original: "说的很好", corrected: "说得很好", explanation: "得 links a verb to how well it's done: 说得很好.", kind: "grammar", ago: 10 * MOCK_DAY + 8 * MOCK_MIN, exported: true, situation: "Say that he speaks Chinese really well." },
-  { id: "c-rv-zh-7", language: "zh", sessionId: "s-zh-film", sentence: "我非常非常喜欢这个电影。", original: "非常非常喜欢", corrected: "特别喜欢", explanation: "Style. Repeating 非常 sounds childish in writing. 特别 carries the same force.", kind: "style", ago: 10 * MOCK_DAY + 12 * MOCK_MIN, status: "disputed", disputeNote: "I say it this way when I talk, it's fine casually." },
-  { id: "c-rv-zh-8", language: "zh", sessionId: "s-zh-uni", sentence: "我昨天买了一个书。", original: "一个书", corrected: "一本书", explanation: "Books take the measure word 本.", kind: "vocabulary", ago: 5 * MOCK_DAY + 15 * MOCK_MIN, status: "revealed", situation: "Say you bought a book yesterday." },
+  { id: "c-rv-zh-7", language: "zh", sessionId: "s-zh-film", sentence: "我很累，因此我想回家。", original: "因此", corrected: "所以", explanation: "因此 is for writing. Say 所以 when you speak.", kind: "speaking", ago: 10 * MOCK_DAY + 12 * MOCK_MIN, status: "disputed", disputeNote: "My teacher says 因此 out loud too." },
+  { id: "c-rv-zh-8", language: "zh", sessionId: "s-zh-uni", sentence: "我昨天买了一个书。", original: "一个书", corrected: "一本书", explanation: "Books take the measure word 本.", kind: "grammar", ago: 5 * MOCK_DAY + 15 * MOCK_MIN, status: "revealed", situation: "Say you bought a book yesterday." },
   { id: "c-rv-zh-9", language: "zh", sessionId: "s-zh-food", sentence: "我们吃饭在七点。", original: "吃饭在七点", corrected: "七点吃饭", explanation: "Time words come before the verb: 七点吃饭.", kind: "grammar", ago: 8 * MOCK_DAY + 20 * MOCK_MIN, situation: "Tell your friend you're having dinner at seven." },
-  { id: "c-rv-zh-10", language: "zh", sessionId: "s-zh-weekend", sentence: "我明天要看见我的朋友。", original: "看见", corrected: "见", explanation: "看见 is to see with your eyes. To meet up with a friend, use 见 or 见面.", kind: "vocabulary", ago: 2 * MOCK_HOUR + 30 * MOCK_MIN, situation: "Say you're meeting your friend tomorrow." },
+  { id: "c-rv-zh-10", language: "zh", sessionId: "s-zh-weekend", sentence: "我明天要看见我的朋友。", original: "看见", corrected: "见", explanation: "看见 is to see with your eyes. To meet up with a friend, use 见 or 见面.", kind: "grammar", ago: 2 * MOCK_HOUR + 30 * MOCK_MIN, situation: "Say you're meeting your friend tomorrow." },
   { id: "c-rv-ja-1", language: "ja", sessionId: "s-ja-film", sentence: "私はジブリの映画を好きです。", original: "映画を", corrected: "映画が", explanation: "好き takes が for the thing you like, not を.", kind: "grammar", ago: 6 * MOCK_DAY + 4 * MOCK_MIN, situation: "Tell a friend you like Ghibli films." },
-  { id: "c-rv-ja-2", language: "ja", sessionId: "s-ja-film", sentence: "週末に映画をよく見物します。", original: "見物します", corrected: "見ます", explanation: "見物 is sightseeing. For films, just use 見る.", kind: "vocabulary", ago: 6 * MOCK_DAY + 9 * MOCK_MIN, exported: true, situation: "Say you often watch films on the weekend." },
-  { id: "c-rv-ja-3", language: "ja", sessionId: "s-ja-film", sentence: "私はトトロが一番好きです。", original: "私はトトロが", corrected: "トトロが", explanation: "Style. Once it's clear you're talking about yourself, Japanese drops 私は.", kind: "style", ago: 6 * MOCK_DAY + 11 * MOCK_MIN, situation: "Say Totoro is your favourite." },
+  { id: "c-rv-ja-2", language: "ja", sessionId: "s-ja-film", sentence: "週末に映画をよく見物します。", original: "見物します", corrected: "見ます", explanation: "見物 is sightseeing. For films, just use 見る.", kind: "grammar", ago: 6 * MOCK_DAY + 9 * MOCK_MIN, exported: true, situation: "Say you often watch films on the weekend." },
+  { id: "c-rv-ja-3", language: "ja", sessionId: "s-ja-film", sentence: "私はトトロが一番好きです.", original: "です.", corrected: "です。", explanation: "Japanese ends a sentence with 。, not a Western period.", kind: "typo", ago: 6 * MOCK_DAY + 11 * MOCK_MIN, situation: "Say Totoro is your favourite." },
 ];
 
 /** Sentences for the corrections mockApi seeds, whose stored messages don't hold them. */
@@ -147,12 +146,12 @@ export function createReviewMock(world: MockWorld): ReviewApi {
   const hintFor = (it: ReviewItem) => {
     const c = it.correction;
     if (c.kind === "grammar" && it.grammar) return it.grammar.name;
-    return GLOSS[c.corrected] ?? it.grammar?.name ?? (c.kind === "vocabulary" ? "a better word" : c.kind === "grammar" ? "grammar" : "more natural wording");
+    return GLOSS[c.corrected] ?? it.grammar?.name ?? (c.kind === "grammar" ? "grammar" : c.kind === "typo" ? "spelling and punctuation" : "wording for speech");
   };
 
   const fallbackFront = (it: ReviewItem, language: Language) => {
     const c = it.correction;
-    const focus = it.grammar ? `using ${it.grammar.name}` : c.kind === "vocabulary" ? "with the right word" : "naturally";
+    const focus = it.grammar ? `using ${it.grammar.name}` : c.kind === "grammar" ? "with the right word" : "correctly";
     const topic = it.session ? ` (from "${it.session.title}")` : "";
     return `Say it in ${LANGUAGE_NAME[language]}, ${focus}${topic}. ${c.explanation.split(c.corrected).join("___")}`;
   };
@@ -171,8 +170,8 @@ export function createReviewMock(world: MockWorld): ReviewApi {
           (!needle ||
             [it.sentence, revised(it), it.correction.explanation, it.session?.title, it.grammar?.pattern, it.grammar?.name].some((h) => h && fold(h).includes(needle))),
       );
-      const counts: Record<ReviewKindFilter, number> = { all: matches.length, grammar: 0, vocabulary: 0, phrasing: 0 };
-      for (const it of matches) counts[REVIEW_KIND[it.correction.kind]]++;
+      const counts: Record<ReviewKindFilter, number> = { all: matches.length, grammar: 0, typo: 0, speaking: 0 };
+      for (const it of matches) counts[it.correction.kind]++;
       const kind = filter.kind ?? "all";
       const grammar = new Map<string, { id: string; pattern: string; name: string; count: number }>();
       for (const it of all) {
@@ -182,7 +181,7 @@ export function createReviewMock(world: MockWorld): ReviewApi {
         grammar.set(g.id, g);
       }
       return {
-        items: matches.filter((it) => kind === "all" || REVIEW_KIND[it.correction.kind] === kind).sort((a, b) => b.correction.createdAt - a.correction.createdAt),
+        items: matches.filter((it) => kind === "all" || it.correction.kind === kind).sort((a, b) => b.correction.createdAt - a.correction.createdAt),
         counts,
         grammarPoints: [...grammar.values()].sort((a, b) => b.count - a.count || a.id.localeCompare(b.id)),
         total: all.length,

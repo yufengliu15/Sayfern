@@ -61,7 +61,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | ID | Feature | Status | Where | Notes |
 |---|---|---|---|---|
 | S2-01 | Corrections review | Done | `ReviewService.listReviewCorrections`, `src/core/review/list.ts`; `screens/review/CorrectionsTab.tsx`, `CorrectionsItem.tsx`; route `review` (⌘4) | Disputed corrections stay visible, dimmed. Doesn't reuse `CorrectionCard`. |
-| S2-02 | Filters and retries | Done | Kind chips (`REVIEW_KIND`, style under Phrasing), status, grammar and search filters in `list.ts`; "Hide answers and retry"; reuses `checkRetry`, `revealCorrection`, `disputeCorrection` | Counts computed locally. |
+| S2-02 | Filters and retries | Done | Kind chips (grammar, typo, speaking), status, grammar and search filters in `list.ts`; "Hide answers and retry"; reuses `checkRetry`, `revealCorrection`, `disputeCorrection` | Counts computed locally. |
 | S2-03 | Selected Anki export | Partial | `draftAnkiCards` (`cards.ts` cloze, `situations.ts` batched model call + fallback), `exportAnkiCards`; `AnkiService.ensureNoteType` / `ensureDeck` / `addNotes`; `AnkiExportPanel.tsx` | Corrections only: saved words as a source not built. Export deck chosen in the panel, no Settings field. |
 | S2-04 | Quiz focus | Done | `QuizSpec.focus` (grammar, vocabulary, scenes, exam prep, mix); `screens/review/QuizzesTab.tsx` | |
 | S2-05 | Quiz sources | Done | `src/core/quiz/material.ts`: mistakes (corrections + earlier wrong quiz answers), Anki words, grammar points, library book or chapter (`quizChapters`), personal targets, saved words; counts in `quizOptions` | Sources with nothing to quiz are disabled with a reason. |

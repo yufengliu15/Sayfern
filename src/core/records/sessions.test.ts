@@ -115,7 +115,7 @@ describe("sessions", () => {
     const keep = await store.createSession({ language: "zh", kind: "chat", feedbackMode: "inline" });
     await store.appendMessage(msg(s.id, "user", "我去学校", 1, "u1"));
     await store.addCorrection({ sessionId: s.id, messageId: "u1", original: "去", corrected: "去了", explanation: "x", kind: "grammar" });
-    await store.addCorrection({ sessionId: keep.id, messageId: "k1", original: "a", corrected: "b", explanation: "x", kind: "style" });
+    await store.addCorrection({ sessionId: keep.id, messageId: "k1", original: "a", corrected: "b", explanation: "x", kind: "typo" });
     await store.recordObservations("zh", [
       { grammarId: "zh:le", sessionId: s.id, messageId: "u1", span: "去", verdict: "incorrect", assistance: "independent" },
     ]);
@@ -152,7 +152,7 @@ describe("sessions", () => {
     const { store, dir } = makeStore();
     const s = await store.createSession({ language: "zh", kind: "chat", feedbackMode: "inline" });
     await store.appendMessage(msg(s.id, "user", "你好世界", 1, "u1"));
-    await store.addCorrection({ sessionId: s.id, messageId: "u1", original: "你好", corrected: "您好", explanation: "polite", kind: "style" });
+    await store.addCorrection({ sessionId: s.id, messageId: "u1", original: "你好", corrected: "您好", explanation: "polite", kind: "typo" });
     await store.upsertGrammarPoint({ id: "zh:le", language: "zh", pattern: "了", name: "completed action" });
     await store.recordLearnerWords({ language: "zh", sessionId: s.id, messageId: "u1", sentence: "你好世界", words: ["你好", "世界"], at: 1 });
     await store.setProfile({ about: "robotics student", goals: { zh: "HSK 4" } });

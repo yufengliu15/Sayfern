@@ -155,8 +155,8 @@ async function makeApp(anki = fakeAnki()) {
   const c = {
     le: await correct(weekend, { original: "去了爬山", corrected: "去爬山了", explanation: "With 去 plus an activity, 了 closes the whole phrase: 去爬山了.", kind: "grammar", grammarId: "zh:le-completion" }),
     hai: await correct(uni, { original: "还我有", corrected: "我还有", explanation: "还 goes after the subject.", kind: "grammar", grammarId: "zh:chule-hai" }),
-    vocab: await correct(film, { original: "兴奋", corrected: "期待", explanation: "For looking forward to something, use 期待.", kind: "vocabulary" }),
-    style: await correct(film, { original: "很好吃的", corrected: "很好吃", explanation: "The final 的 sounds heavy here.", kind: "style" }),
+    vocab: await correct(film, { original: "兴奋", corrected: "期待", explanation: "For looking forward to something, use 期待.", kind: "grammar" }),
+    style: await correct(film, { original: "很好吃的", corrected: "很好吃", explanation: "The final 的 sounds heavy here.", kind: "typo" }),
   };
   await r.updateCorrection(c.hai.id, { status: "retried_ok", retries: [{ text: "除了中文课，我还有三门课。", ok: true, at: clock.t }] });
   // A Japanese correction must never show up in the Chinese list.
@@ -176,11 +176,11 @@ test("sentenceAndRevision: the learner sentence and the same sentence with the f
   assert.deepEqual(sentenceAndRevision({ original: "x", corrected: "y" }, undefined), { sentence: "x", revised: { before: "", fixed: "y", after: "" } });
 });
 
-test("listReviewCorrections: newest first, context, chip counts (style under Phrasing), filters", async () => {
+test("listReviewCorrections: newest first, context, chip counts, filters", async () => {
   const { app, c } = await makeApp();
   const all = await app.listReviewCorrections({ language: "zh" });
   assert.equal(all.total, 4);
-  assert.deepEqual(all.counts, { all: 4, grammar: 2, vocabulary: 1, phrasing: 1 });
+  assert.deepEqual(all.counts, { all: 4, grammar: 3, typo: 1, speaking: 0 });
   assert.deepEqual(all.items.map((i) => i.correction.id), [c.style.id, c.vocab.id, c.hai.id, c.le.id]);
   const le = all.items.find((i) => i.correction.id === c.le.id)!;
   assert.equal(le.sentence, "我们昨天去了爬山！");
@@ -189,12 +189,12 @@ test("listReviewCorrections: newest first, context, chip counts (style under Phr
   assert.deepEqual(le.grammar, { id: "zh:le-completion", pattern: "了", name: "completed action" });
   assert.deepEqual(all.grammarPoints.map((g) => [g.id, g.count]), [["zh:chule-hai", 1], ["zh:le-completion", 1]]);
 
-  const phrasing = await app.listReviewCorrections({ language: "zh", kind: "phrasing" });
-  assert.deepEqual(phrasing.items.map((i) => i.correction.kind), ["style"]);
-  assert.equal(phrasing.counts.all, 4, "chip counts ignore the kind filter");
+  const typos = await app.listReviewCorrections({ language: "zh", kind: "typo" });
+  assert.deepEqual(typos.items.map((i) => i.correction.kind), ["typo"]);
+  assert.equal(typos.counts.all, 4, "chip counts ignore the kind filter");
 
   const practise = await app.listReviewCorrections({ language: "zh", status: "practise" });
-  assert.deepEqual(practise.counts, { all: 3, grammar: 1, vocabulary: 1, phrasing: 1 }, "fixed-on-retry is not 'to practise'");
+  assert.deepEqual(practise.counts, { all: 3, grammar: 2, typo: 1, speaking: 0 }, "fixed-on-retry is not 'to practise'");
   assert.equal((await app.listReviewCorrections({ language: "zh", status: "fixed" })).items[0].correction.id, c.hai.id);
 
   assert.deepEqual((await app.listReviewCorrections({ language: "zh", grammarId: "zh:le-completion" })).items.map((i) => i.correction.id), [c.le.id]);

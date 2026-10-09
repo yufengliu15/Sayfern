@@ -24,10 +24,11 @@ type Stage = "ask" | "retry" | "dispute";
 
 const KIND_WORD: Record<Correction["kind"], string> = {
   grammar: msg("Grammar"),
-  vocabulary: msg("Word choice"),
-  phrasing: msg("Phrasing"),
-  style: msg("Style"),
+  typo: msg("Typo"),
+  speaking: msg("Speaking"),
 };
+
+const KIND_ICON = { grammar: "pen", typo: "typo", speaking: "mic" } as const;
 
 export function CorrectionCard({ correction: c, language, messageText, grammar, model, onUpdate, onOpenGrammar, variant = "inline" }: CorrectionCardProps) {
   const [stage, setStage] = useState<Stage>("ask");
@@ -36,7 +37,7 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const style = c.kind === "style";
+  const light = c.kind !== "grammar";
   const done = c.status === "revealed" || c.status === "retried_ok";
   const disputed = c.status === "disputed";
   const L = fontOf(language);
@@ -83,22 +84,20 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
 
   const title = disputed
     ? t("Marked as not a mistake")
-    : style
-      ? t("A more natural way to say")
-      : done
-        ? c.status === "retried_ok"
-          ? t("Fixed")
-          : t("Here's the fix for")
-        : t("One thing to fix in");
+    : done
+      ? c.status === "retried_ok"
+        ? t("Fixed")
+        : t("Here's the fix for")
+      : t("One thing to fix in");
 
   return (
-    <div className={cls("corr", `corr-${variant}`, style && "corr-style", done && "corr-done", disputed && "corr-disputed")} role="group" aria-label={style ? t("Suggestion") : t("Correction")}>
+    <div className={cls("corr", `corr-${variant}`, light && "corr-light", done && "corr-done", disputed && "corr-disputed")} role="group" aria-label={t("Correction")}>
       <div className="corr-h">
-        <Icon name={style ? "spark" : disputed ? "flag" : "pen"} size={15} />
+        <Icon name={disputed ? "flag" : KIND_ICON[c.kind]} size={15} />
         <span>
           {title} <span className={cls("corr-q", L)}>{c.original}</span>
         </span>
-        <span className="corr-kind">{style ? t("Suggestion") : t(KIND_WORD[c.kind])}</span>
+        <span className="corr-kind">{t(KIND_WORD[c.kind])}</span>
       </div>
 
       {disputed && (
@@ -111,11 +110,9 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
       {!disputed && !done && stage === "ask" && (
         <>
           <p>
-            {style
-              ? t("What you wrote works. Want to try a smoother version before I show one?")
-              : c.status === "retried_wrong"
-                ? t("Not quite yet. Have another go, or I can show you.")
-                : t("Have another go at this part before I show you?")}
+            {c.status === "retried_wrong"
+              ? t("Not quite yet. Have another go, or I can show you.")
+              : t("Have another go at this part before I show you?")}
           </p>
           {feedback && !feedback.ok && <p className="corr-fb bad">{t(feedback.text)}</p>}
           <div className="corr-actions">
@@ -125,11 +122,9 @@ export function CorrectionCard({ correction: c, language, messageText, grammar, 
             <button className="btn btn-s" onClick={reveal} disabled={busy}>
               {t("Show answer")}
             </button>
-            {!style && (
-              <button className="linkb" onClick={() => setStage("dispute")} disabled={busy}>
-                {t("Not a mistake?")}
-              </button>
-            )}
+            <button className="linkb" onClick={() => setStage("dispute")} disabled={busy}>
+              {t("Not a mistake?")}
+            </button>
           </div>
         </>
       )}

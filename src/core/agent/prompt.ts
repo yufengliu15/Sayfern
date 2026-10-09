@@ -191,7 +191,7 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     catalogue: grammar.slice(0, MAX_CATALOGUE).map((g) => g.point),
     additions: deps.extensions?.promptAdditions(language) ?? [],
     explain: await explainIn(deps),
-    pacing: computePacing(messages, new Set(corrections.filter((c) => c.kind !== "style").map((c) => c.messageId))),
+    pacing: computePacing(messages, new Set(corrections.filter((c) => c.kind === "grammar").map((c) => c.messageId))),
   };
 
   const course = courseFor(language);
@@ -561,12 +561,13 @@ export const SPOKEN_MARKER = "[spoken]";
 const FEEDBACK_RULES = [
   "# Feedback",
   "- Never put corrections in your reply text. The app shows them from your record_evidence call.",
-  "- Correct real mistakes only. Style improvements use kind \"style\"; they are suggestions, not errors.",
+  "- Give every correction one `kind`. Ask first: does the sentence make grammatical sense? If not, the kind is \"grammar\" (wrong form, wrong word, wrong word order, wrong measure word). If it makes sense but would look wrong written out (spelling, capitals, punctuation, spacing, a wrong character with the same sound, an abbreviation such as tv for TV), the kind is \"typo\". Use \"speaking\" only on a spoken message, when the learner said aloud something people only write (reading out lol, e.g., etc. as letters, saying slash, naming an emoji, a register that fits only writing).",
+  "- Correct real mistakes only. Do not correct a sentence that is fine just because you would say it another way.",
   "- `original` must be copied exactly from the learner's latest message.",
   "- Judge each grammar point in a sentence separately: one observation per pattern attempt, with its own verdict.",
   "- A corrected retry, or a sentence written right after you modeled the pattern, is not independent use (use assistance \"corrected_retry\" or \"prompted\").",
   "- When you teach or explain a pattern, include it under `taught`.",
-  `- Messages starting with ${SPOKEN_MARKER} were spoken and transcribed by speech recognition: ignore punctuation and spacing, treat a wrong character with the right sound as a likely transcription slip (not an error), and never judge pronunciation from the text. Leave ${SPOKEN_MARKER} out of \`original\`.`,
+  `- Messages starting with ${SPOKEN_MARKER} were spoken and transcribed by speech recognition: ignore punctuation, capitals and spacing, treat a wrong character with the right sound as a likely transcription slip (not an error), and never judge pronunciation from the text. Never record a \"typo\" for a spoken message: its spelling, capitals and punctuation come from the transcriber, not the learner. Leave ${SPOKEN_MARKER} out of \`original\`.`,
 ].join("\n");
 
 const TOOL_PROTOCOL = [

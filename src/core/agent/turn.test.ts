@@ -336,7 +336,7 @@ test("corrections: normalized match maps to the exact learner text; unknown text
         evidence({
           corrections: [
             // learner wrote full-width punctuation; model dropped it and used a half-width comma
-            { original: "我很喜欢,猫", corrected: "我非常喜欢猫", explanation: "More natural.", kind: "style" },
+            { original: "我很喜欢,猫", corrected: "我非常喜欢猫", explanation: "More natural.", kind: "typo" },
             { original: "不存在的句子", corrected: "x", explanation: "n/a", kind: "grammar" },
           ],
         }),
@@ -348,7 +348,7 @@ test("corrections: normalized match maps to the exact learner text; unknown text
   const cs = await h.records.listCorrections({ language: "zh", sessionId: sid });
   assert.equal(cs.length, 1);
   assert.equal(cs[0].original, "我很喜欢，猫");
-  assert.equal(cs[0].kind, "style");
+  assert.equal(cs[0].kind, "typo");
   assert.match(reply.toolActivity![0].summary, /skipped 1 correction \(text not found/);
 });
 
@@ -530,4 +530,25 @@ test("leaked tool call in the reply text: hidden from the learner, salvaged as a
   assert.equal(ev.list.filter((e) => e.type === "correction").length, 1);
   const transcript = await h.records.getTranscript(sid);
   assert.ok(!JSON.stringify(transcript).includes("functions."), "the transcript keeps no leak for the model to copy");
+});
+
+test("record_evidence kinds: legacy values map, speaking on a typed message becomes typo, typo on a spoken message is dropped", async () => {
+  const h = makeHarness();
+  const reply = (corrections: Record<string, unknown>[]) =>
+    h.faux.setResponses([fauxAssistantMessage([fauxText("好。"), evidence({ corrections })], { stopReason: "toolUse" })]);
+  const fix = (original: string, kind: string) => ({ original, corrected: `${original}!`, explanation: "x", kind });
+
+  const typed = await h.newSession();
+  reply([fix("我", "vocabulary"), fix("喜欢", "phrasing"), fix("猫", "style"), fix("很", "speaking"), fix("好", "grammar")]);
+  await h.tutor.runTurn({ sessionId: typed, text: "我喜欢猫很好", model: h.model, signal: abort(), onEvent: () => {} });
+  const kinds = (await h.records.listCorrections({ language: "zh", sessionId: typed })).map((c) => [c.original, c.kind]);
+  assert.deepEqual(kinds.sort(), [["喜欢", "grammar"], ["好", "grammar"], ["很", "typo"], ["我", "grammar"], ["猫", "typo"]]);
+
+  const spoken = await h.newSession();
+  reply([fix("我", "typo"), fix("喜欢", "speaking"), fix("猫", "grammar")]);
+  const events: TutorEvent[] = [];
+  await h.tutor.runTurn({ sessionId: spoken, text: "我喜欢猫", spoken: true, model: h.model, signal: abort(), onEvent: (e) => events.push(e) });
+  const got = (await h.records.listCorrections({ language: "zh", sessionId: spoken })).map((c) => [c.original, c.kind]);
+  assert.deepEqual(got.sort(), [["喜欢", "speaking"], ["猫", "grammar"]], "a transcript has no typos");
+  assert.equal(events.filter((e) => e.type === "correction").length, 2);
 });

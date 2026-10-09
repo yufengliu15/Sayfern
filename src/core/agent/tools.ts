@@ -24,6 +24,8 @@ export interface TurnState {
   /** The learner message this turn answers (absent for openings). */
   userMessageId?: string;
   userText?: string;
+  /** The learner message was spoken (a speech-to-text transcript). */
+  userSpoken?: boolean;
   emit(e: TutorEvent): void;
   /** Library hits found by search_library this turn: candidate sources for the reply. */
   sources: SourceRef[];
@@ -33,7 +35,9 @@ export interface TurnState {
   topicChange?: boolean;
 }
 
-const CORRECTION_KINDS: readonly CorrectionKind[] = ["grammar", "vocabulary", "phrasing", "style"];
+const CORRECTION_KINDS: readonly CorrectionKind[] = ["grammar", "typo", "speaking"];
+/** Kinds a model may still send from older prompts. */
+const LEGACY_KINDS: Record<string, CorrectionKind> = { vocabulary: "grammar", phrasing: "grammar", style: "typo" };
 const VERDICTS: readonly Verdict[] = ["correct", "incorrect", "uncertain", "unassessed"];
 const ASSISTANCE: readonly Assistance[] = ["independent", "prompted", "corrected_retry"];
 const SKILL_LIST: readonly Skill[] = ["reading", "recognition", "writing"];
@@ -50,7 +54,10 @@ const RecordEvidenceParams = Type.Object({
         original: Type.String({ description: "Exact substring of the learner's latest message that has the problem." }),
         corrected: Type.String({ description: "Replacement for `original`." }),
         explanation: Type.String({ description: "One short sentence in the explanation language named in the system prompt." }),
-        kind: enumOf(CORRECTION_KINDS, "\"style\" = improvement, not an error."),
+        kind: enumOf(
+          CORRECTION_KINDS,
+          "grammar = the sentence does not make grammatical sense (wrong form, word, order, measure word). typo = it makes sense but looks wrong written: spelling, capitals, punctuation, spacing, same-sound character. speaking = spoken messages only: said aloud something people only write (\"lol\", \"etc.\", \"slash\").",
+        ),
         grammar_id: Type.Optional(Type.String()),
       }),
     ),
@@ -205,6 +212,10 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
             continue;
           }
           if (original === corrected) continue;
+          let kind = oneOf(typeof item.kind === "string" ? (LEGACY_KINDS[item.kind] ?? item.kind) : "", CORRECTION_KINDS, "grammar");
+          if (kind === "speaking" && !turn.userSpoken) kind = "typo";
+          // Spelling, capitals and punctuation of a transcript come from the transcriber, not the learner.
+          else if (kind === "typo" && turn.userSpoken) continue;
           const gid = item.grammar_id ? canonicalGrammarId(item.grammar_id, language) : null;
           const c = await records.addCorrection({
             sessionId: ctx.sessionId,
@@ -212,7 +223,7 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
             original,
             corrected,
             explanation: str(item.explanation),
-            kind: oneOf(item.kind, CORRECTION_KINDS, "grammar"),
+            kind,
             ...(gid ? { grammarId: gid } : {}),
           });
           if (!turn.emittedCorrections.has(c.id)) {

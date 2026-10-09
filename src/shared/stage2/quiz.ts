@@ -85,7 +85,7 @@ export interface QuizGrammarOption {
 export interface QuizOptions {
   language: Language;
   counts: {
-    /** Corrections (style suggestions excluded) + wrong answers in earlier quizzes. */
+    /** Corrections (grammar only) + wrong answers in earlier quizzes. */
     mistakes: number;
     ankiRecent: number;
     ankiStruggling: number;

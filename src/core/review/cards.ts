@@ -77,7 +77,6 @@ export function maskAnswer(text: string, answer: string): string {
 }
 
 const KIND_HINT = {
-  vocabulary: msg("a better word"),
   grammar: msg("grammar"),
   other: msg("more natural wording"),
 };
@@ -102,7 +101,7 @@ export function clozeHint(item: ReviewItem, gloss?: string, language?: Language,
     c.kind === "grammar" ? item.grammar?.name : undefined,
     gloss,
     item.grammar?.name,
-    tr.t(c.kind === "vocabulary" ? KIND_HINT.vocabulary : c.kind === "grammar" ? KIND_HINT.grammar : KIND_HINT.other),
+    tr.t(c.kind === "grammar" ? KIND_HINT.grammar : KIND_HINT.other),
   ];
   for (const raw of candidates) {
     const h = raw?.trim();
@@ -145,13 +144,9 @@ export function fallbackSituation(item: ReviewItem, language: Language, tr: Pick
     ? item.session
       ? tr.t('Say it in {language}, using {grammar} (from "{title}").', vars)
       : tr.t("Say it in {language}, using {grammar}.", vars)
-    : c.kind === "vocabulary"
-      ? item.session
-        ? tr.t('Say it in {language}, with the right word (from "{title}").', vars)
-        : tr.t("Say it in {language}, with the right word.", vars)
-      : item.session
-        ? tr.t('Say it in {language}, naturally (from "{title}").', vars)
-        : tr.t("Say it in {language}, naturally.", vars);
+    : item.session
+      ? tr.t('Say it in {language}, naturally (from "{title}").', vars)
+      : tr.t("Say it in {language}, naturally.", vars);
   return `${head} ${explanation}`.trim();
 }
 

@@ -12,7 +12,7 @@ import type {
 import { lastDates, localDate } from "./dates";
 import type { ActivityEntry, WritingRow } from "./files";
 
-export const CORRECTION_KINDS: readonly CorrectionKind[] = ["grammar", "vocabulary", "phrasing", "style"];
+export const CORRECTION_KINDS: readonly CorrectionKind[] = ["grammar", "typo", "speaking"];
 
 const RANGE_DAYS: Record<ProgressRange, number | null> = { week: 7, month: 30, all: null };
 const ALL_DAILY_DAYS = 90;

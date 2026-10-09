@@ -73,6 +73,7 @@ interface LoopInput {
   userPi: UserMessage;
   userMessageId?: string;
   userText?: string;
+  userSpoken?: boolean;
 }
 
 /** Learner turn: save message, record learner words, pick targets, run the loop. */
@@ -106,6 +107,7 @@ export async function runTurn(deps: TutorDeps, input: TurnInput): Promise<ChatMe
     userPi: { role: "user", content: input.spoken ? `${SPOKEN_MARKER} ${input.text}` : input.text, timestamp: at },
     userMessageId: user.id,
     userText: input.text,
+    userSpoken: input.spoken === true,
   });
 }
 
@@ -202,6 +204,7 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
     session,
     userMessageId: li.userMessageId,
     userText: li.userText,
+    userSpoken: li.userSpoken,
     emit,
     sources: [],
     emittedCorrections: new Set(),

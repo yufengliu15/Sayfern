@@ -353,7 +353,7 @@ export function createQuizMock(world: MockWorld): QuizApi {
   return {
     quizOptions: async (language): Promise<QuizOptions> => {
       await mockWait(80);
-      const corrections = [...world.corrections.values()].filter((c) => c.language === language && c.kind !== "style");
+      const corrections = [...world.corrections.values()].filter((c) => c.language === language);
       const pastWrong = [...quizzes.values()].filter((q) => q.language === language).flatMap((q) => q.items.filter((i) => i.answered?.verdict === "incorrect" && !i.answered.revealed));
       const cards = world.ankiOffline || !world.ankiConfig().enabled ? [] : world.ankiCards[language];
       const grammar = [...world.grammar.values()].filter((g) => g.language === language);
