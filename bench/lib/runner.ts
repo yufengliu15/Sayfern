@@ -26,6 +26,9 @@ export interface BlockResult {
   endedAt: number;
 }
 
+/** A block is valid when it ran to the end without a harness error (rate limit, provider error, aborted turn). Invalid blocks are not judged and not averaged. */
+export const blockOk = (b: Pick<BlockResult, "error" | "skipped" | "steps">) => !b.error && !b.skipped && b.steps.every((s) => !s.output?.error);
+
 export const blockKey = (arm: string, scenario: string, rep: number) => `${arm}__${scenario}__rep${rep}`;
 
 export async function runAll(opts: {
@@ -35,6 +38,8 @@ export async function runAll(opts: {
   arms: Arm[];
   scenarios: Scenario[];
   reps: number;
+  /** Per-scenario repetitions that replace `reps`. */
+  scenarioReps?: Record<string, number>;
   proxy: RecordingProxy;
   log(msg: string): void;
 }): Promise<BlockResult[]> {
@@ -42,7 +47,7 @@ export async function runAll(opts: {
   const blocks: BlockResult[] = [];
   const badges = new Map(opts.arms.map((a, i) => [a.id, armBadge(a, i)]));
   for (const scenario of opts.scenarios) {
-    for (let rep = 1; rep <= opts.reps; rep++) {
+    for (let rep = 1; rep <= (opts.scenarioReps?.[scenario.id] ?? opts.reps); rep++) {
       const order = rep % 2 === 1 ? opts.arms : [...opts.arms].reverse();
       for (const arm of order) {
         const dir = join(runDir, "blocks", blockKey(arm.id, scenario.id, rep));

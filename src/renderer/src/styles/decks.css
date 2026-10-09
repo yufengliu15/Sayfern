@@ -1,19 +1,19 @@
 /* Stage 2 · Anki deck generator (S2-14..S2-16) and the welcome page's Anki step. Prefix dk-. Tokens from styles.css. */
 
 /* ---------------------------------------------------------------- welcome: Anki step */
-.dk-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--fern); color: var(--paper); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; vertical-align: 2px; }
+.dk-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--fern); color: var(--on-fern); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; vertical-align: 2px; }
 .wfoot .dk-close { margin-right: auto; }
 .dk-why { display: flex; gap: 14px; padding: 16px 18px; border-radius: 14px; background: var(--fern-soft); border: 1px solid var(--fern-line); }
-.dk-why-i { width: 38px; height: 38px; border-radius: 10px; background: var(--fern); color: var(--paper); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dk-why-i { width: 38px; height: 38px; border-radius: 10px; background: var(--fern); color: var(--on-fern); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .dk-why b { display: block; font-size: 15px; font-weight: 600; color: var(--fern-dark); margin-bottom: 4px; }
 .dk-why p { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
 
 .dk-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .dk-path {
   display: flex; flex-direction: column; gap: 5px; text-align: left; padding: 13px 14px; border-radius: 14px;
-  border: 1px solid var(--line-2); background: #fff; transition: border-color 0.12s, background 0.12s;
+  border: 1px solid var(--line-2); background: var(--white); transition: border-color 0.12s, background 0.12s;
 }
-.dk-path:hover { border-color: #b9b19f; }
+.dk-path:hover { border-color: var(--line-hover); }
 .dk-path.on { border-color: var(--fern); background: var(--fern-soft); box-shadow: 0 0 0 1px var(--fern) inset; }
 .dk-path-h { display: inline-flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 600; color: var(--ink); }
 .dk-path-h svg { color: var(--fern); }
@@ -63,7 +63,7 @@
 .dk-list { display: flex; flex-direction: column; gap: 8px; }
 .dk-list .eyebrow { margin-bottom: 4px; }
 .dk-item { display: flex; align-items: center; gap: 14px; padding: 14px 18px; text-align: left; border-radius: 14px; }
-.dk-item:hover { border-color: #c8bfaa; }
+.dk-item:hover { border-color: var(--line-strong); }
 .dk-item-n { font-size: 15px; font-weight: 500; }
 .dk-item-m { flex: 1; font-size: 13px; color: var(--muted); }
 .dk-item > svg { color: var(--muted); }
@@ -104,7 +104,7 @@
 .dk-def { font-size: 16px; font-weight: 500; }
 .dk-tr { font-size: 14px; color: var(--ink-3); }
 .dk-notes { font-size: 12.5px; color: var(--muted); }
-.dk-play { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-2); background: #fff; color: var(--fern); display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 4px; }
+.dk-play { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--white); color: var(--fern); display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 4px; }
 .dk-play:hover { border-color: var(--fern); }
 .dk-checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--fern-dark); padding: 0 4px; }
 .dk-checks li { display: inline-flex; align-items: center; gap: 5px; }

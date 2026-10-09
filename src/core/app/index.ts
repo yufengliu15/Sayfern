@@ -29,7 +29,6 @@ import type {
   Correction,
   DocKind,
   Difficulty,
-  FeedbackMode,
   GrammarObservation,
   GrammarSummary,
   Language,
@@ -578,9 +577,7 @@ export class SayfernApp implements CoreApi {
     levelBand?: LevelBand;
     scenarioId?: string;
   }): Promise<SessionView> {
-    const settings = await this.settings.get();
-    const feedbackMode: FeedbackMode = settings.feedbackMode ?? "inline";
-    const meta = await this.records.createSession({ ...input, feedbackMode });
+    const meta = await this.records.createSession({ ...input, feedbackMode: "inline" });
     this.refreshAnki(meta.language);
     return this.viewWithOpening(meta.id);
   }
@@ -625,10 +622,6 @@ export class SayfernApp implements CoreApi {
 
   async deleteSession(id: string): Promise<void> {
     await this.records.deleteSession(id);
-  }
-
-  setFeedbackMode(sessionId: string, mode: FeedbackMode): Promise<SessionMeta> {
-    return this.records.updateSession(sessionId, { feedbackMode: mode });
   }
 
   async setDifficulty(sessionId: string, difficulty: Difficulty): Promise<SessionMeta> {

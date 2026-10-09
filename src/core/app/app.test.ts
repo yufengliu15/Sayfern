@@ -500,11 +500,11 @@ test("settings merge with defaults; legacy v0.1 sessions import exactly once", a
   assert.equal(s.legacyImported, true);
   assert.equal(await app.getDeviceId(), "dev-1");
 
-  const merged = await app.setSettings({ feedbackMode: "end" });
+  const merged = await app.setSettings({ theme: "ink" });
   await app.setSettings({ autoTranslate: true });
   const onDisk = JSON.parse(readFileSync(join(app.dataDir, "settings.json"), "utf8"));
-  assert.equal(merged.feedbackMode, "end");
-  assert.equal(onDisk.feedbackMode, "end");
+  assert.equal(merged.theme, "ink");
+  assert.equal(onDisk.theme, "ink");
   assert.equal(onDisk.autoTranslate, true);
   assert.equal(onDisk.language, "ja");
   assert.equal(onDisk.deviceId, "dev-1");
@@ -518,9 +518,9 @@ test("settings merge with defaults; legacy v0.1 sessions import exactly once", a
   const { app: restarted } = await makeApp({ dir: app.dataDir });
   assert.deepEqual(await restarted.listSessions("zh"), []);
 
-  // New chat sessions use the default feedback mode from settings.
+  // New chat sessions always show corrections inline.
   const v = await restarted.newSession({ language: "zh" });
-  assert.equal(v.meta.feedbackMode, "end");
+  assert.equal(v.meta.feedbackMode, "inline");
 });
 
 test("translate finds the message's session by id; anki status works offline", async () => {

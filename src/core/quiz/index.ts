@@ -29,6 +29,7 @@ import type {
 import { QUIZ_MAX_QUESTIONS } from "../../shared/stage2";
 import type { ModelRef } from "../../shared/types";
 import { isStruggling } from "../anki/words";
+import { countableCorrection } from "../records/corrections";
 import { type Stage2Deps, translatorFor, explanationFor } from "../stage2";
 import { minutesFor, planFormats, questionCount } from "./estimate";
 import { FEEDBACK, gradeLocal, gradeOpen, isLocallyGraded } from "./grade";
@@ -38,7 +39,6 @@ import { catalogueAtLevel, examShort, examsFor, isValidExamLevel, resolveLevel, 
 import {
   ankiWords,
   chaptersOf,
-  countableCorrection,
   gatherMaterial,
   materialSize,
   needsWork,

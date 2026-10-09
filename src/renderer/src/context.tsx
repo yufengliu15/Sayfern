@@ -10,6 +10,7 @@ import type { Language, SessionMeta } from "../../shared/records";
 import type { ModelInfo, ModelRef, ProviderInfo, Settings } from "../../shared/types";
 import { api } from "./api";
 import { setLocale } from "./i18n";
+import { applyTheme } from "./lib/theme";
 import { startChatStream } from "./lib/chatStream";
 import { currentRoute, navigate, parseRoute, replaceRoute, sessionRoute } from "./router";
 
@@ -84,6 +85,10 @@ export function AppProvider({ children, fallback }: { children: ReactNode; fallb
   const refreshAnki = useCallback(async () => {
     setAnki(await api.ankiStatus().catch(() => null));
   }, []);
+
+  useEffect(() => {
+    if (settings) applyTheme(settings.theme);
+  }, [settings?.theme]);
 
   // Boot
   useEffect(() => {

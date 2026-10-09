@@ -552,7 +552,6 @@ export function createMockApi(): SayfernApi {
     model: { provider: "anthropic", id: "claude-sonnet-4-5" },
     deviceId: "mock-device",
     languages: startLang === "zh" || startLang === "ja" ? ["zh", "ja"] : ["zh", "ja", startLang],
-    feedbackMode: "inline",
     autoTranslate: false,
     onboarded: !firstRun,
   };
@@ -821,7 +820,7 @@ export function createMockApi(): SayfernApi {
     kind: "chat",
     createdAt: T0,
     updatedAt: T0,
-    feedbackMode: settings.feedbackMode ?? "inline",
+    feedbackMode: "inline",
     activeMs: 0,
     usage: { input: 0, output: 0, cost: 0 },
     ...p,
@@ -1055,7 +1054,7 @@ export function createMockApi(): SayfernApi {
     const id = uid("s");
     const now = Date.now();
     const rec: SessionRec = {
-      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, ...(opts.unitId ? { unitId: opts.unitId } : {}), ...(opts.scenarioId ? { scenarioId: opts.scenarioId } : {}), feedbackMode: settings.feedbackMode ?? "inline" }),
+      meta: mkMeta({ id, language: opts.language, title, kind: opts.kind ?? "chat", createdAt: now, updatedAt: now, focusGrammarId: opts.focusGrammarId, docId: opts.docId, ...(opts.unitId ? { unitId: opts.unitId } : {}), ...(opts.scenarioId ? { scenarioId: opts.scenarioId } : {}), feedbackMode: "inline" }),
       messages: [],
       targets: ankiConfig.enabled ? freshTargets(opts.language) : [],
       grammarIds: opts.focusGrammarId ? [opts.focusGrammarId] : [],
@@ -1501,11 +1500,6 @@ export function createMockApi(): SayfernApi {
     },
     deleteSession: async (id) => {
       sessions.delete(id);
-    },
-    setFeedbackMode: async (id, mode) => {
-      const s = sessions.get(id)!;
-      s.meta.feedbackMode = mode;
-      return clone(s.meta);
     },
     setDifficulty: async (id, difficulty) => {
       const s = sessions.get(id)!;

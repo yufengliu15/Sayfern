@@ -14,6 +14,7 @@ import { deckRoute, replaceRoute, sessionRoute, settingsRoute, type Navigate } f
 import { sharedDecksUrl } from "../../../shared/stage2";
 import { uiLocaleInfo } from "../../../shared/locales";
 import { LocalePicker } from "../components/LocalePicker";
+import { ThemePicker } from "../components/ThemePicker";
 import { GOAL_PLACEHOLDER } from "../lib/samples";
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
@@ -29,7 +30,7 @@ export interface SettingsScreenProps {
   tab?: string;
 }
 
-type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "preferences" | "data" | "extensions";
+type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "appearance" | "preferences" | "data" | "extensions";
 const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string }[] = [
   { id: "models", label: msg("Models"), icon: "spark", title: msg("Models"), sub: msg("Connect the model you already pay for. Your provider bills you directly.") },
   { id: "languages", label: msg("Language & level"), icon: "globe", title: msg("Language & level"), sub: msg("What you're learning and where you are. The tutor pitches everything to these.") },
@@ -37,6 +38,7 @@ const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string
   { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
   { id: "voice", label: msg("Voice"), icon: "speaker", title: msg("Voice"), sub: msg("Listen to the tutor and to words, and talk instead of typing.") },
   { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Free dictionaries stored on this Mac, for lookups and for counting your words. Sayfern downloads one for each language you learn.") },
+  { id: "appearance", label: msg("Appearance"), icon: "image", title: msg("Appearance"), sub: msg("Choose how Sayfern looks. The change applies at once.") },
   { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
   { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this Mac, in plain files you can export.") },
   { id: "extensions", label: msg("Extensions"), icon: "tool", title: msg("Extensions"), sub: msg("Add tools, prompt additions and language packs.") },
@@ -96,6 +98,7 @@ export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps)
           {tab === "anki" && <AnkiTab navigate={navigate} />}
           {tab === "voice" && <VoiceTab />}
           {tab === "dictionaries" && <DictionariesTab />}
+          {tab === "appearance" && <AppearanceTab />}
           {tab === "preferences" && <PreferencesTab navigate={navigate} />}
           {tab === "data" && <DataTab />}
           {tab === "extensions" && <ExtensionsTab />}
@@ -883,11 +886,23 @@ function DictionariesTab() {
   );
 }
 
+// ---------------------------------------------------------------- appearance
+
+function AppearanceTab() {
+  return (
+    <Group>
+      <Row label={t("Theme")} hint={t("Light, or one of two dark themes.")} />
+      <div className="srow">
+        <ThemePicker />
+      </div>
+    </Group>
+  );
+}
+
 // ---------------------------------------------------------------- preferences
 
 function PreferencesTab({ navigate }: { navigate: Navigate }) {
   const app = useApp();
-  const mode = app.settings.feedbackMode ?? "inline";
   return (
     <>
       <Group>
@@ -900,15 +915,6 @@ function PreferencesTab({ navigate }: { navigate: Navigate }) {
         </Row>
       </Group>
       <Group>
-        <Row label={t("Corrections")} hint={mode === "inline" ? t("Shown under your message as you go.") : t("Saved and shown when you end the session.")}>
-          <div className="seg" role="radiogroup" aria-label={t("When to show corrections")}>
-            {(["inline", "end"] as const).map((m) => (
-              <button key={m} role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => void app.updateSettings({ feedbackMode: m })}>
-                {m === "inline" ? t("Inline") : t("After session")}
-              </button>
-            ))}
-          </div>
-        </Row>
         <Row
           label={t("Translate the tutor automatically")}
           hint={t("Adds a line in {language} under each tutor message. Uses a small extra model call per message.", { language: uiLocaleInfo(app.locale).nativeName })}

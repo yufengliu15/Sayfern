@@ -1,7 +1,7 @@
 // The conversation column: tutor messages (annotated), learner bubbles, correction cards,
 // the streaming reply and inline errors.
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import type { ChatMessage, Correction, FeedbackMode, GrammarSummary, Language, SourceRef, ToolActivity } from "../../../shared/records";
+import type { ChatMessage, Correction, GrammarSummary, Language, SourceRef, ToolActivity } from "../../../shared/records";
 import type { ModelRef } from "../../../shared/types";
 import { activityText, cls, fmtDay, fontOf } from "../lib/format";
 import { AnnotatedText } from "./AnnotatedText";
@@ -20,7 +20,6 @@ export interface MessageListProps {
   language: Language;
   messages: ChatMessage[];
   corrections: Correction[];
-  feedbackMode: FeedbackMode;
   /** Anki target words to underline. */
   targets: string[];
   grammarById: Record<string, GrammarSummary>;
@@ -54,7 +53,7 @@ export function MessageList(p: MessageListProps) {
           <Fragment key={m.id}>
             {newDay && i > 0 && <div className="day">{fmtDay(m.at)}</div>}
             {m.role === "user" ? (
-              <LearnerMessage m={m} language={p.language} corrections={p.feedbackMode === "inline" ? corr : []} />
+              <LearnerMessage m={m} language={p.language} corrections={corr} />
             ) : (
               <TutorMessage
                 m={m}
@@ -65,7 +64,7 @@ export function MessageList(p: MessageListProps) {
                 onRetry={i === lastIdx && m.error && m.error !== "Stopped" ? p.onRetry : undefined}
               />
             )}
-            {m.role === "user" && corr.length > 0 && p.feedbackMode === "inline" && (
+            {m.role === "user" && corr.length > 0 && (
               <div className="corr-stack">
                 {corr.map((c) => (
                   <CorrectionCard
@@ -79,14 +78,6 @@ export function MessageList(p: MessageListProps) {
                     onOpenGrammar={p.onOpenGrammar}
                   />
                 ))}
-              </div>
-            )}
-            {m.role === "user" && corr.length > 0 && p.feedbackMode === "end" && (
-              <div className="endnote">
-                <Icon name="pen" size={14} />
-                <span>
-                  {tn(corr.length, "{count} note saved for the end of this session", "{count} notes saved for the end of this session")}
-                </span>
               </div>
             )}
           </Fragment>

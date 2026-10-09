@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { countableCorrection } from "../quiz/material";
+import { countableCorrection } from "./corrections";
 import { makeStore, tempDir } from "./helpers.test-util";
 
 const old = (id: string, kind: string) => ({

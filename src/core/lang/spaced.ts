@@ -64,12 +64,12 @@ function tokenStart(text: string, offset: number, isWord: boolean): Token {
 }
 
 const LEVEL_NOTE: Record<string, string> = {
-  cefr: "The learner's level uses the CEFR scale (A1 easiest to C2); choose vocabulary and grammar near their level.",
-  topik: "The learner's level uses the TOPIK scale (TOPIK 1 easiest to TOPIK 6); choose vocabulary and grammar near their level.",
+  cefr: "The learner's level uses the CEFR scale (A1 easiest to C2).",
+  topik: "The learner's level uses the TOPIK scale (TOPIK 1 easiest to TOPIK 6).",
 };
 
 const EXTRA_NOTE: Partial<Record<Language, string>> = {
-  ko: "Write natural Hangul with standard spacing (띄어쓰기). No Hanja and no romanization unless the learner asks.",
+  ko: "Write natural Hangul with standard spacing (띄어쓰기). No Hanja unless the learner asks.",
   ru: "Write in Cyrillic without stress marks unless the learner asks about stress.",
   vi: "Write every tone mark correctly. Use pronouns that fit a friendly tutor and an adult learner (mình / bạn) unless the learner prefers otherwise.",
   de: "Capitalize nouns, use correct case endings, and use du with the learner unless they prefer Sie.",
@@ -86,7 +86,6 @@ export function spacedPromptNotes(language: Language): string {
     `${m.name}: write natural ${m.variety}.`,
     LEVEL_NOTE[m.levelSystem] ?? "",
     EXTRA_NOTE[language] ?? "",
-    "Do not add translations unless the learner asks: the app shows a dictionary when they hover a word.",
   ]
     .filter(Boolean)
     .join(" ");

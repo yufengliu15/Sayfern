@@ -53,10 +53,10 @@ const RecordEvidenceParams = Type.Object({
       Type.Object({
         original: Type.String({ description: "Exact substring of the learner's latest message that has the problem." }),
         corrected: Type.String({ description: "Replacement for `original`." }),
-        explanation: Type.String({ description: "One short sentence in the explanation language named in the system prompt." }),
+        explanation: Type.String({ description: "One short sentence." }),
         kind: enumOf(
           CORRECTION_KINDS,
-          "grammar = the sentence does not make grammatical sense (wrong form, word, order, measure word). typo = it makes sense but looks wrong written: spelling, capitals, punctuation, spacing, same-sound character. speaking = spoken messages only: said aloud something people only write (\"lol\", \"etc.\", \"slash\").",
+          "Ask first: does the sentence make grammatical sense? grammar = no (wrong form, wrong word, wrong word order, wrong measure word). typo = yes, but it would look wrong written out (spelling, capitals, punctuation, spacing, a wrong character with the same sound, an abbreviation such as tv for TV). speaking = a spoken message only, when the learner said aloud something people only write (reading out lol, e.g., etc. as letters, saying slash, naming an emoji, a register that fits only writing). A spoken message never gets typo: its spelling, capitals and punctuation come from the transcriber.",
         ),
         grammar_id: Type.Optional(Type.String()),
       }),
@@ -65,9 +65,9 @@ const RecordEvidenceParams = Type.Object({
   observations: Type.Optional(
     Type.Array(
       Type.Object({
-        grammar_id: Type.String({ description: "\"<lang>:<ascii-slug>\"; reuse catalogue ids." }),
+        grammar_id: Type.String(),
         pattern: Type.String({ description: "Surface pattern, e.g. 除了…还…" }),
-        name: Type.String({ description: "Short name in the explanation language named in the system prompt." }),
+        name: Type.String({ description: "Short name." }),
         span: Type.String({ description: "The learner's text that attempts the pattern." }),
         verdict: enumOf(VERDICTS),
         assistance: enumOf(ASSISTANCE),
@@ -86,7 +86,7 @@ const RecordEvidenceParams = Type.Object({
         explanation: Type.String({ description: "Plain text, a few sentences." }),
         examples: Type.Array(Type.Object({ text: Type.String(), translation: Type.String() })),
       }),
-      { description: "Patterns you explained this turn." },
+      { description: "Every pattern you taught or explained this turn." },
     ),
   ),
   topic_change: Type.Optional(
@@ -108,7 +108,7 @@ function recordEvidence(deps: TutorDeps, turn: TurnState): TutorTool {
   return {
     name: "record_evidence",
     description:
-      "Record learning evidence for this turn: corrections of the learner's latest message, grammar observations, patterns you taught, level estimates. Call it ONCE, after writing your reply. Nothing is shown to you; the app displays corrections.",
+      "Record learning evidence for this turn: corrections of the learner's latest message, grammar observations, patterns you taught, level estimates.",
     parameters: RecordEvidenceParams,
     recordingOnly: true,
     async execute(rawArgs, ctx) {

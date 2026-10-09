@@ -1,9 +1,10 @@
 // Quiz material, gathered locally from the learner's records (S2-05): corrections and earlier quiz
 // mistakes, Anki words, grammar points, a library document or chapter, learning targets and saved
 // words. The model only sees what is gathered here.
-import type { AnkiWord, Correction, GrammarSummary, Language, LibraryParagraph } from "../../shared/records";
+import type { AnkiWord, GrammarSummary, Language, LibraryParagraph } from "../../shared/records";
 import type { QuizChapter, QuizSource, QuizSpec } from "../../shared/stage2";
 import { isStruggling } from "../anki/words";
+import { countableCorrection } from "../records/corrections";
 import type { Stage2Deps } from "../stage2";
 import type { QuizItem } from "./items";
 
@@ -56,10 +57,6 @@ export interface Material {
 export interface PastQuizMistake {
   item: QuizItem;
   at: number;
-}
-
-export function countableCorrection(c: Correction): boolean {
-  return c.kind === "grammar" && c.status !== "disputed";
 }
 
 export function toGrammar(g: GrammarSummary): MaterialGrammar {

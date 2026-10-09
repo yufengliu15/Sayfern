@@ -19,27 +19,21 @@ import { bandLevels } from "../../shared/languages";
 import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit } from "../../shared/course";
 import { unitText } from "../course";
 import { findScenario } from "../../shared/scenarios";
+import { countableCorrection } from "../records/corrections";
 import { isQuizObservation } from "../records/grammar";
 import { explainIn, type TutorDeps } from "./deps";
+import { TUNING } from "./tuning";
 
-export const MAX_FOLLOW_UPS = 3;
-export const MAX_CATALOGUE = 60;
-export const PERSONAL_CONTEXT_CHARS = 1500;
-export const ANKI_PROMPT_HARDEST = 5;
-export const ANKI_PROMPT_NEXT_NEW = 8;
-const RECENT_MISS_MS = 14 * 24 * 60 * 60 * 1000;
-/** Learner replies on one topic after which the tutor is told to move on. */
-export const MOVE_ON_TURNS = 5;
-/** Replies in a row without a mistake after which the tutor is told it is too easy. */
-export const EASY_STREAK = 3;
-/** Grammar points from the next unit named in the course block. */
-export const COURSE_NEXT_POINTS = 3;
+// Every tutor rule is written once in this file, in the block that owns it (see renderSystemPrompt):
+// persona (how to talk, how to bring in a target), session blocks (what to work on), then feedback
+// and tool protocol. Per-kind field rules for record_evidence live in its parameter descriptions
+// (tools.ts). Tuning numbers live in tuning.ts.
 
 /** Counted locally from the session's messages and corrections (S1-25), for the pacing block. */
 export interface Pacing {
   /** Learner replies since the current topic started, the latest one included. */
   turnsOnTopic: number;
-  /** Earlier learner replies in a row (before the latest) with no correction other than style. */
+  /** Earlier learner replies in a row (before the latest) with no countable correction (a grammar one, not disputed). */
   cleanStreak: number;
   /** Mean length in characters of the learner's last 3 replies on this topic. */
   recentLength: number;
@@ -89,12 +83,12 @@ export function pickFollowUps(
   for (const g of grammar) {
     if (g.point.id === skipId) continue;
     const last = lastAssessed.get(g.point.id);
-    const recentMiss = !!last && last.verdict === "incorrect" && now - last.at <= RECENT_MISS_MS;
+    const recentMiss = !!last && last.verdict === "incorrect" && now - last.at <= TUNING.recentMissMs;
     if (recentMiss) misses.push({ g, at: last.at });
     else if (g.state === "introduced" || g.state === "with_help") rest.push(g);
   }
   misses.sort((a, b) => b.at - a.at);
-  return [...misses.map((m) => m.g), ...rest].slice(0, MAX_FOLLOW_UPS);
+  return [...misses.map((m) => m.g), ...rest].slice(0, TUNING.maxFollowUps);
 }
 
 /** Keep only misses that are still the latest verdict and recent, so a later success hides them. */
@@ -106,7 +100,7 @@ function currentMisses(
   const out = new Map<string, GrammarObservation>();
   for (const [id, o] of misses) {
     const last = lastAssessed.get(id);
-    if (last && last.verdict === "incorrect" && last.at === o.at && now - o.at <= RECENT_MISS_MS) out.set(id, o);
+    if (last && last.verdict === "incorrect" && last.at === o.at && now - o.at <= TUNING.recentMissMs) out.set(id, o);
   }
   return out;
 }
@@ -167,7 +161,7 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
   const [levels, profile, personalContext, grammar, observations, targets, messages, corrections] = await Promise.all([
     records.getLevels(language),
     records.getProfile(),
-    library.personalContext(language, PERSONAL_CONTEXT_CHARS).catch(() => ""),
+    library.personalContext(language, TUNING.personalContextChars).catch(() => ""),
     records.listGrammar(language),
     records.listObservations({ language }),
     records.getTargets(session.id),
@@ -188,17 +182,17 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     lastMisses: currentMisses(lastConversationMisses(observations), lastAssessed, deps.now()),
     now: deps.now(),
     targets: targets.filter((t) => t.status === "pending" || t.status === "asked"),
-    catalogue: grammar.slice(0, MAX_CATALOGUE).map((g) => g.point),
+    catalogue: grammar.slice(0, TUNING.maxCatalogue).map((g) => g.point),
     additions: deps.extensions?.promptAdditions(language) ?? [],
     explain: await explainIn(deps),
-    pacing: computePacing(messages, new Set(corrections.filter((c) => c.kind === "grammar").map((c) => c.messageId))),
+    pacing: computePacing(messages, new Set(corrections.filter(countableCorrection).map((c) => c.messageId))),
   };
 
   const course = courseFor(language);
   if (course) {
     const states = grammarStates(grammar);
     const next = nextUnit(course, pack.info.levels, states, courseLevel(levels.current));
-    const points = (next?.grammar ?? []).filter((g) => states.get(g.id) !== "independent").slice(0, COURSE_NEXT_POINTS);
+    const points = (next?.grammar ?? []).filter((g) => states.get(g.id) !== "independent").slice(0, TUNING.courseNextPoints);
     data.course = { course, ...(next ? { next } : {}), points };
     if (session.unitId) {
       const found = findUnit(session.unitId);
@@ -253,7 +247,7 @@ function levelShare(d: Pick<PromptData, "levels" | "info">): number | undefined 
 export function isBeginner(d: Pick<PromptData, "levels" | "info" | "session">): boolean {
   if (d.session.kind === "placement" && d.session.levelBand) return d.session.levelBand === "beginner";
   const share = levelShare(d);
-  return share !== undefined && share < 0.25;
+  return share !== undefined && share < TUNING.beginnerBelow;
 }
 
 /** The language beginners may fall back on: the interface language, unless that is the language they learn. */
@@ -265,12 +259,12 @@ function ownLanguage(d: Pick<PromptData, "info" | "explain">): string {
 /** Reply length grows with the learner's level: beginners get short replies, advanced learners real paragraphs. */
 export function lengthRule(d: Pick<PromptData, "levels" | "info">): string {
   const share = levelShare(d);
-  const room = (max: number) =>
-    `. When the reply brings in a target (a course point, grammar to revisit or an Anki word), you may write more to set up a natural context for it, up to ${max} sentences in all`;
-  if (share === undefined) return `Keep replies to 1 to 3 short sentences${room(5)}`;
-  if (share < 0.25) return `Keep replies to 1 or 2 short sentences${room(4)}`;
-  if (share < 0.6) return `Write 2 or 3 sentences, linked with connectors they know${room(6)}`;
-  return `Write 2 to 4 sentences; a short paragraph is fine${room(8)}`;
+  const cap = TUNING.sentenceCap;
+  const room = (max: number) => `. When the reply brings in a target, you may write more to set up a natural context for it, up to ${max} sentences in all`;
+  if (share === undefined) return `Keep replies to 1 to 3 short sentences${room(cap.unknown)}`;
+  if (share < TUNING.beginnerBelow) return `Keep replies to 1 or 2 short sentences${room(cap.beginner)}`;
+  if (share < TUNING.midBelow) return `Write 2 or 3 sentences, linked with connectors they know${room(cap.mid)}`;
+  return `Write 2 to 4 sentences; a short paragraph is fine${room(cap.advanced)}`;
 }
 
 function courseBlock(d: PromptData): string {
@@ -284,7 +278,7 @@ function courseBlock(d: PromptData): string {
   ];
   if (points.length) {
     lines.push(
-      "When you move on, bring in one of these, one at a time: use it yourself in a natural sentence, then ask a question whose natural answer uses it.",
+      "When you move on, bring in one of these, one at a time:",
       ...points.map((g) => `- ${g.pattern} (${g.name}, id ${g.id}). ${g.note}`),
     );
   }
@@ -292,21 +286,27 @@ function courseBlock(d: PromptData): string {
   return lines.join("\n");
 }
 
-/** When to move on. Openings and "New topic" have their own kickoff, so this is for learner turns. */
+const ANSWER_FIRST = "Always answer what the learner just said first, and never drop a question they asked.";
+
+/**
+ * When to move on. Openings and "New topic" have their own kickoff, so this is for learner turns.
+ * Unit sessions move on per point (sessionBlock) and role-plays end with the scene (roleplayBlock):
+ * they get no second move-on rule here.
+ */
 export function pacingBlock(d: Pick<PromptData, "pacing" | "session">): string {
   const p = d.pacing;
   if (!p || p.turnsOnTopic === 0 || d.session.kind === "placement" || d.session.kind === "reading") return "";
+  if (d.session.unitId || d.session.scenarioId) return ["# Pacing", ANSWER_FIRST].join("\n");
   const facts = [`This topic has run for ${p.turnsOnTopic} of the learner's replies (this one included).`];
-  if (p.cleanStreak > 0) facts.push(`Their ${p.cleanStreak} previous ${p.cleanStreak === 1 ? "reply" : "replies"} had no mistakes.`);
+  if (p.cleanStreak > 0) facts.push(`Their ${p.cleanStreak} previous ${p.cleanStreak === 1 ? "reply" : "replies"} had no grammar mistakes.`);
   if (p.recentLength) facts.push(`Their recent replies average ${p.recentLength} characters.`);
-  const due = p.turnsOnTopic >= MOVE_ON_TURNS || p.cleanStreak >= EASY_STREAK;
+  const due = p.turnsOnTopic >= TUNING.moveOnTurns || p.cleanStreak >= TUNING.easyStreak;
   return [
     "# Pacing",
-    "Always answer what the learner just said first. Then decide: stay on the topic or move on.",
-    "- Stay while they are invested: longer replies, their own questions, a story in progress. Never drop a question they asked.",
-    "- Move on when the topic is used up: after about 4 to 6 exchanges, when their replies get short and add nothing new, or when several replies in a row have no mistakes (it is too easy for them).",
-    "- Moving on means a natural bridge to a new topic, or a harder angle on the same one (an opinion, a comparison, a hypothetical) that calls for the next grammar point. Never ask them whether they want to change topic; just do it smoothly.",
-    "- When your reply moves on, set topic_change to true in record_evidence.",
+    `${ANSWER_FIRST} Then decide: stay on the topic or move on.`,
+    "- Stay while they are invested: longer replies, their own questions, a story in progress.",
+    `- Move on when the topic is used up: after about ${TUNING.moveOnTurns} exchanges, when their replies get short and add nothing new, or when ${TUNING.easyStreak} replies in a row have no grammar mistakes (it is too easy for them).`,
+    "- Moving on means a natural bridge to a new topic, or a harder angle on the same one (an opinion, a comparison, a hypothetical) that calls for the next grammar point. Never ask them whether they want to change topic; just do it smoothly (set topic_change when you do).",
     facts.join(" "),
     ...(due ? ["The topic is used up: unless they are clearly invested, move on in this reply."] : []),
   ].join("\n");
@@ -338,10 +338,10 @@ function followUpBlock(d: PromptData): string {
   });
   return [
     "# Grammar to revisit",
-    "Create natural chances for the learner to use these in their answers. Never name the pattern, show the formula or ask them to use it; let the situation invite it.",
-    "Item 1 is the priority: within your first two replies, ask a question whose most natural answer uses it. Then work in the others when the conversation allows.",
+    "Create natural chances for the learner to use these in their answers.",
+    "Item 1 is the priority: bring it in within your first two replies. Then work in the others when the conversation allows.",
     ...(earlierSession
-      ? ["You may refer back to the earlier session once, briefly and warmly (what they talked about, not the mistake). Never repeat an old correction."]
+      ? ["You may refer back to the earlier session once, briefly (what they talked about, not the mistake). Never repeat an old correction."]
       : []),
     ...lines,
   ].join("\n");
@@ -355,7 +355,7 @@ function targetBlock(d: PromptData): string {
   });
   return [
     "# Words from their Anki reviews",
-    "Weave these into your questions naturally, one or two per reply at most, so the learner can recognise and reuse them. Never list them or say they come from Anki.",
+    "Use one or two per reply at most, so the learner can recognise and reuse them. Never say they come from Anki.",
     ...lines,
   ].join("\n");
 }
@@ -378,12 +378,12 @@ function ankiBlock(d: PromptData): string {
     `# Anki knowledge (synced ${ago(Math.max(0, d.anki.now - o.syncedAt))})`,
     `Vocabulary: ${fmt(c.known)} known (${fmt(o.mature)} mature), ${fmt(c.learning)} learning, ${fmt(o.newRemaining)} not studied yet.`,
   ];
-  const hard = o.topStruggling.slice(0, ANKI_PROMPT_HARDEST).map((w) => (w.reasons[0] ? `${short(w.word)} (${w.reasons[0]})` : short(w.word)));
+  const hard = o.topStruggling.slice(0, TUNING.ankiHardest).map((w) => (w.reasons[0] ? `${short(w.word)} (${w.reasons[0]})` : short(w.word)));
   if (hard.length) lines.push(`Hardest now: ${hard.join(", ")}.`);
-  const next = o.nextNew.slice(0, ANKI_PROMPT_NEXT_NEW).map((w) => short(w.word));
+  const next = o.nextNew.slice(0, TUNING.ankiNextNew).map((w) => short(w.word));
   if (next.length) lines.push(`Next new words: ${next.join(", ")}.`);
   lines.push(
-    "Stay mostly within words they know, one step above (i+1). Unsure whether they know a word you want to use? Call anki_check_words. Weave hard words in naturally; never drill or list them. Introduce at most one upcoming new word per reply, with a light gloss.",
+    "Use mostly words they know, plus a little above them. Unsure whether they know a word you want to use? Call anki_check_words. Treat the hardest words as targets. Introduce at most one upcoming new word per reply, with a light gloss.",
   );
   return lines.join("\n");
 }
@@ -412,9 +412,9 @@ function catalogueBlock(d: PromptData): string {
 }
 
 const DIFFICULTY_LINES: Record<Exclude<Difficulty, 0>, string> = {
-  [-2]: "Much easier. Stay at or a little below their level: high-frequency words, short simple sentences (one clause), concrete everyday topics. This replaces \"slightly above the learner's level\". Keep it natural, never baby talk.",
-  [-1]: "Easier. Stay at their level rather than above it: common words, short sentences, familiar topics. This replaces \"slightly above the learner's level\".",
-  1: "Harder. Stretch a bit more than usual: some less common vocabulary, a linked or subordinate clause in most replies, grammar from the next level up, and topics that ask for opinions, plans or comparisons.",
+  [-2]: "Much easier. Stay at or a little below their level: high-frequency words, short simple sentences (one clause), concrete everyday topics. Keep it natural, never baby talk.",
+  [-1]: "Easier. Stay at their level rather than above it: common words, short sentences, familiar topics.",
+  1: "Harder. Go further above their level than usual: some less common vocabulary, a linked or subordinate clause in most replies, grammar from the next level up, and topics that ask for opinions, plans or comparisons.",
   2: "Much harder. Stretch further: roughly one level above their estimate, richer vocabulary and connectors, more complex grammar (conditionals, passives, nuance), and thought-provoking topics (hypotheticals, current issues, abstract ideas).",
 };
 
@@ -429,9 +429,11 @@ export function difficultyBlock(d: Pick<PromptData, "session">): string {
   ].join("\n");
 }
 
+const MISS_RULE = "After two misses (they avoid it or get it wrong), model it in a sentence of your own, then invite them to try again.";
+
 /** Unit sessions the learner opened with "go over the grammar first". */
 const UNIT_OVERVIEW = [
-  "The learner asked for a quick overview of this unit's grammar before practising. In your first reply only, before anything else, give it:",
+  "The learner asked for a quick overview of this unit's grammar before practising. In your first reply only, before anything else, give it (here you may name the patterns):",
   "- One short line per grammar point, in the order above: the pattern, what it does in plain words, and one short example sentence.",
   "- Keep the whole overview brief, a reminder of what is coming. It is not a full lesson and does not replace their textbook: no tables, no lists of exceptions, no exercises.",
   "Then open the conversation as below, with a question that invites the first point.",
@@ -449,9 +451,9 @@ function sessionBlock(d: PromptData): string {
           d.unit.text,
           "",
           ...(s.openWith === "explain" ? UNIT_OVERVIEW : []),
-          "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time: use the point yourself in a natural sentence, then ask a question whose natural answer uses it. Do not lecture or show formulas unless they ask.",
-          "Move to the next point once they use the current one correctly twice, or after about 4 exchanges on it. Change the situation when one runs dry.",
-          "When every point has come up, tell them briefly what they covered and suggest the next unit.",
+          "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time.",
+          `Move to the next point once they use the current one correctly twice, or after about ${TUNING.unitPointTurns} exchanges on it. Change the situation when one runs dry.`,
+          "When every point has come up, tell them what they covered and suggest the next unit.",
         ].join("\n");
       }
       const f = d.focus;
@@ -461,15 +463,15 @@ function sessionBlock(d: PromptData): string {
         return [
           "# Session: explain and practise",
           `Focus: ${what}.`,
-          "The learner asked for this pattern to be explained again. Open with a short, fresh explanation (naming the pattern is fine here) and one new example sentence that differs from any you gave before.",
-          "Then ask a question that invites them to use it. From then on, practise it in conversation; after two misses, model it again and invite another try.",
+          "The learner asked for this pattern to be explained again. Open with a short, fresh explanation and one new example sentence that differs from any you gave before.",
+          `Then ask a question that invites them to use it. From then on, practise it in conversation. ${MISS_RULE}`,
         ].join("\n");
       }
       return [
         "# Session: targeted practice",
         `Focus: ${what}.`,
-        "Set up situations and questions that naturally invite this pattern, without naming it or showing its formula.",
-        "After two misses (they avoid it or get it wrong), model it in a sentence of your own, then invite them to try again.",
+        "Keep bringing this pattern into the conversation, in new situations.",
+        MISS_RULE,
       ].join("\n");
     }
     case "reading": {
@@ -501,7 +503,7 @@ export function roleplayBlock(setup: string): string {
   return [
     "# Session: role-play",
     `Scene: ${setup}`,
-    "Stay in role and speak like a real person in this place, at the learner's level. Keep each turn short, like a real exchange, and leave them room to answer.",
+    "Stay in role and speak like a real person in this place. Keep each turn short, like a real exchange, ending on the one question they answer.",
     "Bring in the words and phrases this situation really needs. If they get stuck, step out of role for one line, offer a phrase they could say, then carry on in role.",
     "When the scene comes to a natural end (or the learner presses \"New topic\"), step out of role: say in one or two lines what went well and one phrase worth keeping, then offer a new twist on the same situation.",
   ].join("\n");
@@ -518,7 +520,7 @@ export function placementBlock(d: Pick<PromptData, "info" | "explain" | "session
   if (band === "beginner") {
     return [
       "# Session: placement (the learner says they are a beginner)",
-      `Run a short, gentle diagnostic. Here, write your instructions and questions in ${own}, with only short ${d.info.name} items to read or answer. They may answer in ${own}.`,
+      `Run a short, gentle diagnostic. Here, write your instructions and questions in ${own}, with only short ${d.info.name} items to read or answer.`,
       `Start at the very bottom (${bandLevels(levels, "beginner").join(", ")}). First find out whether they know anything at all: a greeting, numbers, a few common words. Rise only while they cope. ${tasks}`,
       `If they know little or nothing, stop after 2 or 3 tasks: that is a clear result, not a failure.`,
       `${estimate} If they know nothing yet, record ${levels[0]} for all three skills with low confidence.`,
@@ -538,44 +540,43 @@ export function placementBlock(d: Pick<PromptData, "info" | "explain" | "session
   ].join("\n");
 }
 
-/** Writing in another language: beginners are welcome to, everyone else is invited back to the language they learn. */
+/**
+ * Translations, readings and writing in another language, stated once for every session:
+ * beginners are welcome to write in their own language, everyone else is invited back to the language they learn.
+ */
 function otherLanguageRules(d: PromptData): string[] {
   const explain = d.explain || "English";
   const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
   if (!isBeginner(d)) {
     return [
-      "- No translations or romanization unless the learner asks.",
+      "- Add no translations, romanization or readings unless the learner asks: the app shows a dictionary when they hover a word.",
       `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
     ];
   }
   const own = ownLanguage(d);
   return [
     `- They are a beginner: they may write in ${own} when they lack the ${d.info.name} words. That is welcome, not a mistake. Answer in very simple ${d.info.nativeName}, show them how to say what they meant in ${d.info.name}, and invite them to try it.`,
-    `- You may add a short ${own} gloss in brackets for a key word they cannot know yet. No full translations unless they ask.`,
+    `- You may add a short ${own} gloss in brackets for a key word they cannot know yet. No full translations, romanization or readings unless they ask.`,
   ];
 }
 
 /** Prefix on learner messages that were spoken and transcribed (Stage 3). The display text has no prefix. */
 export const SPOKEN_MARKER = "[spoken]";
 
+// Field rules (what a correction `kind` is, `original` copied exactly) live in the record_evidence parameter descriptions (tools.ts).
 const FEEDBACK_RULES = [
   "# Feedback",
-  "- Never put corrections in your reply text. The app shows them from your record_evidence call.",
-  "- Give every correction one `kind`. Ask first: does the sentence make grammatical sense? If not, the kind is \"grammar\" (wrong form, wrong word, wrong word order, wrong measure word). If it makes sense but would look wrong written out (spelling, capitals, punctuation, spacing, a wrong character with the same sound, an abbreviation such as tv for TV), the kind is \"typo\". Use \"speaking\" only on a spoken message, when the learner said aloud something people only write (reading out lol, e.g., etc. as letters, saying slash, naming an emoji, a register that fits only writing).",
   "- Correct real mistakes only. Do not correct a sentence that is fine just because you would say it another way.",
-  "- `original` must be copied exactly from the learner's latest message.",
   "- Judge each grammar point in a sentence separately: one observation per pattern attempt, with its own verdict.",
   "- A corrected retry, or a sentence written right after you modeled the pattern, is not independent use (use assistance \"corrected_retry\" or \"prompted\").",
-  "- When you teach or explain a pattern, include it under `taught`.",
-  `- Messages starting with ${SPOKEN_MARKER} were spoken and transcribed by speech recognition: ignore punctuation, capitals and spacing, treat a wrong character with the right sound as a likely transcription slip (not an error), and never judge pronunciation from the text. Never record a \"typo\" for a spoken message: its spelling, capitals and punctuation come from the transcriber, not the learner. Leave ${SPOKEN_MARKER} out of \`original\`.`,
+  `- Messages starting with ${SPOKEN_MARKER} were spoken and transcribed by speech recognition: ignore punctuation, capitals and spacing, treat a wrong character with the right sound as a likely transcription slip (not an error), and never judge pronunciation from the text. Leave ${SPOKEN_MARKER} out of \`original\`.`,
 ].join("\n");
 
 const TOOL_PROTOCOL = [
   "# Tool protocol",
-  "Write your reply text FIRST, as normal text: your thinking is never shown to the learner. Then, at the very end, call record_evidence ONCE with everything for this turn (corrections, observations, taught, level).",
-  "Never call record_evidence before writing the reply, and never call it twice in a turn.",
-  "If a record_evidence result says \"No reply text yet\", the learner has seen nothing from you (your thinking is hidden): write your reply now as plain text, without a tool call and without mentioning this.",
-  "Call it on every turn that answers a learner message, even when there is nothing to correct (then pass empty lists). The learner only sees corrections that come through this call.",
+  "Write your reply text FIRST, as normal text: your thinking is never shown to the learner. Then, at the very end, call record_evidence once, on every turn that answers a learner message (pass empty lists when there is nothing to record). Never call it before the reply or twice in a turn.",
+  "The app shows corrections only from that call. Never put corrections in your reply text.",
+  "If a record_evidence result says \"No reply text yet\", the learner has seen nothing from you: write your reply now as plain text, without a tool call and without mentioning this.",
   "Other tools (search_library, course, and the anki_* tools when offered) may be called before you reply when you need their results.",
   "Call tools only through the tool interface. Never write a tool call, a tool name or tool arguments (JSON) in your reply text: the learner sees everything you write.",
 ].join("\n");
@@ -593,20 +594,36 @@ export function explanationBlock(d: Pick<PromptData, "info" | "explain">): strin
   ].join("\n");
 }
 
-export function renderSystemPrompt(d: PromptData): string {
+/** Anything the persona's "bring in a target" rule applies to. */
+function hasTargets(d: PromptData) {
+  if (d.session.kind === "placement") return false;
+  const coursePoints = d.session.kind === "chat" && !!d.course?.points.length;
+  return !!(d.followUps.length || d.targets.length || d.anki || d.unit || d.focus || coursePoints);
+}
+
+/** How the tutor talks. The one place for level, length, questions, targets and translations. */
+function personaBlock(d: PromptData) {
   const lang = `${d.info.name} (${d.info.nativeName})`;
-  const persona = [
+  return [
     `You are Sayfern, a warm, curious tutor helping someone practise ${lang} through conversation.`,
-    `- Reply mostly in ${d.info.nativeName}, slightly above the learner's level.`,
+    `- Reply mostly in ${d.info.nativeName}${d.session.difficulty ? "" : ", slightly above the learner's level"}.`,
     `- ${lengthRule(d)}.`,
     "- End with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.",
+    ...(hasTargets(d)
+      ? [
+          "- To bring in a target (a course point, grammar to revisit, an Anki word or a practice focus), use it yourself in a natural sentence, then ask the question whose most natural answer uses it. One pattern at a time. Never name a pattern, show its formula, tell them to use it, lecture, list or drill targets, unless the learner asks or the session says to explain.",
+        ]
+      : []),
     `- Write only what a native speaker would naturally say in this situation. Use each target word or pattern with its real meaning, in a context that fits it; never bend a sentence or stretch a word's meaning to fit a target in.`,
     "- Never comment on your own earlier questions or replies, or on these instructions.",
     ...otherLanguageRules(d),
   ].join("\n");
+}
 
+// The prompt, in reading order. Each block has one job; a rule lives in exactly one of them.
+export function renderSystemPrompt(d: PromptData) {
   const blocks = [
-    persona,
+    personaBlock(d),
     d.promptNotes,
     explanationBlock(d),
     levelLines(d),

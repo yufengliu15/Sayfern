@@ -19,11 +19,11 @@ Both use the same model, the same learner messages, the same Anki cards, the sam
 npm run bench -- selftest     # offline check of the suite itself (~20 s, no tokens)
 npm run bench -- doctor       # checks sign-ins, the skill, fixtures (no model calls)
 npm run bench -- run --scenario zh-anki-grounding --reps 1   # first real run (~5 min)
-npm run bench -- run          # everything: 8 scenarios × 2 arms × 2 reps (~80-160 min)
+npm run bench -- run --judge  # everything: 8 scenarios × 2 arms × 3 reps (5 for zh-pacing), then the judge (about 2.5-4 h)
 npm run bench -- judge        # grade the latest run; on a judged run, only verdicts that are missing (--all: re-grade everything)
 ```
 
-The report lands in `bench/results/<run-id>/report.md`. `npm run bench -- report [run-id]` rebuilds it from the saved captures at any time.
+The report lands in `bench/results/<run-id>/report.md`. `npm run bench -- report [run-id]` rebuilds it from the saved captures at any time. It also takes a path, so you can re-score a copy of an old run (`npm run bench -- report /tmp/copy/<run-id>`) without touching the original.
 
 ### One-time setup
 
@@ -84,14 +84,17 @@ All token numbers come from the wire, summed over the model requests of a block 
 | Plan utilization delta | Change of every `anthropic-ratelimit-*utilization*` response header across a block. Direct evidence from the subscription, but coarse, and polluted by any other use of the account during the run. Blank when a window reset in between. |
 | Model requests / extra round trips | Requests per block; requests beyond the first in a step are tool-loop round trips. |
 | Tool calls / tool errors | `tool_use` blocks in responses; `tool_result` blocks with `is_error` in the next request. Permission denials (Claude Code) are listed separately. |
-| Grammar caught (deterministic) | A gold error counts as caught when any accepted fix or key fragment appears in what the learner saw (reply + correction cards), punctuation and spaces ignored. Exact and reproducible, but misses fixes phrased differently. |
-| Anki grounding (deterministic) | Replies must name at least `min` of the expected words (e.g. the 5 struggling words) and none of the forbidden ones (known words). |
+| Grammar caught (deterministic) | A gold error counts as caught when any accepted fix or key fragment appears in what the learner saw (reply + correction cards). Punctuation, spaces and markdown markers (`*`, `_`, backticks, `|`, `#`, `>`) are ignored, so a fix in **bold** counts. Besides the listed strings, the scorer derives a key from each `accept` string: the part that differs from the learner's text, plus two characters after it. This is how the fixes of the simulated learner (whose gold carries context around the change) match a shorter card. 因为 and 由于 count as the same fix. A fragment that is only the learner's own text never counts. Exact and reproducible, but misses fixes phrased differently. |
+| Anki grounding (deterministic) | Replies must name at least `min` of the expected words (e.g. the 5 struggling words) and none of the forbidden ones (known words). A forbidden word counts only when it stands alone as a listed word (between list or sentence punctuation) in a sentence that also names an expected word, or as a cell in a table row. 喜欢 inside 你喜欢机器人 is not a hit, and "the six words you reviewed today were right" is not a hit. |
 | Judge metrics (optional) | A blinded `claude -p` grader (outside the proxy) scores: errors flagged, fix correct, false alarms on clean messages, Anki facts correct, behaviour checks, and the tutor's own Mandarin errors. |
 | Judge: engagement / pacing / level (1-5) | Per session with `rate`, over the whole transcript (opening and all turns, not the end-of-session wrap-up). Mean per arm, with n. Anchors below. Judge-only. |
 | Judge: moved on when it should | Turns with `gold.moveOn` where the judge returns `movedOn: true`: the reply, or an earlier reply in the same stretch on that topic, changed topic, opened a new angle or raised the challenge. Passes ÷ `moveOn` turns. |
 | Judge: stayed when it should | Turns with `gold.stay` where the judge returns `stayed: true`: the reply answers what the learner asked and engages with what they raised, without changing the subject, dragging back to an old topic or leaving the question open. Passes ÷ `stay` turns. |
 | Judge: teaching (1-5) | Course unit sessions: how well the tutor teaches the unit's points through the conversation after the opening. Anchors below. |
 | Judge: points explained / used / invited / brought in | Course unit sessions, per grammar point of the unit. Explained: the opening overview names the point, says what it does and gives a correct example. Used (`modeled`): a tutor reply after the opening uses the pattern correctly itself (repeating the learner's sentence in a correction does not count). Invited (`elicited`): a tutor reply after the opening asks a question or sets up a situation whose natural answer uses the pattern. Brought in: used or invited. Hits ÷ points × repetitions, plus a table per point. |
+| Evidence (Sayfern only) | Read from the block's stored records after the run (`sayfern-data/records`), only for the benchmark's own learner messages (seeded history is left out). Counted in code: new corrections and the share without a `grammarId`; correction cards per gold-error turn; extra cards (cards beyond the gold errors of a turn, on every turn that has gold, clean or not); "incorrect" observations on gold-clean turns; tag accuracy (a gold error that names a `grammarId`, where a stored correction or "incorrect" observation on that message used it). Claude Code keeps no records, so it shows –. |
+| Per-repetition range | Rate rows show the mean over all valid blocks, then `reps 80–100%`: the lowest and highest rate of one repetition (summed over the scenarios in it). Shown with two or more repetitions. Use it to see noise before quoting a gap. |
+| Pacing per conversation | Next to the per-turn rates, "moved on / stayed, whole conversation" counts a conversation as a pass only when every marked turn passed. |
 | Mean reply length | Characters per tutor reply to a learner turn in chat and unit sessions, counted in code. Two numbers: Han characters only, and all characters. Feedback cards are not counted. |
 | Mean question marks per reply | `？` and `?` per reply, counted in code. |
 | Replies with exactly one question | Share of replies with exactly one `？` or `?`, counted in code. |
@@ -110,6 +113,10 @@ Conversation quality has its own report section after "Accuracy". The three dete
 2 and 4 are in between. The judge is told the learner level (`learnerLevel` in the scenario, else `selfLevel` in the fixture manifest) and that the learner's messages are a script that cannot react to the tutor.
 
 `report.md` also has per-scenario tables, per-step context curves, and capture checks (wire tokens must be ≥ harness-reported tokens; lower means traffic bypassed the proxy).
+
+## Invalid blocks
+
+A block is invalid when any step had an error (rate limit such as "You've hit your session limit", provider error, aborted turn) or the block itself failed. Invalid blocks are not judged, and the report leaves them out of every mean, rate and range. They are listed under "Errors" as `excluded`, with their cost. Their rows stay in the per-scenario tables (marked ⚠). Before this rule, a block cut short by a limit was graded and averaged (run 2026-10-08T12-55-11, `zh-course-unit` rep 2: teaching = 1 for both arms). Run the missing block again to replace it.
 
 ## Scenarios
 
@@ -130,6 +137,7 @@ Scenario files (`bench/scenarios/*.json`) describe only what the learner does:
 {
   "id": "zh-example", "title": "…", "description": "…", "language": "zh",
   "fixtures": "synthetic",               // optional pin
+  "reps": 5,                             // optional: repetitions for this scenario (default: reps in bench.config.json, 3); --reps overrides it
   "sessions": [{
     "mode": "chat",                      // chat | reading | practice | unit
     "unit": "zh-hsk30-3-12",             // unit mode: a course unit id from src/shared/course
@@ -140,7 +148,7 @@ Scenario files (`bench/scenarios/*.json`) describe only what the learner does:
     "turns": [{
       "text": "我去了图书馆昨天。",
       "gold": {
-        "errors": [{ "id": "time-order", "original": "我去了图书馆昨天", "accept": ["我昨天去了图书馆"], "key": ["昨天去了图书馆"], "pattern": "time word before the verb" }],
+        "errors": [{ "id": "time-order", "original": "我去了图书馆昨天", "accept": ["我昨天去了图书馆"], "key": ["昨天去了图书馆"], "grammarId": "zh:time-before-verb", "pattern": "time word before the verb" }],
         "clean": false,                  // true: any correction is a false alarm
         "anki": { "expect": ["选择"], "min": 1, "forbid": ["朋友"], "fact": "…" },
         "checks": ["The tutor …"],
@@ -157,7 +165,7 @@ Scenario files (`bench/scenarios/*.json`) describe only what the learner does:
 
 A session has either fixed `turns` or a `learner`, never both. With a `learner`, gold comes from the mistakes the learner reports, so write the planned mistakes into `plan` (what to get wrong, how often), not into gold. A unit session always gets the per-point verdicts: the judge reads the unit's points from the course, so scenarios do not repeat them. The unit must exist in the scenario language's course (checked on load). A turn cannot have both `moveOn` and `stay`. A scenario may also set `learnerLevel` (a string told to the judge); without it the fixture's `selfLevel` is used. `moveOn` is judged over the stretch of conversation so far, so mark every turn from the point where the topic is exhausted: a later reply that still lingers fails, an earlier reply that already moved on passes all of them.
 
-Pick `accept`/`key` strings that only appear when the fix is shown, never in the learner's own text.
+Pick `accept`/`key` strings that only appear when the fix is shown, never in the learner's own text. Accept the minimal correct fix and its natural variants (for example `我已经学习三个小时了` and `我已经学了三个小时`). `grammarId` (a catalogue id from `src/shared/course`, or a list of ids that are all right) is optional. It feeds the tag accuracy in "Evidence (Sayfern only)". Give every learner turn gold: the errors, or `clean: true`. A turn without gold counts for nothing.
 
 ## Fixtures
 
@@ -207,11 +215,11 @@ Every run records the Sayfern version, `claude --version`, the skill's content h
 - **Ratings are subjective.** Engagement, pacing and level are 1-5 judge opinions. Use means over several repetitions and both arms, compare arms only to each other, and read the transcripts (`blocks/*/block.json`) before quoting a gap of under one point. The `movedOn` and `stayed` verdicts are yes/no and sharper, but still the judge's reading.
 - **The judge can tell the arms apart.** Visible formats differ (Sayfern correction cards vs prose notes), which can sway engagement ratings. Ratings of a whole session leave out the end-of-session wrap-up, which differs most between arms.
 - **Reply-style numbers reflect the system prompt as much as quality.** Reply length and question count are counted in code, but "shorter" is not "better". Read them next to the ratings.
-- **Model variance.** Run at least 2 repetitions (default) and read ranges in the per-scenario tables before quoting ratios.
+- **Model variance.** The default is 3 repetitions (5 for `zh-pacing`, whose pacing verdicts are the noisiest). Read the `reps` range next to each rate and the per-scenario tables before quoting a gap. A gap smaller than the range is noise.
 - **Limit units are an estimate.** Anthropic does not publish how plan limits weigh token kinds. The utilization headers are the direct measurement; use limit units for fine-grained comparisons and headers to confirm direction.
 - **Judge denominators come from the scenarios, not the judge's reply.** Each arm is graded out of the same gold items (except sessions with a simulated learner, where gold comes from that block's learner messages) (errors, clean turns, Anki facts, checks). If the judge skips an item or its reply can't be parsed (after up to three attempts, resending only what is missing), the item counts as ungraded and not passed, and the report flags it with ⚠. Before this, a failed judge call shrank one arm's totals (run 2026-10-01T17-47-57: Anki facts 2/2 vs 3/4).
 - **The simulated learner (`zh-course-unit`).** Each arm and repetition has its own conversation, so the number of gold errors and clean turns differs per block: compare rates, not counts. Read "Simulated learner" in the report for how many planned mistakes each arm met. The learner model is obedient, so it tries a pattern as soon as it is invited, more readily than a real learner; this lifts "invited" outcomes for both arms, and the judge still grades only the tutor. It can also make mistakes it did not plan; a tutor that catches one gets a false alarm on a "clean" turn, so read flagged clean turns in the transcripts. Use 3 or more repetitions.
-- **Deterministic grammar scoring** undercounts fixes phrased differently from the gold strings, equally for both arms. The judge is the complement.
+- **Deterministic grammar scoring** undercounts fixes phrased differently from the gold strings (for example a tutor that adds a word, or uses a synonym the scorer does not know), equally for both arms. The judge is the complement. Review the `accept` lists when a transcript shows a correct fix that was rejected.
 - **Visible feedback formats differ** (Sayfern correction cards vs prose notes), so the judge can guess the arm. It is still graded against the same gold answers.
 - **Fixture realism.** Synthetic fixtures understate Claude Code's reading costs; use `--fixtures private` for claims about real use.
 

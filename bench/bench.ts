@@ -8,7 +8,7 @@
 //   npm run bench -- list                         scenarios and arms
 //   npm run bench -- selftest                     offline check of the benchmark itself
 //
-// run options: --scenario a,b  --arms sayfern,claude-code  --reps N  --fixtures name
+// run options: --scenario a,b  --arms sayfern,claude-code  --reps N (overrides a scenario's own reps)  --fixtures name
 //              --model id  --judge  --config file  --upstream url  --no-bodies
 process.removeAllListeners("warning");
 process.on("warning", (w) => {
@@ -29,7 +29,7 @@ import { judgeBlock, judgeItems, missingVerdicts, type JudgeResult } from "./lib
 import { RecordingProxy } from "./lib/proxy";
 import { renderReport } from "./lib/report";
 import type { BlockResult } from "./lib/runner";
-import { runAll } from "./lib/runner";
+import { blockOk, runAll } from "./lib/runner";
 import { loadScenarios } from "./lib/scenarios";
 
 function flags(argv: string[]): { pos: string[]; opt: Record<string, string | true> } {
@@ -90,6 +90,10 @@ async function judgeRun(cfg: BenchConfig, runDir: string, all = true): Promise<v
     const block = JSON.parse(readFileSync(f, "utf8")) as BlockResult;
     const scenario = scenarios.find((s) => s.id === block.scenario);
     if (!scenario || block.skipped) continue;
+    if (!blockOk(block)) {
+      console.log(`judging ${d} … skipped (the block had an error)`);
+      continue;
+    }
     const old = prev.find((p) => p.block === `${block.arm}__${block.scenario}__rep${block.rep}`);
     if (old && !old.error && !missingVerdicts(judgeItems(block, scenario), old.items).length) {
       console.log(`judging ${d} … kept (${old.items.length} items)`);
@@ -109,12 +113,15 @@ async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promis
   if (typeof opt.fixtures === "string") cfg.fixtures = opt.fixtures;
   if (typeof opt.upstream === "string") cfg.upstream = opt.upstream;
   if (opt["no-bodies"]) cfg.saveBodies = false;
-  const reps = typeof opt.reps === "string" ? Math.max(1, parseInt(opt.reps, 10)) : cfg.reps;
+  const explicitReps = typeof opt.reps === "string" ? Math.max(1, parseInt(opt.reps, 10)) : undefined;
+  const reps = explicitReps ?? cfg.reps;
   const armIds = list(opt.arms);
   const armCfgs = cfg.arms.filter((a) => a.enabled !== false && (!armIds || armIds.includes(a.id)));
   if (!armCfgs.length) throw new Error("No arms selected.");
   const arms = armCfgs.map(makeArm);
   const scenarios = loadScenarios(list(opt.scenario));
+  // A scenario can ask for more repetitions than the default; an explicit --reps wins.
+  const scenarioReps = Object.fromEntries(scenarios.filter((s) => s.reps && s.reps !== reps && !explicitReps).map((s) => [s.id, s.reps!]));
   const runId = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const runDir = join(resultsRoot(cfg), runId);
   mkdirSync(runDir, { recursive: true });
@@ -130,13 +137,14 @@ async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promis
     writeFileSync(join(runDir, "run.log"), m.replace(/\x1b\[[0-9;]*m/g, "") + "\n", { flag: "a" }); // no colour codes in the file
   };
   log(`run ${runId} → ${runDir}`);
-  log(`proxy ${proxy.url} → ${cfg.upstream} · model ${cfg.model} · ${reps} rep(s) · scenarios ${scenarios.map((s) => s.id).join(", ")}`);
+  log(`proxy ${proxy.url} → ${cfg.upstream} · model ${cfg.model} · ${reps} rep(s)${Object.keys(scenarioReps).length ? ` (${Object.entries(scenarioReps).map(([k, v]) => `${k}: ${v}`).join(", ")})` : ""} · scenarios ${scenarios.map((s) => s.id).join(", ")}`);
   const meta: Record<string, unknown> = {
     runId,
     startedAt: new Date().toISOString(),
     model: cfg.model,
     fixtures: cfg.fixtures,
     reps,
+    ...(Object.keys(scenarioReps).length ? { scenarioReps } : {}),
     upstream: cfg.upstream,
     scenarios: scenarios.map((s) => s.id),
     ...(scenarios.some((s) => s.sessions.some((x) => x.learner)) ? { learnerModel: cfg.learner.model } : {}),
@@ -146,7 +154,7 @@ async function run(cfg: BenchConfig, opt: Record<string, string | true>): Promis
   };
   writeFileSync(join(runDir, "meta.json"), JSON.stringify(meta, null, 2));
   try {
-    await runAll({ config: cfg, runId, runDir, arms, scenarios, reps, proxy, log });
+    await runAll({ config: cfg, runId, runDir, arms, scenarios, reps, scenarioReps, proxy, log });
   } finally {
     await proxy.stop();
   }

@@ -1,6 +1,6 @@
 {
   "name": "sayfern",
-  "version": "0.22.0",
+  "version": "0.24.0",
   "private": true,
   "description": "Free, open-source, AI-native language learning for macOS",
   "license": "GPL-3.0-only",
@@ -27,6 +27,7 @@
     "jszip": "^3.10.2",
     "kuromoji": "^0.1.2",
     "pdfjs-dist": "^6.3.289",
+    "pi-warp": "^1.0.1",
     "pinyin-pro": "^3.29.4"
   },
   "devDependencies": {

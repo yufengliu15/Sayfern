@@ -2,9 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GrammarObservation } from "../../shared/records";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
-import { buildSystemPrompt, computePacing, difficultyBlock, lastConversationVerdicts, lengthRule, MOVE_ON_TURNS } from "./prompt";
+import { buildSystemPrompt, computePacing, difficultyBlock, lastConversationVerdicts, lengthRule, renderSystemPrompt, type PromptData } from "./prompt";
+import { TUNING } from "./tuning";
 import { bandLevels, languageInfo } from "../../shared/languages";
-import { makeHarness } from "./testkit";
+import { makeHarness, type Harness } from "./testkit";
+import { turnTools } from "./tools";
+import { EVIDENCE_NUDGE } from "./turn";
+import { courseFor, findUnit, grammarStates, nextUnit } from "../../shared/course";
+import { unitText } from "../course";
+import type { SessionMeta } from "../../shared/records";
+
+/** record_evidence as the model reads it: description, every parameter description and the evidence-pass nudge. */
+function evidenceToolText(h: Harness, session: SessionMeta) {
+  const tool = turnTools(h.deps, { session, emit() {}, sources: [], emittedCorrections: new Set() }).find((t) => t.name === "record_evidence")!;
+  return `${tool.description}\n${JSON.stringify(tool.parameters)}\n${EVIDENCE_NUDGE}`;
+}
 
 test("system prompt: persona, level, learner, follow-ups (skipping focus), targets, catalogue, tool protocol", async () => {
   const h = makeHarness();
@@ -37,7 +49,7 @@ test("system prompt: persona, level, learner, follow-ups (skipping focus), targe
   assert.match(follow, /除了…还…/);
   assert.match(follow, /了 \(completed 了\)/);
   assert.doesNotMatch(follow, /ba construction/, "session focus is not a follow-up");
-  assert.match(follow, /Never name the pattern/);
+  assert.match(p, /Never name a pattern/);
   // the recent miss leads, with the learner's own words and where it happened
   assert.match(follow, /\n1\. 了 \(completed 了\), .*Last missed in an earlier session \(under an hour ago\): "去了了"/);
   assert.match(follow, /Item 1 is the priority/);
@@ -46,7 +58,7 @@ test("system prompt: persona, level, learner, follow-ups (skipping focus), targe
   assert.match(p, /# Session: targeted practice\nFocus: 把 \(ba construction, id zh:ba\)/);
   assert.match(p, /- 猫/);
   assert.doesNotMatch(p, /- 狗/);
-  assert.match(p, /Never list them/);
+  assert.match(p, /list or drill targets/);
   assert.match(p, /zh:chule-hai \| 除了…还… \| besides A, also B/);
   assert.match(p, /Write your reply text FIRST/);
 });
@@ -78,6 +90,10 @@ test("system prompt: placement lists the level scale; extensions add paragraphs"
   assert.match(p, /5 to 7 exchanges/);
   assert.match(p, /HSK 1, HSK 2, HSK 3/);
   assert.match(p, /EXT for zh/);
+  assert.doesNotMatch(p, /To bring in a target/, "placement has no targets, even in a course language");
+  const chat = await buildSystemPrompt(h.deps, (await h.records.getSession(await h.newSession("chat")))!);
+  assert.match(chat, /Up next for them/);
+  assert.match(chat, /To bring in a target/, "course points are targets in chat");
 });
 
 test("level bands split the scale in thirds", () => {
@@ -118,7 +134,7 @@ test("beginner rule follows the level estimate outside placement", async () => {
   const beginner = await p();
   assert.match(beginner, /They are a beginner/);
   assert.match(beginner, /short English gloss in brackets/);
-  assert.doesNotMatch(beginner, /No translations or romanization unless/);
+  assert.doesNotMatch(beginner, /Add no translations/);
 });
 
 test("follow-up verdicts ignore quiz evidence (S2-09)", () => {
@@ -198,32 +214,35 @@ test("pacing block: rules always, move-on nudge once the topic is used up", asyn
   const early = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
   assert.match(early, /# Pacing\nAlways answer what the learner just said first/);
   assert.match(early, /This topic has run for 1 of the learner's replies/);
-  assert.match(early, /set topic_change to true/);
   assert.doesNotMatch(early, /The topic is used up/);
-  for (let i = 2; i <= MOVE_ON_TURNS; i++) await say(i);
+  for (let i = 2; i <= TUNING.moveOnTurns; i++) await say(i);
   const late = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
-  assert.match(late, new RegExp(`run for ${MOVE_ON_TURNS} of the learner's replies`));
-  assert.match(late, /previous replies had no mistakes/);
+  assert.match(late, new RegExp(`run for ${TUNING.moveOnTurns} of the learner's replies`));
+  assert.match(late, /previous replies had no grammar mistakes/);
   assert.match(late, /The topic is used up: unless they are clearly invested, move on in this reply\./);
 });
 
 test("pacing: only grammar corrections keep a topic going; the prompt teaches the three kinds", async () => {
   const h = makeHarness();
   const sid = await h.newSession();
-  for (let i = 1; i <= MOVE_ON_TURNS; i++) {
+  for (let i = 1; i <= TUNING.moveOnTurns; i++) {
     await h.records.appendMessage({ id: `u${i}`, sessionId: sid, role: "user", text: "还可以。", at: h.clock.t + i });
     await h.records.appendMessage({ id: `t${i}`, sessionId: sid, role: "tutor", text: "好。", at: h.clock.t + i });
     await h.records.addCorrection({ sessionId: sid, messageId: `u${i}`, original: "可以", corrected: "可以。", explanation: "x", kind: i % 2 ? "typo" : "speaking" });
   }
   const session = (await h.records.getSession(sid))!;
   const p = await buildSystemPrompt(h.deps, session);
-  assert.match(p, /previous replies had no mistakes/, "typo and speaking are not struggle signals");
-  assert.match(p, /does the sentence make grammatical sense\? If not, the kind is "grammar"/);
-  assert.match(p, /the kind is "typo"/);
-  assert.match(p, /Use "speaking" only on a spoken message/);
-  assert.match(p, /Never record a "typo" for a spoken message/);
-  await h.records.addCorrection({ sessionId: sid, messageId: `u${MOVE_ON_TURNS - 1}`, original: "还", corrected: "很", explanation: "x", kind: "grammar" });
-  assert.doesNotMatch(await buildSystemPrompt(h.deps, session), /previous replies had no mistakes/);
+  assert.match(p, /previous replies had no grammar mistakes/, "typo and speaking are not struggle signals");
+  const tool = evidenceToolText(h, session);
+  assert.match(tool, /does the sentence make grammatical sense\? grammar = no/);
+  assert.match(tool, /typo = yes, but it would look wrong written out/);
+  assert.match(tool, /speaking = a spoken message only/);
+  assert.match(tool, /A spoken message never gets typo/);
+  assert.doesNotMatch(p, /grammatical sense/, "the kind definition lives in the tool only");
+  const grammar = await h.records.addCorrection({ sessionId: sid, messageId: `u${TUNING.moveOnTurns - 1}`, original: "还", corrected: "很", explanation: "x", kind: "grammar" });
+  assert.doesNotMatch(await buildSystemPrompt(h.deps, session), /previous replies had no grammar mistakes/);
+  await h.records.updateCorrection(grammar.id, { status: "disputed" });
+  assert.match(await buildSystemPrompt(h.deps, session), /previous replies had no grammar mistakes/, "a disputed correction is not a mistake (countableCorrection)");
 });
 
 test("reply length grows with the level", () => {
@@ -271,4 +290,143 @@ test("topic_change in record_evidence marks the reply as a topic start", async (
   assert.equal((await turn("说到周末，你去过长城吗？", { topic_change: true })).topicStart, true);
   const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
   assert.doesNotMatch(p, /# Pacing/, "the new topic has no learner replies yet");
+});
+
+// Prompt snapshot guard. Every tutor rule is written once; this test fails when a rule is duplicated,
+// dropped or a prompt grows. When a legitimate change moves a number, update BUDGET and say why in the commit.
+const NOW = 1_800_000_000_000;
+const estimates = (level: string) => Object.fromEntries(["reading", "recognition", "writing"].map((skill) => [skill, { skill, level, confidence: "medium", evidence: "", examples: [], at: 1, by: "self" }]));
+
+function situations(h: Harness) {
+  const base = (language: "zh" | "ja" | "en", over: Omit<Partial<PromptData>, "session"> & { session?: Partial<SessionMeta> } = {}) => {
+    const { session, ...rest } = over;
+    return {
+      session: { id: "s1", language, kind: "chat", title: "", createdAt: 0, updatedAt: 0, feedbackMode: "inline", activeMs: 0, usage: {}, ...session },
+      info: languageInfo(language),
+      promptNotes: h.lang.pack(language).promptNotes(),
+      levels: {},
+      profile: { name: "Yu", about: "Likes robots.", goals: {} },
+      personalContext: "",
+      followUps: [],
+      lastMisses: new Map(),
+      now: NOW,
+      targets: [],
+      catalogue: [{ id: "zh:ba", language, pattern: "把", name: "ba construction" }],
+      additions: [],
+      explain: "English",
+      ...rest,
+    } as PromptData;
+  };
+  const withCourse = (d: PromptData) => {
+    const course = courseFor("zh")!;
+    const next = nextUnit(course, d.info.levels, grammarStates([]), "HSK 3");
+    return { ...d, course: { course, ...(next ? { next } : {}), points: (next?.grammar ?? []).slice(0, TUNING.courseNextPoints) } };
+  };
+  const point = (id: string, pattern: string, name: string, state: "introduced" | "with_help") => ({ point: { id, language: "zh", pattern, name }, state }) as never;
+  const anki = {
+    now: NOW,
+    overview: { language: "zh", syncedAt: NOW - 3_600_000 * 5, counts: { known: 1200, learning: 80, new: 3000, suspended: 0 }, mature: 900, young: 300, newRemaining: 3000, struggling: 4, reviewedToday: 12, nextNew: [{ word: "咖啡" }, { word: "地铁" }], topStruggling: [{ word: "虽然", reasons: ["8 lapses"] }] },
+  } as never;
+  const unit = findUnit("zh-hsk30-3-01")!.unit;
+  return {
+    bare: base("zh"),
+    chatFull: withCourse(
+      base("zh", {
+        levels: estimates("HSK 3"),
+        followUps: [point("zh:le", "了", "completed 了", "with_help"), point("zh:chule-hai", "除了…还…", "besides A, also B", "introduced")],
+        lastMisses: new Map([["zh:le", { sessionId: "s0", span: "去了了", at: NOW - 3_600_000 * 30 } as never]]),
+        targets: [{ word: "咖啡", reading: "kāfēi", meaning: "coffee", reason: "recent", status: "pending" }],
+        anki,
+        pacing: { turnsOnTopic: TUNING.moveOnTurns, cleanStreak: TUNING.easyStreak, recentLength: 14 },
+        session: { difficulty: 1 },
+      }),
+    ),
+    unitExplain: {
+      ...base("zh", { levels: estimates("HSK 3"), session: { kind: "practice", unitId: unit.id, openWith: "explain" }, pacing: { turnsOnTopic: 2, cleanStreak: 1, recentLength: 10 } }),
+      unit: { unit, text: unitText(unit, grammarStates([])) },
+    },
+    targeted: base("zh", {
+      levels: estimates("HSK 3"),
+      session: { kind: "practice", focusGrammarId: "zh:ba" },
+      focus: { id: "zh:ba", language: "zh", pattern: "把", name: "ba construction" } as never,
+      pacing: { turnsOnTopic: 2, cleanStreak: 0, recentLength: 10 },
+    }),
+    reading: base("zh", {
+      levels: estimates("HSK 3"),
+      session: { kind: "reading", docId: "d1" },
+      reading: { doc: { id: "d1", title: "小王子" } as never, current: 1, paragraphs: [{ index: 0, text: "第零段。" }, { index: 1, text: "第一段。" }] as never },
+    }),
+    placementBeginner: withCourse(base("zh", { session: { kind: "placement", levelBand: "beginner" } })),
+    roleplayGerman: base("en", { levels: estimates("B1"), explain: "German", session: { scenarioId: "restaurant" }, pacing: { turnsOnTopic: 3, cleanStreak: 1, recentLength: 20 } }),
+    jaBeginner: base("ja", { levels: estimates("N5"), pacing: { turnsOnTopic: 1, cleanStreak: 0, recentLength: 6 } }),
+  };
+}
+
+// Measured after the one-place-per-rule refactor: bare 3584, chatFull 7101, unitExplain 5851, targeted 4728, reading 3852,
+// placementBeginner 4992, roleplayGerman 4422, jaBeginner 4550, tools 3169 chars. Budgets are those plus about 10%,
+// so a duplicated rule or a new paragraph shows up here.
+const BUDGET = { bare: 3950, chatFull: 7800, unitExplain: 6450, targeted: 5200, reading: 4250, placementBeginner: 5500, roleplayGerman: 4870, jaBeginner: 5000, tools: 3490 };
+
+test("prompt snapshot: size budget, no rule written twice, every rule group still present", async () => {
+  const h = makeHarness();
+  const all = situations(h);
+  const session = all.bare.session;
+  const tools = evidenceToolText(h, session);
+  assert.ok(tools.length <= BUDGET.tools, `tool text is ${tools.length} chars`);
+
+  // A phrase that says one rule: it may appear at most this many times in a whole prompt (prompt + tool text).
+  const once: [string, RegExp][] = [
+    ["original copied exactly", /copied exactly|exact substring/gi],
+    ["record_evidence once", /record_evidence once|call it once/gi],
+    ["bring in a target: use it yourself, then ask", /most natural answer|natural answer uses it/gi],
+    ["never name a pattern / show the formula", /show (its|the) formula/gi],
+    ["never list targets", /list or drill|never (list|drill)/gi],
+    ["no romanization unless asked", /romanization/gi],
+    ["corrections never in reply text", /never put corrections/gi],
+    ["explanation language", /explanation language named|write correction explanations/gi],
+    ["correction kind definition", /grammatical sense/gi],
+    ["spoken is never a typo", /never gets typo|never record a "typo"/gi],
+    ["move-on number", /about \d+ exchanges/gi],
+    ["level target", /slightly above|one step above|i\+1|near their level/gi],
+    ["after two misses, model it", /after two misses/gi],
+    ["answer first", /answer what the learner just said first/gi],
+  ];
+  for (const [name, d] of Object.entries(all)) {
+    const prompt = renderSystemPrompt(d);
+    assert.ok(prompt.length <= BUDGET[name as keyof typeof BUDGET], `${name} is ${prompt.length} chars`);
+    for (const [what, re] of once) {
+      const n = `${prompt}\n${tools}`.match(re)?.length ?? 0;
+      assert.ok(n <= 1, `${name}: "${what}" appears ${n} times`);
+    }
+  }
+
+  // Rules that must survive any edit.
+  const chat = `${renderSystemPrompt(all.chatFull)}\n${tools}`;
+  const must: [string, RegExp][] = [
+    ["bring in: use it yourself, ask the question that invites it", /use it yourself in a natural sentence, then ask the question whose most natural answer uses it/],
+    ["never name the pattern or lecture", /Never name a pattern, show its formula, tell them to use it, lecture/],
+    ["never list or drill targets", /list or drill targets/],
+    ["no romanization unless asked", /no translations, romanization or readings unless the learner asks/i],
+    ["move on from the constants", new RegExp(`about ${TUNING.moveOnTurns} exchanges`)],
+    ["too easy streak", new RegExp(`${TUNING.easyStreak} replies in a row have no grammar mistakes`)],
+    ["kind definition", /Ask first: does the sentence make grammatical sense\?/],
+    ["original is an exact substring", /Exact substring of the learner's latest message/],
+    ["record_evidence once, after the reply", /Write your reply text FIRST[^]*call record_evidence once/],
+    ["never put corrections in the reply", /Never put corrections in your reply text/],
+    ["explanation language", /write correction explanations and grammar names in English/],
+    ["one question", /exactly one natural question/],
+    ["no reply yet", /No reply text yet/],
+    ["topic_change", /topic_change|moved to a new topic/],
+    ["spoken marker", /\[spoken\] were spoken and transcribed/],
+    ["taught", /Every pattern you taught or explained/],
+    ["evidence nudge", /you replied without calling record_evidence/],
+    ["miss is the latest verdict", /Item 1 is the priority/],
+  ];
+  for (const [what, re] of must) assert.match(chat, re, what);
+  assert.match(renderSystemPrompt(all.unitExplain), /Move to the next point once they use the current one correctly twice/);
+  assert.doesNotMatch(renderSystemPrompt(all.unitExplain), /Move on when the topic is used up/, "a unit session has one move-on rule");
+  assert.doesNotMatch(renderSystemPrompt(all.roleplayGerman), /Move on when the topic is used up/, "a role-play ends with the scene");
+  assert.match(renderSystemPrompt(all.targeted), /After two misses/);
+  assert.match(renderSystemPrompt(all.jaBeginner), /No full translations, romanization or readings unless they ask/);
+  assert.doesNotMatch(renderSystemPrompt(all.reading), /Never name a pattern/, "no targets, no bring-in rule");
 });

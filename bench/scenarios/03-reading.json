@@ -8,8 +8,8 @@
       "mode": "reading",
       "openChecks": ["The tutor presents or discusses the passage that starts at 那天晚上，风越来越大 (the knock at the door / the visitor), not the beginning of the story or a later part."],
       "turns": [
-        { "text": "有人敲门，是张先生的老朋友王先生。他去过很多国家。" },
-        { "text": "我觉得王先生很害怕那个猴爪，因为他已经许过愿望了。" },
+        { "text": "有人敲门，是张先生的老朋友王先生。他去过很多国家。", "gold": { "clean": true } },
+        { "text": "我觉得王先生很害怕那个猴爪，因为他已经许过愿望了。", "gold": { "clean": true } },
         { "text": "如果我有猴爪，我就不许愿，因为太危险了。", "gold": { "clean": true } }
       ],
       "end": true,

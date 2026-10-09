@@ -2,7 +2,7 @@
 // translation, model choice, streaming and the inspector.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { EndSummary } from "../../../shared/api";
-import type { Correction, Difficulty, FeedbackMode, Language, SourceRef } from "../../../shared/records";
+import type { Correction, Difficulty, Language, SourceRef } from "../../../shared/records";
 import { api, errorText } from "../api";
 import { Composer, type ComposerHandle } from "../components/Composer";
 import { EndSessionSheet } from "../components/EndSessionSheet";
@@ -149,17 +149,6 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
     chat.retry();
   };
 
-  const setMode = async (mode: FeedbackMode) => {
-    if (mode === meta.feedbackMode) return;
-    setView((v) => (v ? { ...v, meta: { ...v.meta, feedbackMode: mode } } : v));
-    try {
-      const m = await api.setFeedbackMode(id, mode);
-      setView((v) => (v ? { ...v, meta: m } : v));
-    } catch (e) {
-      setNotice(errorText(e));
-    }
-  };
-
   const setDifficulty = async (difficulty: Difficulty) => {
     if (difficulty === (meta.difficulty ?? 0)) return;
     setView((v) => (v ? { ...v, meta: { ...v.meta, difficulty } } : v));
@@ -238,21 +227,6 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
             </div>
           </div>
 
-          <div className="seg" role="radiogroup" aria-label={t("Feedback timing")}>
-            {(["inline", "end"] as const).map((m) => (
-              <button
-                key={m}
-                role="radio"
-                aria-checked={meta.feedbackMode === m}
-                className={meta.feedbackMode === m ? "on" : ""}
-                onClick={() => void setMode(m)}
-                title={m === "inline" ? t("Show corrections as you go") : t("Save corrections for the end")}
-              >
-                {m === "inline" ? t("Inline") : t("After session")}
-              </button>
-            ))}
-          </div>
-
           <button
             className={cls("chip chip-toggle", translateOn && "on")}
             aria-pressed={translateOn}
@@ -307,7 +281,6 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
               language={L}
               messages={messages}
               corrections={corrections}
-              feedbackMode={meta.feedbackMode}
               targets={targets}
               grammarById={grammarById}
               model={app.model}

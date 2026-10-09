@@ -1,6 +1,6 @@
 // Electron main: owns the window, dialogs, Keychain-backed credentials and the
 // IPC table. Everything else lives in SayfernApp (src/core/app, plain Node).
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell, systemPreferences, type MenuItemConstructorOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, safeStorage, shell, systemPreferences, type MenuItemConstructorOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -12,6 +12,7 @@ import { createElectronTestRunner, lockDownAppSession, netSession, type ServeAss
 import { API_METHODS, EVENT_CHANNELS, ipcChannel, type SayfernApi } from "../shared/api";
 import { FEATURE_SCHEME } from "../shared/stage2";
 import type { UiLocale } from "../shared/locales";
+import { themeInfo } from "../shared/themes";
 
 // ---------- services ----------
 // End-to-end checks only: run against a throwaway data folder.
@@ -139,7 +140,10 @@ function registerIpc(): void {
         if (erasing && method !== "eraseAllData") await erasing.catch(() => undefined);
         const t = target();
         const result = await ((t as Record<string, unknown>)[method] as (...a: unknown[]) => unknown).apply(t, args);
-        if (method === "setSettings") void refreshMenu();
+        if (method === "setSettings") {
+          void refreshMenu();
+          void refreshTheme();
+        }
         return result;
       } catch (err) {
         // Only the message crosses IPC; make sure there is a readable one.
@@ -184,6 +188,13 @@ async function refreshMenu(): Promise<void> {
   setUpBranding(locale);
 }
 
+/** Native controls (scrollbars, menus) and the window background follow the colour theme. */
+async function refreshTheme(): Promise<void> {
+  const info = themeInfo((await sayfern.settings.get().catch(() => undefined))?.theme);
+  nativeTheme.themeSource = info.dark ? "dark" : "light";
+  win?.setBackgroundColor(info.paper);
+}
+
 function setUpBranding(locale: UiLocale = "en"): void {
   const text = MENU_TEXT[locale] ?? MENU_TEXT.en;
   app.setAboutPanelOptions({ applicationName: DISPLAY_NAME, applicationVersion: app.getVersion(), copyright: "MIT License" });
@@ -226,7 +237,9 @@ protocol.registerSchemesAsPrivileged([
 
 
 // ---------- window ----------
-function createWindow(): void {
+async function createWindow(): Promise<void> {
+  const theme = themeInfo((await sayfern.settings.get().catch(() => undefined))?.theme);
+  nativeTheme.themeSource = theme.dark ? "dark" : "light";
   win = new BrowserWindow({
     title: DISPLAY_NAME,
     ...(process.platform === "linux" && existsSync(ICON_PNG) ? { icon: ICON_PNG } : {}),
@@ -236,7 +249,7 @@ function createWindow(): void {
     minHeight: 640,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 18, y: 20 },
-    backgroundColor: "#F4F0E7",
+    backgroundColor: theme.paper,
     show: false,
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.mjs"),
@@ -290,10 +303,10 @@ app.whenReady().then(async () => {
   await initApp(sayfern);
   await refreshMenu();
   registerIpc();
-  createWindow();
+  await createWindow();
   if (process.env.SAYFERN_E2E_BUILDER === "1" && win) void runBuilderE2E(sayfern, win);
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
 

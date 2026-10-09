@@ -158,8 +158,7 @@ export class JapanesePack implements LanguagePack {
   promptNotes(): string {
     return (
       "Japanese: write natural Japanese with kanji, hiragana and katakana as a native writer would, using polite form (です/ます) unless the learner prefers casual speech. " +
-      "The learner's level uses the JLPT scale (N5 easiest to N1); choose vocabulary, kanji and grammar near their level. " +
-      "Do not add furigana, readings in brackets or romaji unless the learner asks: the app shows readings and a dictionary when they hover a word."
+      "The learner's level uses the JLPT scale (N5 easiest to N1)."
     );
   }
 }

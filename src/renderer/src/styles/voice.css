@@ -10,8 +10,8 @@
 .msg-voice { display: flex; gap: 4px; margin-top: 2px; margin-left: -6px; opacity: 0.55; transition: opacity 0.15s; }
 .tmsg:hover .msg-voice, .msg-voice:focus-within, .msg-voice:has(.on) { opacity: 1; }
 
-.composer .mic.rec { color: #fff; background: var(--seal); }
-.composer .mic.rec:hover:not(:disabled) { color: #fff; background: var(--seal-2); }
+.composer .mic.rec { color: var(--on-seal); background: var(--seal); }
+.composer .mic.rec:hover:not(:disabled) { color: var(--on-seal); background: var(--seal-2); }
 .composer .mic.loading { animation: spk-pulse 1s ease-in-out infinite; }
 .composer .mic.off { color: var(--muted); }
 .rec-time { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px; color: var(--seal); }

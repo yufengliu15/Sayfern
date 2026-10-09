@@ -2,7 +2,7 @@
 // Claude Code CLI, the real Sayfern core, the real proxy, fake AnkiConnect,
 // scoring and report. No network, no subscription, no tokens spent.
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClaudeCodeArm } from "../lib/arms/claude-code";
@@ -11,9 +11,12 @@ import { BENCH_DIR, type BenchConfig, type ClaudeCodeArmConfig, type SayfernArmC
 import { learnerPrompt, parseLearner } from "../lib/learner";
 import { extractJudgeItems, judgeItems, learnerLevel, missingVerdicts, needs, type Item, type JudgeItem } from "../lib/judge";
 import { RecordingProxy } from "../lib/proxy";
-import { computeMetrics, renderReport } from "../lib/report";
-import { runAll, type BlockResult } from "../lib/runner";
-import { loadScenarios } from "../lib/scenarios";
+import { blockEvidence } from "../lib/evidence";
+import { computeMetrics, renderReport, spread, type BlockMetrics } from "../lib/report";
+import { blockOk, runAll, type BlockResult } from "../lib/runner";
+import { loadScenarios, type GoldTurn, type Scenario } from "../lib/scenarios";
+import { fixKey, norm, scoreTurn } from "../lib/score";
+import type { StepResult, TurnOutput } from "../lib/types";
 import { startMockUpstream } from "./mock-upstream";
 
 export async function selftest(base: BenchConfig): Promise<void> {
@@ -251,7 +254,122 @@ export async function selftest(base: BenchConfig): Promise<void> {
   assert.match(row4("Reported mistakes dropped"), /\| 1 \| 1 \|$/);
   assert.match(row4("Messages with a planned mistake"), /\| 1 \| 1 \|$/);
   step("course unit: Sayfern opens from the course, Claude Code gets the patterns; per-point verdicts, missing points and report rows");
+  scorerChecks();
+  step("scorer: markdown markers ignored, fixes derived from the learner's stretch, forbidden words matched as listed words");
+  invalidChecks(cfg, runDir, scenarios, blockKeys);
+  step("invalid blocks: excluded from means, listed in Errors, skipped by blockOk");
+  evidenceChecks(runDir);
+  step("evidence metrics: seeded records left out; extra cards, incorrect observations on clean turns, tag accuracy, missing grammar ids");
   console.log(`\n${md3.slice(md3.indexOf("## Conversation quality"), md3.indexOf("## Plan utilization"))}`);
   console.log(md4.slice(md4.indexOf("## Course unit teaching"), md4.indexOf("## Plan utilization")));
   console.log(`✓ bench selftest passed (${runDir})`);
+}
+
+const out = (reply: string, feedback: string[] = []): TurnOutput => ({ reply, feedback, wallMs: 0 });
+
+function scorerChecks(): void {
+  assert.equal(norm("我**昨天**去了`图书馆`_。"), "我昨天去了图书馆");
+  assert.equal(norm("| 「选择」 | **设计** |"), "选择设计");
+  const gold: GoldTurn = { errors: [{ id: "time", original: "我去了图书馆昨天", accept: ["我昨天去了图书馆"], key: ["昨天去了图书馆"], pattern: "" }] };
+  assert.equal(scoreTurn(gold, out("时间词要放在动词前面：我**昨天**去了图书馆。")).errors[0].flagged, true, "a fix wrapped in bold counts");
+  assert.equal(scoreTurn(gold, out("我去了图书馆昨天，很好。")).errors[0].flagged, false, "the learner's own text is no fix");
+  // Fixes the simulated learner reports carry context around the change: the card shows less than the gold.
+  const sim: GoldTurn = { errors: [{ id: "weile", original: "为了下雨，我们的户外", accept: ["因为下雨，我们的户外"], pattern: "" }] };
+  assert.equal(fixKey("为了下雨，我们的户外", "因为下雨，我们的户外"), "因为下雨");
+  assert.equal(scoreTurn(sim, out("", ["为了下雨 → 因为下雨 (grammar): reason"])).errors[0].flagged, true);
+  assert.equal(scoreTurn(sim, out("可以说：由于下雨，户外测试取消了。")).errors[0].flagged, true, "由于 shows the same fix as 因为");
+  assert.equal(scoreTurn(sim, out("为了下雨很奇怪，下雨取消了。")).errors[0].flagged, false);
+  assert.equal(fixKey("比上次的考试很难", "比上次的考试难"), null, "a pure deletion has no key");
+  const duration: GoldTurn = { errors: [{ id: "d", original: "我已经三个小时学习了", accept: ["学习三个小时"], pattern: "" }] };
+  assert.equal(scoreTurn(duration, out("", ["我已经三个小时学习了 → 我已经学习三个小时了 (grammar)"])).errors[0].flagged, true);
+  // Anki: a forbidden word is a hit only when listed with the expected words (or in a table row).
+  const anki: GoldTurn = { anki: { expect: ["选择", "设计"], min: 2, forbid: ["喜欢"] } };
+  assert.equal(scoreTurn(anki, out("记不住的词有选择、设计。你喜欢机器人，那你昨天做了什么？")).anki?.pass, true, "喜欢 inside 你喜欢机器人 is no listed word");
+  assert.equal(scoreTurn(anki, out("记不住的词有选择、设计、喜欢。")).anki?.pass, false, "a known word in the list fails");
+  assert.deepEqual(scoreTurn(anki, out("记不住的词有选择、设计、喜欢。")).anki?.forbiddenHits, ["喜欢"]);
+  assert.equal(scoreTurn(anki, out("选择、设计最难。\n今天你复习的词（朋友、喜欢）都答对了。")).anki?.pass, true, "known words reported as right are fine");
+  assert.equal(scoreTurn(anki, out("选择、设计最难。\n\n| 词 | 次数 |\n| 喜欢 | 5 |")).anki?.pass, false, "a known word in a table row fails");
+  assert.equal(scoreTurn(anki, out("选择最难。")).anki?.pass, false, "too few expected words");
+  // Per-repetition range.
+  const m = (rep: number, num: number, den: number) => ({ rep, grammar: { flagged: num, gold: den } }) as BlockMetrics;
+  assert.equal(spread([m(1, 4, 5), m(2, 5, 5)], (b) => b.grammar.flagged, (b) => b.grammar.gold), " · reps 80–100%");
+  assert.equal(spread([m(1, 5, 5), m(2, 5, 5)], (b) => b.grammar.flagged, (b) => b.grammar.gold), " · reps 100%");
+  assert.equal(spread([m(1, 4, 5)], (b) => b.grammar.flagged, (b) => b.grammar.gold), "", "one repetition has no range");
+}
+
+/** A block that hit an error is not averaged, not judged, and listed as excluded. */
+function invalidChecks(cfg: BenchConfig, runDir: string, scenarios: Scenario[], blockKeys: string[]): void {
+  const key = blockKeys.find((k) => k.startsWith("sayfern__zh-chat-corrections"))!;
+  const file = join(runDir, "blocks", key, "block.json");
+  const text = readFileSync(file, "utf8");
+  const block = JSON.parse(text) as BlockResult;
+  const meta = { runId: "selftest", startedAt: "", fixtures: "synthetic", reps: 1, arms: [{ id: "sayfern", label: "Sayfern", version: "selftest" }, { id: "claude-code", label: "Claude Code + skill", version: "fake" }] };
+  const gold = (md: string) => (md.split("\n").find((l) => l.startsWith("| Grammar errors caught, deterministic")) ?? "").split("|")[2].trim();
+  assert.ok(blockOk(block));
+  const before = gold(renderReport(cfg, runDir, scenarios, meta));
+  assert.ok(!before.startsWith("–"), `Sayfern has grammar numbers before: ${before}`);
+  block.steps[1].output = { reply: "", feedback: [], error: "You've hit your session limit", wallMs: 0 };
+  assert.ok(!blockOk(block) && !blockOk({ ...block, steps: [], error: "boom" }) && !blockOk({ steps: [], skipped: "language" }));
+  writeFileSync(file, JSON.stringify(block));
+  try {
+    const md = renderReport(cfg, runDir, scenarios, meta);
+    assert.ok(md.includes(`- excluded \`${key}\``) && md.includes("hit your session limit"), "listed as excluded under Errors");
+    assert.ok(md.includes("excluded from every mean and rate"));
+    assert.match(gold(md), /^–|^0% \(0\/0\)|^\d+% \(\d+\/\d+\)/);
+    assert.notEqual(gold(md), before, "the block's gold errors left the totals");
+    assert.ok(!computeMetrics(cfg, runDir, scenarios).blocks.find((b) => `${b.arm}__${b.scenario}__rep${b.rep}` === key)!.ok);
+  } finally {
+    writeFileSync(file, text);
+  }
+}
+
+/** Evidence for a block, from a hand-written records dir: one seeded session and one benchmark session. */
+function evidenceChecks(runDir: string): void {
+  const dir = mkdtempSync(join(runDir, "evidence-"));
+  const records = join(dir, "sayfern-data", "records");
+  mkdirSync(join(records, "sessions"), { recursive: true });
+  const msg = (id: string, sessionId: string, text: string) => ({ id, sessionId, role: "user", text, at: 0 });
+  writeFileSync(join(records, "sessions", "seed.json"), JSON.stringify({ messages: [msg("m0", "seed", "我去了超市昨天。")] }));
+  writeFileSync(join(records, "sessions", "bench.json"), JSON.stringify({ messages: [msg("m1", "bench", "一"), msg("m2", "bench", "二"), msg("m3", "bench", "三"), msg("m4", "bench", "四")] }));
+  const card = (id: string, sessionId: string, messageId: string, grammarId?: string) => ({ id, sessionId, messageId, original: "", corrected: "", explanation: "", kind: "grammar", createdAt: 0, status: "open", retries: [], ...(grammarId ? { grammarId } : {}) });
+  writeFileSync(
+    join(records, "corrections.json"),
+    JSON.stringify([
+      card("c0", "seed", "m0", "zh:time-before-verb"), // seeded: not counted
+      card("c1", "bench", "m1", "zh:bi-comparison"),
+      card("c2", "bench", "m2"), // no grammar id; m2 is a clean turn: an extra card
+      card("c3", "bench", "m3", "zh:other"), // the wrong tag
+      card("c4", "bench", "m3", "zh:other"), // a second card for one gold error: extra
+    ]),
+  );
+  const obs = (id: string, messageId: string, grammarId: string, verdict: string, origin?: string) => ({ id, grammarId, language: "zh", sessionId: "bench", messageId, span: "", verdict, assistance: "independent", at: 0, ...(origin ? { origin } : {}) });
+  writeFileSync(
+    join(records, "observations.json"),
+    JSON.stringify([obs("o1", "m1", "zh:bi-comparison", "incorrect"), obs("o2", "m2", "zh:x", "incorrect"), obs("o3", "m2", "zh:y", "correct"), obs("o4", "m4", "zh:z", "incorrect"), obs("o5", "m4", "zh:q", "incorrect", "quiz")]),
+  );
+  const err = (id: string, grammarId?: string | string[]) => ({ id, original: "x", accept: ["y"], pattern: "", ...(grammarId ? { grammarId } : {}) });
+  const turns: { text: string; gold?: GoldTurn }[] = [
+    { text: "一", gold: { errors: [err("a", "zh:bi-comparison")] } },
+    { text: "二", gold: { clean: true } },
+    { text: "三", gold: { errors: [err("b", ["zh:time-before-verb", "zh:ruguo-jiu"])] } },
+    { text: "四", gold: { clean: true } },
+    { text: "五" },
+  ];
+  const scenario = { id: "t", sessions: [{ mode: "chat", turns }] } as unknown as Scenario;
+  const steps = turns.map((t, i) => ({ phase: { session: 0, turn: i, step: "turn" }, input: t.text, output: null })) as unknown as StepResult[];
+  const e = blockEvidence(dir, scenario, steps)!;
+  assert.deepEqual(e, {
+    corrections: 4,
+    noGrammarId: 1,
+    goldTurns: 2,
+    goldErrors: 2,
+    goldTurnCards: 3,
+    annotatedTurns: 4,
+    extraCards: 2,
+    cleanTurns: 2,
+    incorrectOnClean: 2,
+    taggable: 2,
+    tagged: 1,
+  });
+  assert.equal(blockEvidence(join(dir, "nowhere"), scenario, steps), null, "no records, no evidence (other arms)");
 }

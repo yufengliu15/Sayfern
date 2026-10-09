@@ -3,7 +3,7 @@
   "model": "claude-sonnet-5-5",
   "upstream": "https://api.anthropic.com",
   "fixtures": "synthetic",
-  "reps": 2,
+  "reps": 3,
   "saveBodies": true,
   "probeOverhead": true,
   "resultsDir": "results",

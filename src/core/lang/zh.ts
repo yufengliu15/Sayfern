@@ -114,8 +114,7 @@ export class ChinesePack implements LanguagePack {
   promptNotes(): string {
     return (
       "Chinese: write in simplified characters (简体字) with full-width Chinese punctuation. " +
-      "The learner's level uses the HSK scale (HSK 1 to HSK 6, then HSK 7-9); choose vocabulary and grammar near their level. " +
-      "Do not add pinyin or romanization unless the learner asks for it: the app shows pinyin and a dictionary when they hover a word."
+      "The learner's level uses the HSK scale (HSK 1 to HSK 6, then HSK 7-9)."
     );
   }
 }

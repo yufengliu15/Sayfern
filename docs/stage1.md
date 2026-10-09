@@ -68,7 +68,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | S1-03 | Personal tutor context | Done | `LearnerProfile` (name, about, goals) in Settings > About you and onboarding; `kind: "personal"` library docs → prompt (`personalContext`, 1500 chars) | |
 | S1-04 | Level assessment | Done | Self level (`setSelfLevel`), placement session (`startPlacement`), `record_evidence.level`, `levels.json` history | Onboarding places only the first language set to "find my level". Before placement the learner picks a band (Beginner, Intermediate, Advanced; v0.17.0, ADR 29). |
 | S1-05 | Adaptive conversation | Done | `src/core/agent/prompt.ts` (level, learner, session kind, follow-ups, targets, Anki knowledge, catalogue) | |
-| S1-06 | Inline corrections | Done | `record_evidence.corrections`, `CorrectionCard`: retry → reveal, inline or end-of-session (`feedbackMode`) | |
+| S1-06 | Inline corrections | Done | `record_evidence.corrections`, `CorrectionCard`: retry → reveal, always inline (the end-of-session summary lists them again) | |
 | S1-07 | Hover lookup | Done | `lang.annotate` + `lang.lookup`, `AnnotatedText`, `WordPopover`, dictionary install from the popover | Chinese segmentation is greedy longest match. JMdict download never verified live. |
 | S1-08 | Optional translations | Done | `tutor.translate`, cached on the message; Translate toggle and Preferences auto-translate | |
 | S1-09 | Save word with sentence | Done | `records.saveWord` from the popover and the reader selection; listed in Library | |

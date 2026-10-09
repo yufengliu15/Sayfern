@@ -17,6 +17,8 @@ export interface GoldError {
   accept: string[];
   /** Short fragments that only appear if the fix is shown (deterministic check). Defaults to `accept`. */
   key?: string[];
+  /** Grammar id(s) the tutor should store for this error (src/shared/course), checked against its records (Sayfern only). */
+  grammarId?: string | string[];
   pattern: string;
 }
 
@@ -85,6 +87,8 @@ export interface Scenario {
   fixtures?: string;
   /** Learner level told to the judge. Defaults to `selfLevel` in the fixture manifest. */
   learnerLevel?: string;
+  /** Repetitions for this scenario when `--reps` is not given (default: `reps` in the config). Noisy scenarios need more. */
+  reps?: number;
   sessions: ScenarioSession[];
   file: string;
 }

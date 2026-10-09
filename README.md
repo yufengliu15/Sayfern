@@ -2,7 +2,7 @@
 
 Conversational language learning for free. A Mac app with an AI tutor that remembers what you're learning.
 
-**Version:** 0.22.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 13 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
+**Version:** 0.24.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, AI feature builder, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 13 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Mission: from 1 to infinity
 

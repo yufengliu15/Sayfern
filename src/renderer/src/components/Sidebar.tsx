@@ -33,7 +33,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
     <nav className="side" aria-label="Sayfern">
       <div className="side-drag drag" />
       <div className="brand">
-        <Fern color="#A9C8B2" />
+        <Fern color="var(--side-accent)" />
         <b>Sayfern</b>
       </div>
 

@@ -90,9 +90,9 @@ export function Icon({ name, size = 18, stroke = 1.6 }: { name: IconName; size?:
   );
 }
 
-export function Fern({ size = 26, color = "#2E5B45" }: { size?: number; color?: string }) {
+export function Fern({ size = 26, color = "var(--fern)" }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" style={{ stroke: color }} strokeWidth={1.9} strokeLinecap="round" aria-hidden="true">
       <path d="M7 29C11 20 16 12 25 3" />
       <path d="M10.5 22.5c-3-.6-5.2-2.6-6.2-5.6 M10.5 22.5c3 .2 5.8-.8 8-2.8 M13.6 16.6c-2.2-1-3.8-3-4.2-5.8 M13.6 16.6c2.8 0 5.2-1 7-2.8 M17.4 10.6c-1.2-1.2-1.8-3-1.6-5 M17.4 10.6c2 0 3.8-.8 5.2-2" />
     </svg>

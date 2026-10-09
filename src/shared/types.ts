@@ -3,6 +3,7 @@
 import type { UiLocale } from "./locales";
 import type { Language } from "./records";
 import type { VoicePrefs } from "./stage3/voice";
+import type { Theme } from "./themes";
 
 export type { Language } from "./records";
 export type { UiLocale } from "./locales";
@@ -40,12 +41,12 @@ export interface Settings {
   /** Interface language, also the language the tutor explains in. Absent or "system" = follow the system. */
   uiLocale?: UiLocale | "system";
   model?: ModelRef;
+  /** Colour theme (Settings > Appearance, welcome page). Absent = "light". */
+  theme?: Theme;
   /** Stable per-install UUID; Sign in with ChatGPT registers it as the agent host. */
   deviceId?: string;
   /** Languages the learner has opted into, in picker order. */
   languages?: Language[];
-  /** Default feedback timing for new sessions. */
-  feedbackMode?: "inline" | "end";
   /** Show translations under tutor messages by default. */
   autoTranslate?: boolean;
   /** Onboarding finished (connect → language/level → optional extras). */

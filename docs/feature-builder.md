@@ -97,6 +97,8 @@ Rules for the UI:
 
 `/_sdk/sayfern.css` gives the app's colors as CSS variables (`--paper`, `--card`, `--ink`, `--muted`, `--line`, `--fern`, `--fern-soft`, `--seal`, fonts `--sans`, `--serif`, `--zh`, `--ja`) and a few classes: `sf-page`, `sf-bar`, `sf-body`, `sf-foot`, `sf-card`, `sf-btn` (+ `primary`), `sf-choices` / `sf-choice` (+ `right`, `wrong`), `sf-input`, `sf-ok`, `sf-bad`, `muted`, `eyebrow`, `serif`, `mono`, `zh`, `ja`.
 
+**Themes.** The app has a Light, a Forest Night and an Ink theme. Sayfern sets `data-theme` on `<html>` in the feature page (none = Light, `forest`, `ink`) and changes it while the page is open. Always use the CSS variables, never hard-coded colors (`#fff`, `rgb(...)`), so the feature follows the theme. Put text on a `--fern` fill in `var(--on-fern)`, text on a `--seal` fill in `var(--on-seal)`. Other tokens: `--white`, `--card`, `--hover`, `--line-2`, `--line-3`, `--line-strong`, `--placeholder`, `--track`, `--fern-wash`, `--ok`, `--warn`. Make shadows and tints with `color-mix(in srgb, var(--ink) 10%, transparent)`.
+
 ## Tests (`test.js`)
 
 `run_tests` loads `test.js` the same way the UI runs: in a hidden, sandboxed browser page served by `sayfern-feature://` with no network and no Node APIs. Import only the feature's own files with relative paths. Don't touch the DOM in tests (the page is empty). It provides:

@@ -187,6 +187,18 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 34. One place per tutor rule (v0.23.1)
+
+Benchmark reading, 2026-10-09: the system prompt had grown to about 42 rules, many written two or three times in different words (bring in a target, never name the pattern, romanization, the correction kinds, "call record_evidence once", the explanation language, the level target). Some contradicted each other: role-play said "at the learner's level" while the persona said "slightly above", the difficulty block pointed at the persona by quoting it, pacing told unit sessions and role-plays to move on while their own blocks said otherwise, and language notes said "no translations" to beginners the persona allowed to gloss. Conflicting rules already cost accuracy once (v0.16.1: 9 tutor errors, 1 after the fix).
+
+- **Decision.**
+  - **Each instruction lives once.** The persona owns the level target, reply length, the one question, how to bring in a target and translations. Session blocks only list their items and their own timing. `FEEDBACK_RULES` and `TOOL_PROTOCOL` hold what is not a field rule. Field rules (what a correction `kind` is, `original` as an exact substring, `taught`, `topic_change`) live in the `record_evidence` parameter descriptions, because the model reads them when it fills the field. Language notes hold script, register and level scale only.
+  - **Tuning in one object.** `TUNING` (`src/core/agent/tuning.ts`) holds every number that shapes the tutor, each with a note saying whether a benchmark run backs it (only the sentence caps do).
+  - **One meaning of "mistake".** `countableCorrection` (a grammar correction the learner did not dispute) moved to `src/core/records/corrections.ts`. Pacing and quizzes both use it.
+  - **A test guards it.** The "prompt snapshot" test in `prompt.test.ts` renders eight situations. It fails when a prompt goes over its size budget, when a rule phrase appears twice, or when a rule group is missing.
+- **Consequences.** Prompts are 15 to 31% shorter. To change how the tutor brings in targets or what a correction kind is, edit one place. A legitimate new rule that adds text must raise a budget in the test on purpose. Unit points keep their own number (`unitPointTurns`, 4), apart from the topic move-on (5). Role-plays and unit sessions no longer get the topic move-on rules.
+- **Where.** `src/core/agent/prompt.ts`, `tuning.ts`, `tools.ts` (parameter descriptions), `turn.ts` (`EVIDENCE_NUDGE`), `src/core/lang/{zh,ja,spaced}.ts` (`promptNotes`), `src/core/records/corrections.ts`; tests in `prompt.test.ts`, `corrections.test.ts`.
+
 ## ADR 33. Corrections are grammar, typo or speaking (v0.21.0)
 
 Owner request, 2026-10-09: the four kinds (grammar, vocabulary, phrasing, style) overlapped and "style" mixed suggestions with errors. Three kinds replace them.

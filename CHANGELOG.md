@@ -6,6 +6,41 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-09
+
+### Changed
+
+- **One place per tutor rule.** The tutor's instructions said many things two or three times (how to bring in a target, never name the pattern, the correction kinds, "copy `original` exactly", "call record_evidence once", the explanation language, the level target). Each rule is now written once, and contradictions are gone (ADR 34). The system prompt is 15 to 31% shorter, depending on the session.
+- **Tuning numbers in one object.** `TUNING` (`src/core/agent/tuning.ts`) holds every number that steers the tutor, each marked as measured or not.
+- **One meaning of "mistake".** Pacing now uses `countableCorrection` (`src/core/records/corrections.ts`), like quizzes: a disputed grammar correction no longer counts as a mistake.
+- **Pacing.** The topic move-on now says "about 5 exchanges", which matches the count in code (it said "4 to 6"). Unit sessions and role-plays no longer get this rule next to their own.
+
+### Added
+
+- **Prompt snapshot test.** It renders the prompt for eight situations and fails if a prompt goes over its size budget, if a rule appears twice, or if a key rule goes missing.
+
+## [0.23.1] - 2026-10-09
+
+### Fixed
+
+- **Benchmark scoring.** The deterministic grammar check now ignores markdown (a fix in **bold** counted as missed, so Claude Code showed 33% where the judge showed 96%). It also accepts more correct fixes (for example 我已经学习三个小时了, and 因为 or 由于) and finds the fix from the learner's own text. The Anki check no longer fails a reply because a forbidden word is part of a longer phrase (喜欢 in 你喜欢机器人).
+- **Benchmark blocks with errors.** A block that stopped on an error (for example a rate limit) is now marked invalid. The judge skips it, and the report leaves it out of every mean and rate and lists it under Errors.
+
+### Added
+
+- **Benchmark evidence metrics.** A new "Evidence (Sayfern only)" section reads the stored corrections and observations after each block: corrections without a grammar id, cards per error turn, extra cards, "incorrect" observations on clean turns, and tag accuracy against new grammar ids in the gold.
+- **Benchmark gold and repetitions.** Gold for the turns that had none (including the 把 sentence the tutor missed in zh-level-fit). Default repetitions go from 2 to 3, and zh-pacing runs 5. Rates show the range across repetitions, and pacing is also counted per conversation.
+
+## [0.23.0] - 2026-10-09
+
+### Added
+
+- **Themes.** Sayfern now has three colour themes: Light (the default), Forest Night and Ink. Pick one in Settings > Appearance or in step 4 of the welcome page ("Pick a theme", before "Bring your materials"). Each option shows a small preview. The choice applies at once, is saved in settings, and also sets the window background and the native scrollbars and menus. Built feature frames follow the theme too.
+
+### Changed
+
+- **Corrections always show inline.** The Inline / After session switch is gone from the chat header and from Settings > Preferences. Corrections show under your message as you chat, also in older sessions that used After session. The summary at the end of a session already lists them.
+
 ## [0.22.0] - 2026-10-09
 
 ### Added

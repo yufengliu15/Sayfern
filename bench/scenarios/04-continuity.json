@@ -9,11 +9,11 @@
       "turns": [
         {
           "text": "我周末去了商店星期六，买了一个新的键盘。",
-          "gold": { "errors": [ { "id": "time-order-2", "original": "我周末去了商店星期六", "accept": ["我星期六去了商店", "星期六我去了商店"], "key": ["星期六去了商店"], "pattern": "time word before the verb" } ] }
+          "gold": { "errors": [ { "id": "time-order-2", "original": "我周末去了商店星期六", "accept": ["我星期六去了商店", "星期六我去了商店"], "key": ["星期六去了商店"], "grammarId": "zh:time-before-verb", "pattern": "time word before the verb" } ] }
         },
         {
           "text": "这个键盘比我以前的键盘非常好。",
-          "gold": { "errors": [ { "id": "bi-feichang", "original": "比我以前的键盘非常好", "accept": ["比我以前的键盘好", "比我以前的好", "比我以前的键盘好多了", "比我以前的键盘好得多", "比我以前的键盘更好"], "pattern": "no 非常 in 比 comparisons" } ] }
+          "gold": { "errors": [ { "id": "bi-feichang", "original": "比我以前的键盘非常好", "accept": ["比我以前的键盘好", "比我以前的好", "比我以前的键盘好多了", "比我以前的键盘好得多", "比我以前的键盘更好", "比我以前的键盘好很多", "比我以前的键盘好一些", "比我以前的键盘好一点", "比以前的键盘好"], "grammarId": "zh:bi-comparison", "pattern": "no 非常 in 比 comparisons" } ] }
         },
         { "text": "我用它写代码，也用它玩游戏。", "gold": { "clean": true } }
       ],
@@ -22,7 +22,7 @@
     {
       "mode": "chat",
       "turns": [
-        { "text": "你好！今天我有一点儿累，但是想练习中文。" },
+        { "text": "你好！今天我有一点儿累，但是想练习中文。", "gold": { "clean": true } },
         { "text": "除了写代码，我还喜欢做饭和跑步。", "gold": { "clean": true } },
         { "text": "上个星期我做了牛肉汤，我的朋友说很好吃。", "gold": { "clean": true } }
       ],

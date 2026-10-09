@@ -9,6 +9,8 @@ import { Fern, Icon } from "../components/icons";
 import { useApp } from "../context";
 import { cls } from "../lib/format";
 import { LocalePicker } from "../components/LocalePicker";
+import { ThemeBlocks } from "../components/ThemePicker";
+import { themeInfo } from "../../../shared/themes";
 import { deckRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
@@ -21,7 +23,7 @@ export interface OnboardingScreenProps {
 }
 
 const PLACE = "__place";
-const LAST = 3;
+const LAST = 4;
 
 /** How the learner will get vocabulary into Anki (S2-14). */
 type AnkiPlan = "shared" | "generate" | "later";
@@ -196,7 +198,18 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
               <AnkiStep languages={ordered} plan={ankiPlan} onPlan={setAnkiPlan} onConnect={() => void finish("settings")} busy={busy} />
             </Step>
 
-            <Step n={4} title={t("Bring your materials")} optional state={step === LAST ? "current" : "todo"}>
+            <Step
+              n={4}
+              title={t("Pick a theme")}
+              state={step === 3 ? "current" : step > 3 ? "done" : "todo"}
+              summary={t(themeInfo(app.settings.theme).label)}
+              onChange={() => setStep(3)}
+            >
+              <p className="wstep-sub">{t("How Sayfern looks. You can change it any time in Settings.")}</p>
+              <ThemeBlocks />
+            </Step>
+
+            <Step n={5} title={t("Bring your materials")} optional state={step === LAST ? "current" : "todo"}>
               <div className="field">
                 <label htmlFor="ob-about">{t("A few lines about you")}</label>
                 <textarea

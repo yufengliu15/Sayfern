@@ -9,11 +9,11 @@
       "turns": [
         {
           "text": "我去了图书馆昨天，因为我需要准备考试。",
-          "gold": { "errors": [ { "id": "time-order", "original": "我去了图书馆昨天", "accept": ["我昨天去了图书馆", "昨天我去了图书馆"], "key": ["昨天去了图书馆"], "pattern": "time word before the verb" } ] }
+          "gold": { "errors": [ { "id": "time-order", "original": "我去了图书馆昨天", "accept": ["我昨天去了图书馆", "昨天我去了图书馆"], "key": ["昨天去了图书馆"], "grammarId": "zh:time-before-verb", "pattern": "time word before the verb" } ] }
         },
         {
           "text": "我觉得这个考试很难，比上次的考试很难。",
-          "gold": { "errors": [ { "id": "bi-hen", "original": "比上次的考试很难", "accept": ["比上次的考试难", "比上次难", "比上次的考试更难", "比上次的考试难多了", "比上次的考试难得多"], "pattern": "no 很 in 比 comparisons" } ] }
+          "gold": { "errors": [ { "id": "bi-hen", "original": "比上次的考试很难", "accept": ["比上次的考试难", "比上次难", "比上次的考试更难", "比上次的考试难多了", "比上次的考试难得多", "比上次的考试难很多", "比上次的考试难一些", "比上次的考试难一点"], "grammarId": "zh:bi-comparison", "pattern": "no 很 in 比 comparisons" } ] }
         },
         {
           "text": "考完试以后，我想跟朋友一起去吃饭。",
@@ -21,15 +21,15 @@
         },
         {
           "text": "如果明天天气好，我们去公园就。",
-          "gold": { "errors": [ { "id": "jiu-position", "original": "我们去公园就", "accept": ["我们就去公园", "就去公园"], "pattern": "如果…就…: 就 before the verb" } ] }
+          "gold": { "errors": [ { "id": "jiu-position", "original": "我们去公园就", "accept": ["我们就去公园", "就去公园"], "grammarId": "zh:ruguo-jiu", "pattern": "如果…就…: 就 before the verb" } ] }
         },
         {
           "text": "今天我已经三个小时学习了。",
-          "gold": { "errors": [ { "id": "duration", "original": "我已经三个小时学习了", "accept": ["我已经学习了三个小时", "我已经学了三个小时", "学了三个小时", "学习了三个小时"], "pattern": "duration after the verb" } ] }
+          "gold": { "errors": [ { "id": "duration", "original": "我已经三个小时学习了", "accept": ["我已经学习了三个小时", "我已经学了三个小时", "学了三个小时", "学习了三个小时", "我已经学习三个小时了", "我已经学三个小时了", "学习三个小时", "学三个小时"], "grammarId": "zh:duration-after-verb", "pattern": "duration after the verb" } ] }
         },
         {
           "text": "我很喜欢做饭，我做饭得很好吃。",
-          "gold": { "errors": [ { "id": "de-complement", "original": "我做饭得很好吃", "accept": ["我做饭做得很好吃", "我做的饭很好吃", "做饭做得", "做的饭很好吃"], "pattern": "V + O + V + 得 complement" } ] }
+          "gold": { "errors": [ { "id": "de-complement", "original": "我做饭得很好吃", "accept": ["我做饭做得很好吃", "我做的饭很好吃", "做饭做得", "做的饭很好吃"], "grammarId": "zh:de-complement", "pattern": "V + O + V + 得 complement" } ] }
         }
       ],
       "end": true,

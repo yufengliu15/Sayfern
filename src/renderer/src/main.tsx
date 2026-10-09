@@ -16,8 +16,12 @@ import "./styles/builder.css";
 import "./styles/decks.css";
 import "./styles/voice.css";
 import "./styles/course.css";
+import "./styles/appearance.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { applyCachedTheme } from "./lib/theme";
+
+applyCachedTheme();
 
 async function boot() {
   // Outside Electron (plain browser dev server) there is no preload bridge: use the mock.

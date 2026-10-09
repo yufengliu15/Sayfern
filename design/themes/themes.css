@@ -1,0 +1,177 @@
+/* Sayfern themes: Light (default), Forest Night, Ink.
+   Paste over the colour tokens at the top of src/renderer/src/styles.css
+   (keep the font, --chat-max and --bubble-max lines as they are).
+   Switch with <html data-theme="forest"> or <html data-theme="ink">; no attribute = Light.
+   Light values equal today's literals, so Light looks the same after the swap.
+   Mapping for every hard-coded colour: design/themes/theme-mapping.md */
+
+:root {
+  color-scheme: light;
+
+  /* ---- existing tokens (unchanged in Light) ---- */
+  --paper: #f4f0e7;
+  --paper-2: #eae4d6;
+  --paper-3: #efeadf;
+  --card: #fbf9f4;
+  --white: #fffefb;          /* raised: inputs, popovers, hover cards */
+  --ink: #1c1e1b;
+  --ink-2: #3d403a;
+  --ink-3: #4a4d46;
+  --muted: #6b6d64;
+  --line: #e0d9ca;
+  --line-2: #dcd4c2;
+  --line-3: #e6dfd1;
+  --fern: #2e5b45;           /* accent */
+  --fern-dark: #1f4232;      /* accent hover */
+  --fern-soft: #e4ece3;
+  --fern-line: #d0ddd2;
+  --fern-mid: #93b39c;
+  --forest: #173e35;         /* sidebar, hero, review card */
+  --seal: #a63d22;           /* corrections */
+  --seal-2: #b8452a;
+  --seal-bg: #fbf6f1;
+  --seal-line: #eacfc4;
+
+  /* ---- new tokens (absorb the hard-coded literals) ---- */
+  --on-fern: #ffffff;        /* text/icons on --fern fills */
+  --on-seal: #fbf6f1;        /* text on --seal fills */
+  --seal-dark: #8e3219;      /* danger / stop hover */
+  --side-ink: #f1ece0;       /* text on --forest surfaces; alphas via color-mix */
+  --side-accent: #a9c8b2;    /* icons and highlights on --forest surfaces */
+  --side-line: #0f2c25;
+  --line-strong: #cfc7b5;    /* ghost cards, dashed boxes */
+  --line-hover: #b9b19f;     /* border on hover */
+  --placeholder: #9d9a8e;
+  --hover: #f0ebe0;          /* menu row hover, skeletons */
+  --track: #e6e0d2;          /* segmented control, progress track */
+  --track-strong: #d6cebc;   /* switch track, empty dots/bars */
+  --fern-wash: #f3f6ef;      /* faint green fills (empty states, selected tiles) */
+  --note-bg: #f8f7f1;        /* light "suggestion" correction */
+  --note-line: #e3ddcd;
+  --note-ink: #8a5a3c;
+  --note-mark: #c48a6a;
+  --warn: #e0b25c;
+  --warn-bg: #f2ddc9;
+  --warn-ink: #9a6a1c;
+  --ok: #7fc29a;
+  --pulse: #e0704f;
+  --seal-on-side: #f0a48f;   /* error text on --forest surfaces */
+  --warn-on-side: #e6b64a;
+  --hero-a: #2c5a46;         /* course "next" card gradient */
+  --hero-b: #10302a;
+  --scrim: rgba(23, 30, 26, 0.38);
+  --shadow-ink: #1c1e1b;     /* base colour for every box-shadow */
+  --shadow-pop: 0 24px 48px -20px rgba(28, 30, 27, 0.35), 0 2px 6px rgba(28, 30, 27, 0.06);
+}
+
+:root[data-theme="forest"] {
+  color-scheme: dark;
+  --paper: #10231d;
+  --paper-2: #0c1d18;
+  --paper-3: #0e201b;
+  --card: #16302a;
+  --white: #1b3a31;
+  --ink: #ece6d8;
+  --ink-2: #d2ccbd;
+  --ink-3: #bdb8aa;
+  --muted: #9aa89b;
+  --line: #2a463c;
+  --line-2: #2f4d42;
+  --line-3: #223c33;
+  --fern: #9cc2a7;
+  --fern-dark: #c4dccb;
+  --fern-soft: #1b3a31;
+  --fern-line: #2c4f43;
+  --fern-mid: #6f9a7f;
+  --forest: #0a1a15;
+  --seal: #e5876a;
+  --seal-2: #ec9a80;
+  --seal-bg: #2a1d17;
+  --seal-line: #5b3426;
+
+  --on-fern: #0f231d;
+  --on-seal: #1f110c;
+  --seal-dark: #f0a890;
+  --side-ink: #f1ece0;
+  --side-accent: #a9c8b2;
+  --side-line: #06120f;
+  --line-strong: #3d5e51;
+  --line-hover: #55786a;
+  --placeholder: #7f8e82;
+  --hover: #1d3a31;
+  --track: #223c33;
+  --track-strong: #2f4d42;
+  --fern-wash: #132a23;
+  --note-bg: #152a23;
+  --note-line: #2f4a40;
+  --note-ink: #d9a88a;
+  --note-mark: #b07a5e;
+  --warn: #e0b25c;
+  --warn-bg: #33261a;
+  --warn-ink: #e6b64a;
+  --ok: #7fc29a;
+  --pulse: #e0704f;
+  --seal-on-side: #f0a48f;
+  --warn-on-side: #e6b64a;
+  --hero-a: #1b3a31;
+  --hero-b: #0f241e;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-ink: #000000;
+  --shadow-pop: 0 24px 48px -22px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="ink"] {
+  color-scheme: dark;
+  --paper: #111111;
+  --paper-2: #0b0b0b;
+  --paper-3: #0e0e0e;
+  --card: #171717;
+  --white: #1f1f1f;
+  --ink: #f5f5f5;
+  --ink-2: #d4d4d4;
+  --ink-3: #bdbdbd;
+  --muted: #a3a3a3;
+  --line: #2b2b2b;
+  --line-2: #333333;
+  --line-3: #202020;
+  --fern: #f5f5f5;
+  --fern-dark: #ffffff;
+  --fern-soft: #262626;
+  --fern-line: #363636;
+  --fern-mid: #8a8a8a;
+  --forest: #0a0a0a;
+  --seal: #ff7a66;
+  --seal-2: #ff8f7d;
+  --seal-bg: #24130f;
+  --seal-line: #5a2a22;
+
+  --on-fern: #0a0a0a;
+  --on-seal: #140806;
+  --seal-dark: #ff9a88;
+  --side-ink: #f5f5f5;
+  --side-accent: #e5e5e5;
+  --side-line: #000000;
+  --line-strong: #404040;
+  --line-hover: #5a5a5a;
+  --placeholder: #7a7a7a;
+  --hover: #242424;
+  --track: #262626;
+  --track-strong: #333333;
+  --fern-wash: #161616;
+  --note-bg: #191919;
+  --note-line: #2e2e2e;
+  --note-ink: #d4b49c;
+  --note-mark: #a08070;
+  --warn: #e0b25c;
+  --warn-bg: #2a2110;
+  --warn-ink: #e6b64a;
+  --ok: #7fc29a;
+  --pulse: #ff7a66;
+  --seal-on-side: #ff9a88;
+  --warn-on-side: #e6b64a;
+  --hero-a: #262626;
+  --hero-b: #141414;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-ink: #000000;
+  --shadow-pop: 0 24px 48px -22px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
+}

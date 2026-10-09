@@ -2,6 +2,10 @@
 // Load it in your HTML with <script src="/_sdk/sayfern-sdk.js"></script> (before your module scripts).
 // Every call is async and goes to Sayfern through postMessage; arguments and results are plain JSON.
 // Calls fail (reject) with a readable Error when an argument is invalid.
+//
+// Theme: the app has three themes. Sayfern sets data-theme on <html> in your page: absent = Light,
+// "forest" = Forest Night, "ink" = Ink. It changes while the page is open. Style with the CSS variables
+// from /_sdk/sayfern.css (var(--ink), var(--card), var(--fern), var(--on-fern), ...), never literal colours.
 
 type Language = "zh" | "ja";
 

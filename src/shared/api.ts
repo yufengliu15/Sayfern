@@ -9,7 +9,6 @@ import type {
   Correction,
   DocKind,
   Difficulty,
-  FeedbackMode,
   GrammarObservation,
   GrammarSummary,
   Language,
@@ -192,7 +191,6 @@ export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, Voi
   newSession(opts: NewSessionOptions): Promise<SessionView>;
   renameSession(id: string, title: string): Promise<SessionMeta>;
   deleteSession(id: string): Promise<void>;
-  setFeedbackMode(sessionId: string, mode: FeedbackMode): Promise<SessionMeta>;
   /** "Go easier / go harder": -2..2, applied from the tutor's next reply. */
   setDifficulty(sessionId: string, difficulty: Difficulty): Promise<SessionMeta>;
   /** "New topic": the tutor drops the current topic and opens a fresh one. Progress arrives through onChatEvent. */
@@ -330,7 +328,6 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   newSession: true,
   renameSession: true,
   deleteSession: true,
-  setFeedbackMode: true,
   setDifficulty: true,
   newTopic: true,
   send: true,

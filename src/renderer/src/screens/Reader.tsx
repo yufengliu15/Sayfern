@@ -473,7 +473,6 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
               language={L}
               messages={chat.messages}
               corrections={chat.corrections}
-              feedbackMode={chat.view.meta.feedbackMode}
               targets={chat.targets}
               grammarById={chat.grammarById}
               model={app.model}

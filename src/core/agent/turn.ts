@@ -27,7 +27,7 @@ export const EVIDENCE_PASS_TOKENS = 1200;
 
 /** Hidden instruction for the evidence pass. Never stored in the transcript. */
 export const EVIDENCE_NUDGE =
-  "(Message from the app, not from the learner: you replied without calling record_evidence. Call record_evidence now for the learner's latest message: corrections of real mistakes with `original` copied exactly from their message, grammar observations, patterns you taught, level estimates. Use empty lists if there is nothing to record. Do not write any text.)";
+  "(Message from the app, not from the learner: you replied without calling record_evidence. Call record_evidence now for the learner's latest message, with empty lists if there is nothing to record. Do not write any text.)";
 
 export function modelLabel(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;

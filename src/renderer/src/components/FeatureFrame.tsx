@@ -33,10 +33,24 @@ function isCall(d: unknown): d is Call {
   return m.sayfern === 1 && typeof m.id === "number" && Number.isFinite(m.id) && typeof m.method === "string" && Array.isArray(m.args);
 }
 
+const currentTheme = () => document.documentElement.dataset.theme ?? "";
+
 export function FeatureFrame({ featureId, version, entry, language, preview, title, className }: FeatureFrameProps) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [src, setSrc] = useState<FeatureFrameSource | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState(currentTheme);
+
+  // The app theme is data-theme on <html> (absent = Light). Follow it and tell the frame.
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(currentTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    ref.current?.contentWindow?.postMessage({ sayfern: 1, theme }, "*");
+  }, [theme, src]);
 
   useEffect(() => {
     let alive = true;
@@ -96,8 +110,10 @@ export function FeatureFrame({ featureId, version, entry, language, preview, tit
       key={`${featureId}:${version}:${entry}:${language}`}
       className={cls("ff", className)}
       title={title}
+      name={`sayfern-theme:${theme}`}
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
+      onLoad={() => ref.current?.contentWindow?.postMessage({ sayfern: 1, theme: currentTheme() }, "*")}
       {...("url" in src ? { src: src.url } : { srcDoc: src.srcdoc })}
     />
   );

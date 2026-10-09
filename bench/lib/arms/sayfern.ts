@@ -89,7 +89,7 @@ export class SayfernArm implements Arm {
     }
 
     const m = ctx.sandbox.manifest;
-    await this.app.setSettings({ model: this.ref, language: this.language, languages: [this.language], onboarded: true, feedbackMode: "inline" });
+    await this.app.setSettings({ model: this.ref, language: this.language, languages: [this.language], onboarded: true });
     if (m.profile) await this.app.setProfile({ about: m.profile.about ?? "", goals: m.profile.goals ?? {}, ...(m.profile.name ? { name: m.profile.name } : {}) });
     if (m.selfLevel) await this.app.setSelfLevel(this.language, m.selfLevel);
 
