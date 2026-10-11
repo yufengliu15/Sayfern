@@ -2,7 +2,6 @@ import { msg } from "../shared/i18n";
 import { createModels, type CredentialStore, type MutableModels, type Provider } from "@earendil-works/pi-ai";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
-import { fireworksProvider } from "@earendil-works/pi-ai/providers/fireworks";
 import { googleProvider } from "@earendil-works/pi-ai/providers/google";
 import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
@@ -16,7 +15,6 @@ const FACTORIES: (() => Provider)[] = [
   anthropicProvider,
   openaiProvider,
   deepseekProvider,
-  fireworksProvider,
   openrouterProvider,
   googleProvider,
 ];
@@ -33,7 +31,6 @@ const NOTES: Record<string, string> = {
   anthropic: msg("Claude. Sign in with Pro/Max (uses your plan's Agent SDK credit) or an API key."),
   openai: msg("GPT. Sign in with ChatGPT to use your subscription, or an API key."),
   deepseek: msg("DeepSeek API key."),
-  fireworks: msg("Fireworks API key. Many open models."),
   openrouter: msg("One key for hundreds of models."),
   google: msg("Gemini API key."),
 };

@@ -14,11 +14,9 @@ export type Route =
   | "settings"
   | `settings/${string}`
   | "onboarding"
-  | "customize"
   | "review"
   | `review/${string}`
   | `quiz/${string}`
-  | `feature/${string}`
   | "decks"
   | `decks/${string}`;
 
@@ -32,13 +30,10 @@ export type ParsedRoute =
   | { name: "progress" }
   | { name: "settings"; tab?: string }
   | { name: "onboarding" }
-  | { name: "customize" }
   /** Stage 2: Review > Corrections | Quizzes. */
   | { name: "review"; tab: ReviewTab }
   /** Stage 2: taking or reviewing one quiz. */
   | { name: "quiz"; id: string }
-  /** Stage 2: a tab contributed by a feature built in Customize. */
-  | { name: "feature"; id: string }
   /** Stage 2: Anki deck generator, new deck (no id) or one deck project. */
   | { name: "decks"; id?: string };
 
@@ -54,10 +49,9 @@ export const settingsRoute = (tab?: string): Route => (tab ? `settings/${encodeU
 export const grammarRoute = (id: string): Route => `grammar/${encodeURIComponent(id)}`;
 export const reviewRoute = (tab: ReviewTab = "corrections"): Route => (tab === "corrections" ? "review" : `review/${tab}`);
 export const quizRoute = (id: string): Route => `quiz/${encodeURIComponent(id)}`;
-export const featureRoute = (id: string): Route => `feature/${encodeURIComponent(id)}`;
 export const deckRoute = (id?: string): Route => (id ? `decks/${encodeURIComponent(id)}` : "decks");
 
-const SIMPLE = new Set(["today", "course", "library", "grammar", "progress", "settings", "onboarding", "customize"]);
+const SIMPLE = new Set(["today", "course", "library", "grammar", "progress", "settings", "onboarding"]);
 
 export function parseRoute(raw: string): ParsedRoute {
   const s = raw.replace(/^#?\/?/, "");
@@ -76,7 +70,6 @@ export function parseRoute(raw: string): ParsedRoute {
   if (head === "grammar") return arg ? { name: "grammar", grammarId: arg } : { name: "grammar" };
   if (head === "review") return { name: "review", tab: arg === "quizzes" ? "quizzes" : "corrections" };
   if (head === "quiz" && arg) return { name: "quiz", id: arg };
-  if (head === "feature" && arg) return { name: "feature", id: arg };
   if (head === "decks") return arg ? { name: "decks", id: arg } : { name: "decks" };
   if (SIMPLE.has(head)) return { name: head } as ParsedRoute;
   return { name: "today" };
@@ -97,8 +90,6 @@ function normalize(raw: string): Route {
       return reviewRoute(p.tab);
     case "quiz":
       return quizRoute(p.id);
-    case "feature":
-      return featureRoute(p.id);
     case "decks":
       return deckRoute(p.id);
     default:

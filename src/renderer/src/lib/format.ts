@@ -146,7 +146,7 @@ export function cjkClass(text: string, fontClass: string): string {
   return fontClass;
 }
 
-/** A tool activity line in the interface language (core writes most in it; extension defaults are "Used <tool>"). */
+/** A tool activity line in the interface language (core writes most in it; the default is "Used <tool>"). */
 export function activityText(summary: string): string {
   const m = /^Used (\S+)$/.exec(summary);
   return m ? t("Used {name}", { name: m[1] }) : t(summary);

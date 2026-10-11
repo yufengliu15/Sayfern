@@ -13,9 +13,9 @@
  */
 import assert from "node:assert/strict";
 import { exec } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall, type AuthInteraction } from "@earendil-works/pi-ai";
 import { SayfernApp } from "../src/core/app";
@@ -139,7 +139,6 @@ async function main() {
 async function selftest() {
   const dir = mkdtempSync(join(tmpdir(), "sayfern-selftest-"));
   try {
-    cpSync(resolve(import.meta.dirname, "../examples/extensions/chengyu-of-the-day"), join(dir, "extensions", "chengyu-of-the-day"), { recursive: true });
     const events: ChatEvent[] = [];
     const { app, models } = makeApp(dir, (e) => events.push(e));
     const faux = fauxProvider({ provider: "faux", tokensPerSecond: 400, tokenSize: { min: 1, max: 2 } });
@@ -149,11 +148,6 @@ async function selftest() {
     const ref = { provider: model.provider, id: model.id };
     await app.setSettings({ model: ref });
     const step = (msg: string) => console.log(`✓ ${msg}`);
-
-    // Extensions
-    const ext = (await app.listExtensions()).find((e) => e.id === "chengyu-of-the-day");
-    assert.ok(ext && !ext.error && ext.contributes.tools.includes("chengyu_of_the_day"), "example extension loads");
-    step("example extension loaded");
 
     // A turn with reply text + one record_evidence call
     const { meta } = await app.newSession({ language: "zh" });

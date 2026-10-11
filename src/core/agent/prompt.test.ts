@@ -82,14 +82,12 @@ test("system prompt: level estimates and reading passage around the checkpoint",
   assert.match(p, /search_library/);
 });
 
-test("system prompt: placement lists the level scale; extensions add paragraphs", async () => {
+test("system prompt: placement lists the level scale", async () => {
   const h = makeHarness();
-  h.deps.extensions = { tools: () => [], promptAdditions: (l) => [`EXT for ${l}`] };
   const sid = await h.newSession("placement");
   const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
   assert.match(p, /5 to 7 exchanges/);
   assert.match(p, /HSK 1, HSK 2, HSK 3/);
-  assert.match(p, /EXT for zh/);
   assert.doesNotMatch(p, /To bring in a target/, "placement has no targets, even in a course language");
   const chat = await buildSystemPrompt(h.deps, (await h.records.getSession(await h.newSession("chat")))!);
   assert.match(chat, /Up next for them/);
@@ -312,7 +310,6 @@ function situations(h: Harness) {
       now: NOW,
       targets: [],
       catalogue: [{ id: "zh:ba", language, pattern: "把", name: "ba construction" }],
-      additions: [],
       explain: "English",
       ...rest,
     } as PromptData;

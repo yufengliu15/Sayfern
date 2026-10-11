@@ -1,7 +1,6 @@
 // The mock backend's mutable state, shared with the Stage 2 mock slots (mockReview, mockQuiz,
-// mockBuilder) so each feature's mock can read and change the same corrections, words, grammar,
+// mockDecks) so each feature's mock can read and change the same corrections, words, grammar,
 // Anki cards and sessions as mockApi.ts. Never loaded inside Electron.
-import type { ExtensionInfo } from "../../../shared/api";
 import type { Token } from "../../../shared/lang";
 import type {
   AnkiCard,
@@ -43,8 +42,6 @@ export interface MockWorld {
   ankiCards: Record<Language, AnkiCard[]>;
   ankiConfig(): AnkiConfig;
   settings(): Settings;
-  extensions(): ExtensionInfo[];
-  setExtensions(next: ExtensionInfo[]): void;
   /** Same segmentation the mock uses for hover lookup. */
   segment(language: Language, text: string): Token[];
 }

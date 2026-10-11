@@ -334,7 +334,7 @@ function updateCheckpoint(deps: TutorDeps, session: SessionMeta): TutorTool {
 }
 
 /**
- * Core tools for one turn, plus extension tools. update_checkpoint only in reading
+ * Core tools for one turn, update_checkpoint only in reading
  * sessions; the Anki tools only when Anki is on and the language has a snapshot.
  */
 export function turnTools(deps: TutorDeps, turn: TurnState, opts: { anki?: boolean } = {}): TutorTool[] {
@@ -343,12 +343,6 @@ export function turnTools(deps: TutorDeps, turn: TurnState, opts: { anki?: boole
   if (course) tools.push(course);
   if (opts.anki) tools.push(...ankiTools(deps));
   if (turn.session.kind === "reading" && turn.session.docId) tools.push(updateCheckpoint(deps, turn.session));
-  const names = new Set(tools.map((t) => t.name));
-  for (const t of deps.extensions?.tools() ?? []) {
-    if (names.has(t.name)) continue; // core tools win on name clashes
-    names.add(t.name);
-    tools.push(t);
-  }
   return tools;
 }
 

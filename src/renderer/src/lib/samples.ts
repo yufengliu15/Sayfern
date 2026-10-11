@@ -1,5 +1,5 @@
 // Per-learning-language sample content for the UI: conversation starters, example searches,
-// placeholders written in the target language, sample quiz items, feature ideas.
+// placeholders written in the target language, sample quiz items.
 // Text in the learner's interface language is English here, marked with msg() and translated
 // with t() where it renders; text in the target language is written in that language.
 import type { Language, QuizFormatSample } from "./sampleTypes";
@@ -111,65 +111,6 @@ export const COVER_TITLES: Record<Language, [string, string, string]> = {
   vi: ["Sách", "Bài", "Tôi"],
 };
 
-/** Ideas for the feature builder (interface language). */
-export const BUILDER_IDEAS: Record<Language, string[]> = {
-  zh: [
-    msg("Add a measure-word drill: show a noun, I pick the right measure word. Use nouns from my Anki."),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("Tone pair practice with two-syllable words from my Anki"),
-  ],
-  ja: [
-    msg("A counter drill: show a thing, I pick the right counter (本, 枚, 匹). Use nouns from my Anki."),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A kana reading race with words from my Anki"),
-  ],
-  ko: [
-    msg("A particle drill: pick 은/는 or 이/가 in sentences with words from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A conjugation drill: turn dictionary forms into polite present and past"),
-  ],
-  en: [
-    msg("A phrasal verb drill with verbs from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("An irregular past tense race"),
-  ],
-  es: [
-    msg("A ser or estar drill with sentences from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A conjugation drill: pretérito or imperfecto"),
-  ],
-  fr: [
-    msg("A gender drill: show a noun, I pick le or la. Use nouns from my Anki."),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A passé composé drill: être or avoir"),
-  ],
-  de: [
-    msg("An article drill: der, die or das for nouns from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A case drill: pick the right ending after a preposition"),
-  ],
-  it: [
-    msg("An article drill: il, lo, la or l' for nouns from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A passato prossimo drill: essere or avere"),
-  ],
-  pt: [
-    msg("A ser or estar drill with sentences from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A conjugation drill for irregular verbs"),
-  ],
-  ru: [
-    msg("An aspect drill: pick the perfective or imperfective verb"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A case drill with nouns from my Anki"),
-  ],
-  vi: [
-    msg("A tone mark drill with words from my Anki"),
-    msg("A tab that quizzes me on the words I saved"),
-    msg("A classifier drill: con, cái or chiếc"),
-  ],
-};
-
 /** Deck generator: placeholder and one-click examples (interface language). */
 export const DECK_REQUEST_PLACEHOLDER: Record<Language, string> = {
   zh: msg("e.g. the top 1,500 most common words according to SUBTLEX-CH, or the most common foods, or everyday sayings"),
@@ -217,7 +158,7 @@ export const GOAL_PLACEHOLDER: Record<Language, string> = {
 };
 
 /**
- * One sample item per quiz format, for the builder's preview: `context` is in the interface
+ * One sample item per quiz format, for the quiz preview: `context` is in the interface
  * language (translated with t()), everything else in the target language.
  */
 export const QUIZ_SAMPLES: Record<Language, QuizFormatSample> = {

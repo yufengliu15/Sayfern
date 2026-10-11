@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { gzipSync } from "node:zlib";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import type { ChatEvent } from "../../shared/api";
@@ -12,8 +12,6 @@ import { CEDICT_URL } from "../lang";
 import { OEWN_URL } from "../lang/wordlists";
 import { JsonRecordsStore } from "../records";
 import { SayfernApp, type AppEventChannel } from "./index";
-
-const EXAMPLE_EXTENSION = resolve(import.meta.dirname, "../../../examples/extensions/chengyu-of-the-day");
 
 interface Setup {
   dir?: string;
@@ -45,7 +43,6 @@ async function makeApp(setup: Setup = {}) {
     ...(setup.ankiFetch ? { ankiFetch: setup.ankiFetch } : {}),
     now: () => clock.t,
     emit: (channel, payload) => events.push({ channel, payload }),
-    extensionLog: () => undefined,
   });
   await app.init();
   const m = faux.getModel();
@@ -283,7 +280,7 @@ test("role-play: a scenario chat is titled after it, carries the scene into the 
   assert.equal((chat(v.meta.id).at(-1) as Extract<ChatEvent, { type: "done" }>).message.text, "欢迎光临！请问几位？");
 });
 
-test("eraseData: stops a running turn, deletes learner data, keeps dictionaries and extensions; sign-ins optional", async () => {
+test("eraseData: stops a running turn, deletes learner data, keeps dictionaries; sign-ins optional", async () => {
   for (const keepSignIns of [true, false]) {
     const { dir, app, faux, ref } = await makeApp({ tokensPerSecond: 5 });
     await app.setApiKey("openai", "sk-test");
@@ -297,13 +294,11 @@ test("eraseData: stops a running turn, deletes learner data, keeps dictionaries 
     await app.importFiles("zh", "reader", [file]);
     mkdirSync(join(dir, "dict", "zh"), { recursive: true });
     writeFileSync(join(dir, "dict", "zh", "keep.txt"), "x");
-    mkdirSync(join(dir, "extensions", "mine"), { recursive: true });
 
     await app.eraseData({ keepSignIns });
 
-    for (const gone of ["records", "library", "anki", "extensions.json"]) assert.equal(existsSync(join(dir, gone)), false, `${gone} erased`);
+    for (const gone of ["records", "library", "anki"]) assert.equal(existsSync(join(dir, gone)), false, `${gone} erased`);
     assert.ok(existsSync(join(dir, "dict", "zh", "keep.txt")), "dictionaries kept");
-    assert.ok(existsSync(join(dir, "extensions", "mine")), "extensions kept");
     assert.equal(existsSync(join(dir, "credentials.json")), keepSignIns);
 
     // A new instance on the same folder is a first run.
@@ -423,52 +418,6 @@ test("exportTo writes one JSON file with records, library and settings but no de
   assert.equal(data.settings.language, "zh");
   assert.equal(data.settings.deviceId, undefined);
   assert.ok(!JSON.stringify(data).includes("credentials"));
-});
-
-test("extensions: example extension loads, contributes a tool used in a turn, and can be disabled", async () => {
-  const { app, faux, ref, chat } = await makeApp({
-    beforeInit: (dir) => {
-      cpSync(EXAMPLE_EXTENSION, join(dir, "extensions", "chengyu-of-the-day"), { recursive: true });
-      mkdirSync(join(dir, "extensions", "broken"), { recursive: true });
-      writeFileSync(join(dir, "extensions", "broken", "package.json"), JSON.stringify({ name: "Broken", version: "0.1.0", type: "module" }));
-      writeFileSync(join(dir, "extensions", "broken", "index.js"), "export function activate(api) { api.registerTool({ name: 'x', execute() {} }); throw new Error('boom'); }");
-    },
-  });
-  const list = await app.listExtensions();
-  assert.deepEqual(list.map((e) => e.id), ["broken", "chengyu-of-the-day"]);
-  const [broken, chengyu] = list;
-  assert.equal(broken.error, "boom");
-  assert.deepEqual(broken.contributes.tools, []);
-  assert.equal(chengyu.error, undefined);
-  assert.equal(chengyu.name, "Chengyu of the day");
-  assert.equal(chengyu.enabled, true);
-  assert.deepEqual(chengyu.contributes.tools, ["chengyu_of_the_day"]);
-  assert.equal(app.extensions.promptAdditions("zh").length, 1);
-  assert.deepEqual(app.extensions.promptAdditions("ja"), []);
-
-  // The tutor can call it.
-  const { meta } = await app.newSession({ language: "zh" });
-  faux.setResponses([
-    fauxAssistantMessage([fauxToolCall("chengyu_of_the_day", {})], { stopReason: "toolUse" }),
-    fauxAssistantMessage("今天的成语很有意思！"),
-  ]);
-  await app.send(meta.id, { text: "教我一个成语吧" }, ref);
-  await app.whenIdle();
-  const done = chat(meta.id).at(-1) as Extract<ChatEvent, { type: "done" }>;
-  assert.equal(done.type, "done");
-  assert.match(done.message.toolActivity?.[0].summary ?? "", /^Chengyu of the day: /);
-  assert.equal(done.message.toolActivity?.[0].ok, true);
-
-  // Disable → reloaded without it; the flag persists across restarts.
-  const after = await app.setExtensionEnabled("chengyu-of-the-day", false);
-  assert.equal(after.find((e) => e.id === "chengyu-of-the-day")?.enabled, false);
-  assert.deepEqual(app.extensions.tools(), []);
-  const state = JSON.parse(readFileSync(join(app.dataDir, "extensions.json"), "utf8"));
-  assert.equal(state.enabled["chengyu-of-the-day"], false);
-  const { app: restarted } = await makeApp({ dir: app.dataDir });
-  assert.equal((await restarted.listExtensions()).find((e) => e.id === "chengyu-of-the-day")?.enabled, false);
-  await restarted.setExtensionEnabled("chengyu-of-the-day", true);
-  assert.deepEqual(restarted.extensions.tools().map((t) => t.name), ["chengyu_of_the_day"]);
 });
 
 test("settings merge with defaults; legacy v0.1 sessions import exactly once", async () => {

@@ -1,6 +1,6 @@
-// Settings: models, languages and level, profile, Anki, voice, dictionaries, preferences, data, extensions.
+// Settings: models, languages and level, profile, Anki, voice, dictionaries, preferences, data.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { AnkiStatus, ExtensionInfo } from "../../../shared/api";
+import type { AnkiStatus } from "../../../shared/api";
 import type { DictionaryProgress, DictionaryStatus, LanguageInfo } from "../../../shared/lang";
 import type { AnkiDeckMapping, AnkiOverview, Language, LearnerProfile, LevelBand, LevelEstimate, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
@@ -30,7 +30,7 @@ export interface SettingsScreenProps {
   tab?: string;
 }
 
-type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "appearance" | "preferences" | "data" | "extensions";
+type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "appearance" | "preferences" | "data";
 const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string }[] = [
   { id: "models", label: msg("Models"), icon: "spark", title: msg("Models"), sub: msg("Connect the model you already pay for. Your provider bills you directly.") },
   { id: "languages", label: msg("Language & level"), icon: "globe", title: msg("Language & level"), sub: msg("What you're learning and where you are. The tutor pitches everything to these.") },
@@ -41,7 +41,6 @@ const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string
   { id: "appearance", label: msg("Appearance"), icon: "image", title: msg("Appearance"), sub: msg("Choose how Sayfern looks. The change applies at once.") },
   { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
   { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this Mac, in plain files you can export.") },
-  { id: "extensions", label: msg("Extensions"), icon: "tool", title: msg("Extensions"), sub: msg("Add tools, prompt additions and language packs.") },
 ];
 const SKILL_LABEL: Record<Skill, string> = { reading: msg("Reading"), recognition: msg("Recognition"), writing: msg("Writing") };
 const BY_LABEL: Record<LevelEstimate["by"], string> = { self: msg("Set by you"), placement: msg("Placement chat"), observed: msg("Seen in your writing") };
@@ -101,7 +100,6 @@ export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps)
           {tab === "appearance" && <AppearanceTab />}
           {tab === "preferences" && <PreferencesTab navigate={navigate} />}
           {tab === "data" && <DataTab />}
-          {tab === "extensions" && <ExtensionsTab />}
         </div>
       </div>
     </main>
@@ -1259,7 +1257,7 @@ function EraseGroup() {
       <Row
         label={t("Erase all data")}
         hint={t(
-          "Deletes every session, correction, grammar record, saved word and level, your library, your settings and the Anki link. Dictionaries and extensions stay. This can't be undone.",
+          "Deletes every session, correction, grammar record, saved word and level, your library, your settings and the Anki link. Dictionaries stay. This can't be undone.",
         )}
       >
         {!open && (
@@ -1309,90 +1307,6 @@ function EraseGroup() {
         </div>
       )}
     </Group>
-  );
-}
-
-// ---------------------------------------------------------------- extensions
-
-function ExtensionsTab() {
-  const [list, setList] = useState<ExtensionInfo[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api
-      .listExtensions()
-      .then(setList)
-      .catch((e) => setError(errorText(e)));
-  }, []);
-  const toggle = async (id: string, on: boolean) => {
-    setList((cur) => cur?.map((x) => (x.id === id ? { ...x, enabled: on } : x)) ?? null);
-    try {
-      setList(await api.setExtensionEnabled(id, on));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  return (
-    <>
-      <Group
-        title={t("Installed")}
-        aside={
-          <button className="btn btn-s" onClick={() => void api.openExtensionsFolder()}>
-            <Icon name="folder" size={15} />
-            {t("Open extensions folder")}
-          </button>
-        }
-      >
-        {list === null ? (
-          <div className="skel-row" />
-        ) : list.length === 0 ? (
-          <p className="srow-note">{t("No extensions yet. Drop a folder with a package.json and index.js into the extensions folder, then reopen Sayfern.")}</p>
-        ) : (
-          <ul className="extlist">
-            {list.map((x) => (
-              <li key={x.id} className={cls("ext", !x.enabled && "off")}>
-                <span className="ext-i">
-                  <Icon name="tool" size={18} />
-                </span>
-                <div className="ext-t">
-                  <div className="ext-n">
-                    <b>{x.name}</b>
-                    <span className="mono">v{x.version}</span>
-                  </div>
-                  <p>{x.description}</p>
-                  <div className="ext-c">
-                    {x.contributes.tools.map((name) => (
-                      <span key={name} className="tag mono">
-                        {t("tool · {name}", { name })}
-                      </span>
-                    ))}
-                    {x.contributes.languages.map((name) => (
-                      <span key={name} className="tag mono">
-                        {t("language · {name}", { name })}
-                      </span>
-                    ))}
-                  </div>
-                  {x.error && (
-                    <p className="err">
-                      <Icon name="alert" size={14} /> {t(x.error)}
-                    </p>
-                  )}
-                </div>
-                <Switch checked={x.enabled} onChange={(v) => void toggle(x.id, v)} label={t("Enable {name}", { name: x.name })} />
-              </li>
-            ))}
-          </ul>
-        )}
-        {error && <p className="err">{t(error)}</p>}
-      </Group>
-      <div className="tipcard">
-        <Icon name="customize" size={18} />
-        <p>
-          {tj("Extensions are plain JavaScript folders. The API is documented in {file}. Or describe what you want in Customize and Sayfern builds it for you.", {
-            file: <span className="mono">docs/extensions.md</span>,
-          })}
-        </p>
-      </div>
-    </>
   );
 }
 

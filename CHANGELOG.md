@@ -6,6 +6,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-10
+
+### Removed
+
+- **Customize screen and AI feature builder.** The builder agent, its kit, feature versions and rollback, the review gate, the Customize screen, and the built tabs and Today activities are gone (S2-10..S2-13). Sayfern is open source and documented, so people change the code with a coding agent instead (ADR 36). Review, quizzes and Anki decks stay.
+- **Extension system.** The extension host, Settings > Extensions, `listExtensions` and `setExtensionEnabled`, the `extensions/` folder, and the examples in `examples/extensions/` are gone (F-09). Existing `extensions/`, `extensions.json` and `builder/` folders in your data folder stay on disk and are ignored.
+- **Feature sandbox.** The `sayfern-feature://` scheme, sandboxed feature frames, the feature SDK and RPC, the feature test runner and the headless `SAYFERN_E2E_BUILDER` check are gone. The docs `feature-builder.md`, `feature-sdk.d.ts` and `extensions.md` were deleted.
+- **Window network lockdown.** It only kept feature frames offline. Main's downloads now use the default session.
+- **Fireworks provider.** The Fireworks API key option is gone from the connect screen, the README and the website, because it was never tested. A saved Fireworks model falls back to the default pick.
+
+### Changed
+
+- **Website.** Feature card #6 now says Sayfern is open source and documented for coding agents, in all 12 site languages.
+
 ## [0.26.0] - 2026-10-10
 
 ### Changed

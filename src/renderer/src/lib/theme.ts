@@ -1,5 +1,4 @@
-// Applies the colour theme. <html data-theme> is the single source (CSS tokens and the feature
-// sandbox both read it); Light has no attribute. The last theme is cached in localStorage so the
+// Applies the colour theme. <html data-theme> is the single source (the CSS tokens read it); Light has no attribute. The last theme is cached in localStorage so the
 // first paint is right, before settings load.
 import type { Theme } from "../../../shared/themes";
 

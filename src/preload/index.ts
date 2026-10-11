@@ -22,7 +22,6 @@ const api = {
   onAuthEvent: (cb) => subscribe(EVENT_CHANNELS.authEvent, cb),
   onAuthPrompt: (cb) => subscribe(EVENT_CHANNELS.authPrompt, cb),
   onDictionaryProgress: (cb) => subscribe(EVENT_CHANNELS.dictionaryProgress, cb),
-  onBuilderEvent: (cb) => subscribe(EVENT_CHANNELS.builder, cb),
 } satisfies Pick<SayfernApi, `on${string}` & keyof SayfernApi> as SayfernApi;
 
 contextBridge.exposeInMainWorld("sayfern", api);

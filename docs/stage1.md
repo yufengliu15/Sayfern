@@ -4,7 +4,7 @@ Stage 1 = text learning for Chinese and Japanese. Built in v0.1.0 to v0.3.1. Sou
 
 Deep reference: [`architecture.md`](architecture.md). Next work and known gaps: [`roadmap.md`](roadmap.md).
 
-Later changes to Stage 1 features (Review in the sidebar moves Progress to ⌘5, built features run sandboxed, export includes quizzes and built features) are noted in [`stage2.md`](stage2.md).
+Later changes to Stage 1 features (Review in the sidebar moves Progress to ⌘5, export includes quizzes; extensions were removed in 0.27.0) are noted in [`stage2.md`](stage2.md).
 
 ## Modules
 
@@ -18,7 +18,6 @@ renderer (React)  ──window.sayfern──►  preload  ──ipc:<method>─�
    library/   LibraryService    import txt/md/html/epub/pdf, paragraphs, checkpoints, CJK search
    anki/      AnkiService       AnkiConnect client, cached snapshots, word model, practice-target selection
    agent/     Tutor             system prompt, tools, streaming turn loop, translation, retries, end-of-session
-   extensions/ ExtensionHost    loads user extensions (tools, prompt additions, language packs)
    app/       SayfernApp        wires the services above behind SayfernApi (main routes IPC to it)
    providers.ts                 pi-ai provider registry
 ```
@@ -50,8 +49,6 @@ records/                   RecordsStore dataDir (sessions/<id>.json and one file
 dict/zh, dict/ja           dictionaries
 library/<docId>/           meta.json, paragraphs.json, index.json, original.<ext>
 anki/                      config.json, snapshot-<lang>.json
-extensions/<id>/           user extensions (package.json + index.js)
-extensions.json            extension enabled flags
 sessions/                  v0.1 sessions, imported once
 ```
 
@@ -93,8 +90,8 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | F-04 | Capability awareness | Done | `ModelInfo` (reasoning, image input, context window) in the model picker | |
 | F-05 | Tool-accessible ops | Done | Tools: `record_evidence`, `search_library`, `anki_*` (when Anki is on and synced), `update_checkpoint` (reading) | |
 | F-07 | Observable cost | Done | Per-message usage and tool activity in the inspector; session token/cost chip | Cost is at list price; subscription sign-ins bill differently. |
-| F-08 | Extensible languages | Partial | `LanguagePack` interface, `registerPack`, extensions can register packs | Records, settings and UI are typed for `zh` and `ja`; disabled packs stay loaded until restart. |
-| F-09 | Extension foundation | Done | `FileExtensionHost` + [`extensions.md`](extensions.md) + `examples/extensions/` | No sandbox: extensions run with full privileges. |
+| F-08 | Extensible languages | Partial | `LanguagePack` interface, `registerPack` | Records, settings and UI are typed for `zh` and `ja`; disabled packs stay loaded until restart. |
+| F-09 | Extension foundation | Removed | Removed in 0.27.0 (ADR 36) | |
 | F-10 | Mac interface | Done | Sidebar / main / inspector, ⌘N, ⌘1..4, ⌘I, hidden-inset title bar; app icon and "Sayfern" in the Dock and menu bar (0.3.1) | No packaged, signed build yet. |
 | F-11 | Local data & export | Done | `exportData` → one JSON file. 0.3.0: Settings > Data > Start over (`eraseAllData`) | No import; transcripts and document text are not exported. |
 
@@ -104,5 +101,5 @@ All four phases are complete (git history `phase 1` to `phase 4`, then v0.1.1, v
 
 1. Core services in parallel: records, lang, library + anki. Renderer Session + Today against a mock API.
 2. Agent loop (uses real core services). Renderer Library/Reader, Grammar, Progress, Settings, Onboarding.
-3. Main-process wiring (IPC for every `SayfernApi` method), preload, extensions host, smoke script.
+3. Main-process wiring (IPC for every `SayfernApi` method), preload, smoke script.
 4. Integration: typecheck, tests, faux-provider end-to-end run, screenshots, review.

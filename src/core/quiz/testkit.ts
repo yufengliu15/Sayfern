@@ -8,7 +8,6 @@ import type { ModelRef } from "../../shared/types";
 import { FakeAnki } from "../agent/testkit";
 import type { AnkiConnectService } from "../anki";
 import type { SettingsStore } from "../app/settings";
-import type { FileExtensionHost } from "../extensions";
 import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { JsonRecordsStore } from "../records";
@@ -36,7 +35,6 @@ export function makeQuizHarness() {
     anki: anki as unknown as AnkiConnectService,
     library,
     lang,
-    extensions: null as unknown as FileExtensionHost,
     settings: null as unknown as SettingsStore,
     resolveModel: (r) => {
       if (r.provider !== model.provider || r.id !== model.id) throw new Error("Sign in to that model first.");

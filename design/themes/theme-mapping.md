@@ -10,9 +10,8 @@ Light is the default and should look the same after the swap. Forest Night and I
 1. **Tokens (10 min).** Replace the colour lines in the `:root` block of `src/renderer/src/styles.css` with `themes.css`. Keep the font, `--chat-max` and `--bubble-max` lines.
 2. **Hex literals (60 to 90 min).** Work through table A in `styles.css` and each file in `styles/`. 151 distinct literals, about 350 uses.
 3. **Alpha literals (30 to 45 min).** Replace every `rgba(...)` using the rules in table B.
-4. **Feature sandbox (15 min).** Mirror the same three blocks in `FEATURE_SDK_CSS` (`src/shared/stage2/builder-sdk.ts`) and pass the current `data-theme` into the sandbox frame.
-5. **Switcher (20 min).** Set `document.documentElement.dataset.theme` to `forest` or `ink` (delete it for Light). Save the choice in settings. Set Electron `nativeTheme.themeSource` to `light` or `dark` to match, so scrollbars and native controls follow.
-6. **Check (15 min).** Run `grep -nE "#[0-9a-fA-F]{3,8}\b|rgba?\(" src/renderer/src/styles.css src/renderer/src/styles/*.css`. Only the "Leave as is" rows and the `:root` blocks should remain.
+4. **Switcher (20 min).** Set `document.documentElement.dataset.theme` to `forest` or `ink` (delete it for Light). Save the choice in settings. Set Electron `nativeTheme.themeSource` to `light` or `dark` to match, so scrollbars and native controls follow.
+5. **Check (15 min).** Run `grep -nE "#[0-9a-fA-F]{3,8}\b|rgba?\(" src/renderer/src/styles.css src/renderer/src/styles/*.css`. Only the "Leave as is" rows and the `:root` blocks should remain.
 
 ## A. Hex literals to tokens
 
@@ -43,7 +42,6 @@ Light is the default and should look the same after the swap. Forest Night and I
 | `#e1eae2`, `#dde7de` | 4 | avatar, reached rung | `var(--fern-soft)` |
 | `#d3e0d5`, `#c9d8cc` | 4 | help chips, `--st-introduced` | `var(--fern-line)` |
 | `#f3f6ef`, `#f3f7f2` | 4 | empty states, selected tiles | `var(--fern-wash)` |
-| `#fffefa` | 3 | builder frames | `var(--white)` |
 | `#f8f7f1` / `#e3ddcd` / `#8a5a3c` / `#c48a6a` | 6 | `.corr-light` suggestion style | `--note-bg` / `--note-line` / `--note-ink` / `--note-mark` |
 | `#f2ddc9` / `#7a3a15`, `#6d2a18` | 3 | review `.k-s`, `.frv-note.warn` | `var(--warn-bg)` / `var(--warn-ink)` |
 | `#9a6a1c` | 1 | `.anki-st.warn` text | `var(--warn-ink)` |

@@ -5,7 +5,6 @@ import type {
   AnkiStatus,
   ChatEvent,
   EndSummary,
-  ExtensionInfo,
   GrammarDetail,
   HomeView,
   NewSessionOptions,
@@ -40,7 +39,6 @@ import type {
   WordUsage,
 } from "../../../shared/records";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ProviderInfo, Settings } from "../../../shared/types";
-import { createBuilderMock } from "./mockBuilder";
 import { createDeckMock } from "./mockDecks";
 import { createVoiceMock } from "./mockVoice";
 import { createQuizMock } from "./mockQuiz";
@@ -1387,13 +1385,6 @@ export function createMockApi(): SayfernApi {
     },
   }, (l) => emptyOverview(l));
 
-  const EXT_DIR = "~/Library/Application Support/Sayfern/extensions";
-  let extensions: ExtensionInfo[] = [
-    { id: "hsk-tagger", name: "HSK level tags", description: "Adds an HSK level to Chinese lookups and lets the tutor check word levels.", version: "0.2.0", enabled: true, path: `${EXT_DIR}/hsk-tagger`, contributes: { tools: ["hsk_level"], languages: [] } },
-    { id: "pitch-accent", name: "Pitch accent notes", description: "Adds Tokyo pitch accent to Japanese readings.", version: "0.1.3", enabled: false, path: `${EXT_DIR}/pitch-accent`, contributes: { tools: ["pitch_accent"], languages: [] } },
-    { id: "cantonese", name: "Cantonese (粵語)", description: "Language pack with Jyutping readings.", version: "0.0.4", enabled: true, path: `${EXT_DIR}/cantonese`, error: "index.js failed to load: Cannot find module './jyutping.json'", contributes: { tools: [], languages: ["yue"] } },
-  ];
-
   if (fresh) {
     docs.splice(0);
     grammar.clear();
@@ -1423,17 +1414,12 @@ export function createMockApi(): SayfernApi {
     ankiCards,
     ankiConfig: () => ankiConfig,
     settings: () => settings,
-    extensions: () => extensions,
-    setExtensions: (next) => {
-      extensions = next;
-    },
     segment,
   };
 
   const api: SayfernApi = {
     ...createReviewMock(world),
     ...createQuizMock(world),
-    ...createBuilderMock(world),
     ...createDeckMock(world),
     ...createVoiceMock(),
 
@@ -1781,7 +1767,7 @@ export function createMockApi(): SayfernApi {
       return view(v.meta.id);
     },
 
-    // data & extensions
+    // data
     exportData: async () => {
       await wait(400);
       return { path: "~/Downloads/sayfern-export-2026-09-30.json" };
@@ -1795,12 +1781,6 @@ export function createMockApi(): SayfernApi {
       next.set(keepSignIns ? "fresh" : "onboarding", "1");
       history.replaceState(null, "", `${location.pathname}?${next}${location.hash}`);
     },
-    listExtensions: async () => clone(extensions),
-    setExtensionEnabled: async (id, enabled) => {
-      extensions = extensions.map((e) => (e.id === id ? { ...e, enabled } : e));
-      return clone(extensions);
-    },
-    openExtensionsFolder: async () => {},
     openExternal: async (url) => {
       window.open(url, "_blank", "noopener");
     },

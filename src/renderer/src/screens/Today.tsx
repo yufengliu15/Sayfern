@@ -5,7 +5,6 @@ import type { CourseView } from "../../../shared/course";
 import type { Language, Skill } from "../../../shared/records";
 import { SCENARIOS } from "../../../shared/scenarios";
 import { api, errorText } from "../api";
-import { FeatureActivities } from "../components/FeatureActivities";
 import { Icon } from "../components/icons";
 import { PlacementStart } from "../components/PlacementStart";
 import { UnitStart } from "../components/UnitStart";
@@ -270,7 +269,6 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
             </button>
           ))}
         </div>
-        <FeatureActivities language={language} />
         {error && (
           <p className="err" role="alert">
             <Icon name="alert" size={15} /> {t(error)}

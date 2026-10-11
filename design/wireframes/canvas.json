@@ -11,15 +11,6 @@
       "x": 0,
       "y": 2520
     },
-    "Customize.dc.html": {
-      "h": 900,
-      "is_interactive": true,
-      "radius": 14,
-      "title": "9 · Customize (feature builder)",
-      "w": 1440,
-      "x": 3040,
-      "y": 2520
-    },
     "Grammar.dc.html": {
       "h": 900,
       "is_interactive": true,
@@ -144,7 +135,6 @@
     "Progress.dc.html",
     "Corrections.dc.html",
     "Quiz.dc.html",
-    "Customize.dc.html",
     "Voice.dc.html"
   ],
   "pages": [],

@@ -4,9 +4,7 @@ import { WordPopoverHost } from "./components/WordPopover";
 import { AppProvider, useApp } from "./context";
 import { navigate, parseRoute, useRoute, type Route } from "./router";
 import { CourseScreen } from "./screens/Course";
-import { CustomizeScreen } from "./screens/Customize";
 import { DecksScreen } from "./screens/Decks";
-import { FeatureScreen } from "./screens/FeatureHost";
 import { GrammarScreen } from "./screens/Grammar";
 import { LibraryScreen } from "./screens/Library";
 import { OnboardingScreen } from "./screens/Onboarding";
@@ -91,17 +89,11 @@ function Shell() {
     case "settings":
       screen = <SettingsScreen tab={route.tab} language={language} navigate={navigate} />;
       break;
-    case "customize":
-      screen = <CustomizeScreen language={language} navigate={navigate} />;
-      break;
     case "review":
       screen = <ReviewScreen key={language} tab={route.tab} language={language} navigate={navigate} />;
       break;
     case "quiz":
       screen = <QuizScreen key={route.id} id={route.id} language={language} navigate={navigate} />;
-      break;
-    case "feature":
-      screen = <FeatureScreen key={route.id} id={route.id} language={language} navigate={navigate} />;
       break;
     case "decks":
       screen = <DecksScreen key={`${language}:${route.id ?? ""}`} id={route.id} language={language} navigate={navigate} />;

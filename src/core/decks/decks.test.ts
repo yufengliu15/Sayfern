@@ -13,7 +13,6 @@ import type { AnkiConnectService } from "../anki";
 import { SettingsStore } from "../app/settings";
 import type { AnkiAddResult, AnkiNoteInput, AnkiNoteType } from "../contracts";
 import { FileCredentialStore } from "../credential-file-store";
-import type { FileExtensionHost } from "../extensions";
 import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { JsonRecordsStore } from "../records";
@@ -145,7 +144,6 @@ function harness() {
     anki: anki as unknown as AnkiConnectService,
     library: new FileLibraryService({ dataDir: join(dir, "library"), now }),
     lang,
-    extensions: null as unknown as FileExtensionHost,
     settings,
     resolveModel: (r) => {
       if (r.provider !== model.provider || r.id !== model.id) throw new Error("Sign in to that model first.");

@@ -1,6 +1,6 @@
 # Architecture decisions
 
-Short ADR-style records of the choices behind Sayfern. Each has context, the decision, and its consequences. ADRs 1 to 17 were made on 2026-09-30 during the Stage 1 build (v0.1.0 to v0.3.1) unless noted; ADRs 18 to 21 come from the Stage 2 build (v0.5.0). When a decision changes, add a new entry that supersedes the old one instead of editing history.
+Short ADR-style records of the choices behind Sayfern. Each has context, the decision, and its consequences. ADRs 1 to 17 were made on 2026-09-30 during the Stage 1 build (v0.1.0 to v0.3.1) unless noted; ADRs 18 to 21 come from the Stage 2 build (v0.5.0). ADR 36 removes the feature builder and extensions. When a decision changes, add a new entry that supersedes the old one instead of editing history.
 
 Where each decision lives in code is noted under **Where**. The full design is in [`architecture.md`](architecture.md).
 
@@ -8,11 +8,11 @@ Where each decision lives in code is noted under **Where**. The full design is i
 
 ## ADR 1. Electron + React + TypeScript (not SwiftUI or Tauri)
 
-- **Context.** Sayfern is a Mac app. Stage 2 includes an AI feature builder: learners prompt the model to write extensions, test them, preview, enable/disable and roll back. That code has to load at runtime.
+- **Context.** (Superseded in part by ADR 36: the feature builder and extensions are gone, so nothing loads code at runtime.) Sayfern is a Mac app. Stage 2 included an AI feature builder: learners prompt the model to write extensions, test them, preview, enable/disable and roll back. That code has to load at runtime.
 - **Decision.** Electron with a React + TypeScript renderer and a Node main process.
 - **Why.** JavaScript modules can be written to disk and hot-loaded (`import()` with a cache-busting query), while Swift code would need compiling with Xcode plus code signing on the learner's machine. Models write TypeScript/React better than Swift. The provider library (pi-ai, ADR 2) is TypeScript. Tauri would split the app between Rust and a web view and still need a JS runtime for pi-ai.
 - **Consequences.** Larger app bundle and memory use. Access to Node for file storage, AnkiConnect and dictionaries. `safeStorage` for credentials (ADR 6). Packaging and signing are still to do (roadmap).
-- **Where.** `src/main/`, `src/preload/`, `src/renderer/`, `electron.vite.config.ts`; runtime loading already used by `src/core/extensions/index.ts`.
+- **Where.** `src/main/`, `src/preload/`, `src/renderer/`, `electron.vite.config.ts`; runtime loading was used by `src/core/extensions/index.ts` (removed, ADR 36).
 
 ## ADR 2. Model access through `@earendil-works/pi-ai`
 
@@ -60,7 +60,7 @@ Where each decision lives in code is noted under **Where**. The full design is i
 - **Context.** The tutor records evidence (corrections, grammar observations, taught patterns, level estimates) every turn. A normal tool call costs a second model request just to acknowledge the write, and the model sometimes calls it twice.
 - **Decision.** The tutor writes its reply first, then calls `record_evidence` once. Tools marked `recordingOnly` just store data: when every tool call in a step is recording-only and the reply already has text, the loop ends without a follow-up request. Record ids are deterministic (`correctionId`, `observationId`), so a retried or repeated call dedupes. The model never computes numbers; code counts the evidence (ADR 9).
 - **Transcript validity.** The stored transcript ends with assistant(toolCall) → toolResult, and the next turn appends a user message after the tool result. This sequence was verified against pi-ai's Anthropic and OpenAI Responses conversions.
-- **Consequences.** One request per ordinary turn. If the model calls a recording tool before writing any text, the loop does continue so the learner gets a reply. Extensions can declare `recordingOnly` tools with the same semantics.
+- **Consequences.** One request per ordinary turn. If the model calls a recording tool before writing any text, the loop does continue so the learner gets a reply. Extensions could declare `recordingOnly` tools with the same semantics (extensions were removed in ADR 36).
 - **Where.** `src/core/agent/turn.ts` (`runLoop`), `src/core/agent/tools.ts`, `src/core/records/ids.ts`, tests in `src/core/agent/turn.test.ts`.
 - **Update (v0.9.0).** Models that skip the call get one tool-only evidence pass after the reply (ADR 25).
 
@@ -137,7 +137,7 @@ Recorded from the code (not from a separate discussion).
 
 Stage 2 build (v0.5.0, 2026-09-30 to 2026-10-01). Extends ADR 4 and ADR 15.
 
-- **Context.** Stage 2 was built by three agents in parallel (review, quizzes, builder). One shared `SayfernApi`, `SayfernApp`, `mockApi.ts` and `styles.css` would have meant constant merge conflicts in the same files.
+- **Context.** Stage 2 was built by three agents in parallel (review, quizzes, builder; the builder was removed in ADR 36). One shared `SayfernApi`, `SayfernApp`, `mockApi.ts` and `styles.css` would have meant constant merge conflicts in the same files.
 - **Decision.** Each feature owns a slot file in `src/shared/stage2/` (an interface plus a `Record<method, true>` table such as `REVIEW_METHODS`). `SayfernApi` extends the slot interfaces and `METHOD_TABLE` spreads the tables, so the compile-time "every method listed" check still holds. Each feature's core service (`src/core/review`, `quiz`, `builder`) takes one shared `Stage2Deps` and is bound onto `SayfernApp` with `bindSlot`, which throws at startup if a listed method is missing. The mock backend and the stylesheet are split the same way: `dev/mock{Review,Quiz,Builder}.ts` over a shared `dev/mockWorld.ts`, and `src/renderer/src/styles/{review,quiz,builder}.css` next to `styles.css` (which keeps the tokens).
 - **Consequences.** Preload and main's IPC loop needed no per-method changes. The API checklist has a second path (slot → service → feature mock). `Stage2Deps` holds concrete Stage 1 classes rather than `contracts.ts` interfaces, a deliberate shortcut: Stage 2 services are app-internal, not extension points. The "one CSS file" rule of ADR 15 is replaced by "tokens in `styles.css`, one stylesheet per Stage 2 feature".
 - **Where.** `src/shared/stage2/`, `src/shared/api.ts`, `src/core/stage2.ts`, `src/core/app/index.ts`, `src/renderer/src/dev/`, `src/renderer/src/styles/`.
@@ -161,6 +161,8 @@ Stage 2 build (v0.5.0).
 - **Where.** `src/core/review/cards.ts`, `situations.ts`, `src/core/review/index.ts`, `src/core/anki/index.ts` (`ensureNoteType`, `ensureDeck`, `addNotes`).
 
 ## ADR 21. Feature builder trust model: sandboxed UI, approve-before-run full access
+
+Superseded by ADR 36 (the feature builder was removed in v0.27.0).
 
 Owner decision, 2026-09-30 ("Sandboxed UI + review"); hardened in review before v0.5.0. Supersedes the "no sandbox" note of F-09 for built features.
 
@@ -186,6 +188,21 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
   - **Audio.** ElevenLabs with the learner's own key (stored like an API-key sign-in, `credentials.json`, encrypted), Flash v2.5; Edge's read-aloud voices otherwise and as the fallback when credits run out. Edge is spoken from Node over its websocket protocol (ported from edge-tts 7.2.8: Sec-MS-GEC token, `Origin` header), so no Python is needed.
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
+
+## ADR 36. Remove the feature builder and extensions (v0.27.0)
+
+Owner decision, 2026-10-10. Supersedes ADR 21, and the extension host described in ADR 1 and ADR 7.
+
+- **Context.** Sayfern had two ways to change the app from inside: the AI feature builder (Customize screen, S2-10..S2-13) and a user extension host (F-09, F-11, Settings > Extensions). Both needed a lot of code: a builder agent and kit, versions, a review gate, a sandbox with its own scheme, SDK and test runner, and an extension loader. Sayfern is open source (GPL-3.0) and well documented. People who want a change can edit the source with a coding agent, with no in-app builder or plugin API.
+- **Decision.** Remove both features completely: the builder (`src/core/builder/`, `src/shared/stage2/builder*.ts`, `src/main/features.ts`, the Customize screen, feature frames, tabs and activities, `evt:builder`, the SDK and RPC), the extension host (`src/core/extensions/`, `listExtensions`, `setExtensionEnabled`, Settings > Extensions) and `examples/extensions/`. Delete the guides `docs/feature-builder.md`, `docs/feature-sdk.d.ts` and `docs/extensions.md`. Stage 2 keeps review, quizzes and decks. Feature IDs S2-10..S2-13, F-09 stay in the feature maps, marked removed.
+- **Consequences.**
+  - Existing `extensions/`, `extensions.json` and `builder/` folders in userData stay on disk and are ignored. "Erase all data" no longer touches them.
+  - Nothing loads or runs code at runtime. The feature sandbox, the full-access review gate and the sandbox e2e (`SAYFERN_E2E_BUILDER`) are gone.
+  - The app window's network lockdown (`lockDownAppSession`: dead proxy, WebRTC policy, no sub-frame permissions, `will-frame-navigate` guard) existed only to keep feature frames offline, so it is gone too. Main's HTTP (`electronFetch`) uses the default session instead of the `sayfern-net` partition. The renderer's CSP in `index.html` still limits what the window can load.
+  - The website's feature card #6 now says Sayfern is open source and documented for coding agents.
+  - The language pack, tool and prompt hooks that existed only for extensions are no longer public API. Language packs stay internal.
+  - Any feature a user wants is a source change, made in a fork or a pull request.
+- **Where.** The git history before v0.27.0 has the removed code. `CHANGELOG.md` 0.27.0 lists what went.
 
 ## ADR 35. New topic opens with a levelled question (v0.25.0)
 

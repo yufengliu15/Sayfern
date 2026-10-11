@@ -1,7 +1,0 @@
-{
-  "name": "Chengyu of the day",
-  "version": "1.0.0",
-  "description": "Gives the Chinese tutor one four-character idiom a day to weave into conversation.",
-  "type": "module",
-  "main": "index.js"
-}

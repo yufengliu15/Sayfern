@@ -176,9 +176,9 @@ class Component extends DCLogic {
     const s = this.state;
     const list = [
       ['Anthropic', 'API key'], ['OpenAI', 'API key'], ['DeepSeek', 'API key'],
-      ['Fireworks', 'API key'], ['Custom endpoint', 'Compatible URL'], ['More', 'Gemini, Groq, local…']
+      ['Custom endpoint', 'Compatible URL'], ['More', 'Gemini, Groq, local…']
     ];
-    const hints = { Anthropic: 'sk-ant-…', OpenAI: 'sk-…', DeepSeek: 'sk-…', Fireworks: 'fw_…', 'Custom endpoint': 'https://…', More: 'Choose a provider' };
+    const hints = { Anthropic: 'sk-ant-…', OpenAI: 'sk-…', DeepSeek: 'sk-…', 'Custom endpoint': 'https://…', More: 'Choose a provider' };
     return {
       providers: list.map(([name, note]) => ({
         name, note, on: s.pick === name ? 'true' : 'false', cls: s.pick === name ? 'on' : '',

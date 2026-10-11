@@ -61,8 +61,6 @@ const CACHE_SIZE = 500;
 
 export class DefaultLanguageService implements LanguageService {
   private readonly packs = new Map<string, LanguagePack>();
-  /** Dictionaries registered by extensions (registerPack): always used for their language. */
-  private readonly fixed = new Map<string, DictionaryProvider | null>();
   /** Built dictionaries by key ("zh", "ja", "ja@de", "es@en"). */
   private readonly built = new Map<string, Dict>();
   /** The dictionary each language used last (sync view for segmentation). */
@@ -89,12 +87,6 @@ export class DefaultLanguageService implements LanguageService {
     const p = this.packs.get(language);
     if (!p) throw new Error(`No language pack for "${language}"`);
     return p;
-  }
-
-  registerPack(pack: LanguagePack, dictionary?: DictionaryProvider): void {
-    this.packs.set(pack.info.id, pack);
-    this.fixed.set(pack.info.id, dictionary ?? null);
-    this.cache.clear();
   }
 
   // ------------------------------------------------------------ dictionary choice
@@ -155,10 +147,6 @@ export class DefaultLanguageService implements LanguageService {
    * to look words up in (the preferred one if installed, else any installed fallback).
    */
   private async resolve(language: Language): Promise<{ preferred: Dict | null; usable: Dict | null }> {
-    if (this.fixed.has(language)) {
-      const d = this.fixed.get(language) ?? null;
-      return { preferred: d, usable: d };
-    }
     const dicts = this.choices(language, await this.locale()).map((c) => this.dict(c));
     if (!dicts.length) return { preferred: null, usable: null };
     let usable: Dict | null = null;
@@ -239,7 +227,7 @@ export class DefaultLanguageService implements LanguageService {
         // The preferred dictionary (in the interface language) isn't installed yet: say so.
         if (preferred && preferred !== usable) result.needsDictionary = true;
       }
-    } else if (!this.fixed.has(language)) {
+    } else {
       result.noDictionary = true;
     }
     const [anki, usage] = await Promise.all([

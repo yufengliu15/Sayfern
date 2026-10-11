@@ -274,16 +274,6 @@ test("service: annotate covers text, caches results, fills anki and firstUsedAt"
   assert.equal(r.needsDictionary, true);
 });
 
-test("service: registerPack adds a language", async () => {
-  const svc = new DefaultLanguageService({ dataDir: tmp() });
-  const zh = svc.pack("zh");
-  svc.registerPack({ ...zh, info: { ...zh.info, id: "yue" as never, name: "Cantonese" }, ready: async () => {}, segment: (t: string) => [{ text: t, start: 0, end: t.length, isWord: true }] } as never);
-  assert.equal(svc.languages().length, 12);
-  assert.deepEqual(await svc.annotate("yue" as never, "你好"), [{ text: "你好", start: 0, end: 2, isWord: true }]);
-  const r = await svc.lookup("yue" as never, "你好");
-  assert.deepEqual(r, { query: "你好", entries: [] });
-});
-
 /** A tiny Open English WordNet JSON release: synset files plus word entries. */
 async function oewnZip(): Promise<Uint8Array> {
   const zip = new JSZip();

@@ -1,16 +1,13 @@
 // Electron main: owns the window, dialogs, Keychain-backed credentials and the
 // IPC table. Everything else lives in SayfernApp (src/core/app, plain Node).
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, safeStorage, shell, systemPreferences, type MenuItemConstructorOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, session, shell, systemPreferences, type MenuItemConstructorOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { SayfernApp, errorText, type CoreApi, type ElectronOnlyMethod } from "../core/app";
 import { FileCredentialStore } from "../core/credential-file-store";
 import { createSayfernModels } from "../core/providers";
-import { installE2EFaux, runBuilderE2E } from "./e2e";
-import { createElectronTestRunner, lockDownAppSession, netSession, type ServeAsset } from "./features";
+import { installE2EFaux } from "./e2e";
 import { API_METHODS, EVENT_CHANNELS, ipcChannel, type SayfernApi } from "../shared/api";
-import { FEATURE_SCHEME } from "../shared/stage2";
 import type { UiLocale } from "../shared/locales";
 import { themeInfo } from "../shared/themes";
 
@@ -20,18 +17,9 @@ if (process.env.SAYFERN_E2E_DATA) app.setPath("userData", process.env.SAYFERN_E2
 const dataDir = app.getPath("userData");
 let win: BrowserWindow | null = null;
 
-// Chromium's network stack (system proxy settings, certificates), on its own session: the default session
-// (the app window and its feature frames) has its network switched off (src/main/features.ts).
+// Chromium's network stack (system proxy settings, certificates) for main-process HTTP.
 const electronFetch = ((input: string | URL | Request, init?: RequestInit) =>
-  netSession().fetch(input instanceof URL ? input.href : input, init)) as typeof fetch;
-
-/** sayfern-feature:// resolver, looked up per request: `sayfern` is replaced after an erase. */
-const serveFeatureAsset: ServeAsset = async (url, opts) => {
-  if (erasing) await erasing.catch(() => undefined);
-  return sayfern.builder.serveAsset(url, opts);
-};
-/** Feature tests run in a hidden sandboxed window on a locked-down session, never in this process. */
-const featureTestRunner = createElectronTestRunner(serveFeatureAsset);
+  session.defaultSession.fetch(input instanceof URL ? input.href : input, init)) as typeof fetch;
 
 /** Builds the backend. Called at startup and again after "Erase all data" (fresh caches, fresh credentials). */
 function buildApp(): SayfernApp {
@@ -58,7 +46,6 @@ function buildApp(): SayfernApp {
     // The default interface language follows macOS's preferred languages (System Settings > Language & Region).
     systemLocales: () => app.getPreferredSystemLanguages(),
   });
-  built.builder.setTestRunner(featureTestRunner);
   if (process.env.SAYFERN_E2E_FAUX === "1") Object.assign(globalThis, { __sayfernE2E: built });
   return built;
 }
@@ -112,11 +99,6 @@ const electronOnly: Pick<SayfernApi, ElectronOnlyMethod> = {
       }
     })();
     return erasing;
-  },
-  async openExtensionsFolder() {
-    await mkdir(sayfern.extensionsDir, { recursive: true });
-    const err = await shell.openPath(sayfern.extensionsDir);
-    if (err) throw new Error(err);
   },
   async openExternal(url) {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url);
@@ -228,14 +210,6 @@ function setUpBranding(locale: UiLocale = "en"): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-// ---------- sandboxed feature UIs (S2-11) ----------
-// Feature UIs built in Customize load from sayfern-feature://<id>/v<n>/… into <iframe sandbox="allow-scripts">.
-// The resolver (paths, versions, CSP headers) is plain core code: BuilderService.serveAsset.
-protocol.registerSchemesAsPrivileged([
-  { scheme: FEATURE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
-]);
-
-
 // ---------- window ----------
 async function createWindow(): Promise<void> {
   const theme = themeInfo((await sayfern.settings.get().catch(() => undefined))?.theme);
@@ -259,13 +233,6 @@ async function createWindow(): Promise<void> {
     },
   });
   win.once("ready-to-show", () => win?.show());
-  // Feature frames live in this renderer: WebRTC may only use the session's (dead) proxy, so no STUN/TURN.
-  win.webContents.setWebRTCIPHandlingPolicy("disable_non_proxied_udp");
-  // Feature frames may only show their own pages: no navigating a frame to the web (or anywhere else).
-  win.webContents.on("will-frame-navigate", (e) => {
-    if (e.isMainFrame) return;
-    if (!e.url.startsWith(`${FEATURE_SCHEME}://`) && e.url !== "about:srcdoc" && e.url !== "about:blank") e.preventDefault();
-  });
   win.on("closed", () => {
     win = null;
   });
@@ -299,12 +266,10 @@ app.on("second-instance", () => {
 
 app.whenReady().then(async () => {
   setUpBranding();
-  await lockDownAppSession(serveFeatureAsset, { dev: !!process.env.ELECTRON_RENDERER_URL });
   await initApp(sayfern);
   await refreshMenu();
   registerIpc();
   await createWindow();
-  if (process.env.SAYFERN_E2E_BUILDER === "1" && win) void runBuilderE2E(sayfern, win);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });

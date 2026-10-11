@@ -12,7 +12,6 @@ import "./styles.css";
 // Stage 2 screens keep their rules in their own files (same tokens as styles.css).
 import "./styles/review.css";
 import "./styles/quiz.css";
-import "./styles/builder.css";
 import "./styles/decks.css";
 import "./styles/voice.css";
 import "./styles/course.css";

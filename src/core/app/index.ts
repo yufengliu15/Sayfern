@@ -11,7 +11,6 @@ import type {
   ChatEvent,
   EndSummary,
   EVENT_CHANNELS,
-  ExtensionInfo,
   GrammarDetail,
   HomeView,
   NewSessionOptions,
@@ -58,19 +57,17 @@ import { TARGET_COUNT } from "../agent/turn";
 import { stripPasted } from "../agent/text";
 import { AnkiConnectService } from "../anki";
 import type { TutorEvent } from "../contracts";
-import { FileExtensionHost } from "../extensions";
 import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { describeProviders, listAvailableModels } from "../providers";
 import { JsonRecordsStore } from "../records";
-import { BuilderService } from "../builder";
 import { QuizService } from "../quiz";
 import { DeckService } from "../decks";
 import { ReviewService } from "../review";
 import { bindSlot, type Stage2Deps } from "../stage2";
 import { ElevenLabsAccounts, VoiceService } from "../voice";
 import { VOICE_METHODS, type VoiceApi } from "../../shared/stage3";
-import { BUILDER_METHODS, DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type BuilderApi, type DeckApi, type QuizApi, type ReviewApi } from "../../shared/stage2";
+import { DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type DeckApi, type QuizApi, type ReviewApi } from "../../shared/stage2";
 import { SettingsStore } from "./settings";
 
 export { SettingsStore, DEFAULT_SETTINGS } from "./settings";
@@ -91,21 +88,18 @@ export interface SayfernAppDeps {
   openExternal?: (url: string) => void;
   /** Override the kuromoji dictionary directory (packaged app). */
   kuromojiDicPath?: string;
-  /** Extension log sink. Default: console. */
-  extensionLog?: (id: string, ...args: unknown[]) => void;
   /** The OS's preferred languages, in order (main: app.getPreferredSystemLanguages). Picks the default interface language. */
   systemLocales?: () => readonly string[];
 }
 
 /** Methods that need Electron (dialogs, shell): main implements these itself. */
-export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExtensionsFolder" | "openExternal" | "requestMicrophone";
+export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExternal" | "requestMicrophone";
 
 /**
- * What "Erase all data" removes, relative to dataDir. Kept: dict/ (downloaded dictionaries, not learner data),
- * extensions/ (code the learner installed) and builder/features/ (features built in Customize); what those
- * features stored (builder/data/) goes. credentials.json goes too unless sign-ins are kept.
+ * What "Erase all data" removes, relative to dataDir. Kept: dict/ (downloaded dictionaries, not learner data).
+ * credentials.json goes too unless sign-ins are kept.
  */
-export const ERASE_PATHS = ["records", "library", "anki", "sessions", "settings.json", "extensions.json", "builder/data"] as const;
+export const ERASE_PATHS = ["records", "library", "anki", "sessions", "settings.json"] as const;
 export type CoreApi = Pick<SayfernApi, Exclude<ApiMethod, ElectronOnlyMethod>>;
 
 type ChatEventBody = ChatEvent extends infer E ? (E extends ChatEvent ? Omit<E, "requestId" | "sessionId"> : never) : never;
@@ -124,7 +118,7 @@ export function errorText(err: unknown): string {
 }
 
 /** Stage 2 slot methods are bound onto SayfernApp at construction (see bindSlot in core/stage2.ts). */
-export interface SayfernApp extends ReviewApi, QuizApi, Omit<BuilderApi, `on${string}`>, DeckApi, VoiceApi {}
+export interface SayfernApp extends ReviewApi, QuizApi, DeckApi, VoiceApi {}
 
 export class SayfernApp implements CoreApi {
   readonly dataDir: string;
@@ -134,12 +128,10 @@ export class SayfernApp implements CoreApi {
   readonly lang: DefaultLanguageService;
   readonly library: FileLibraryService;
   readonly anki: AnkiConnectService;
-  readonly extensions: FileExtensionHost;
   readonly tutor: SayfernTutor;
   readonly settings: SettingsStore;
   readonly review: ReviewService;
   readonly quizzes: QuizService;
-  readonly builder: BuilderService;
   readonly decks: DeckService;
   readonly voice: VoiceService;
 
@@ -185,18 +177,12 @@ export class SayfernApp implements CoreApi {
       wordUsage: (language, word) => this.records.getWordUsage(language, word),
       ankiCard: async (language, word) => ((await this.anki.getConfig()).enabled ? this.anki.findCard(language, word) : null),
     });
-    this.extensions = new FileExtensionHost({
-      dir: join(this.dataDir, "extensions"),
-      lang: this.lang,
-      log: deps.extensionLog,
-    });
     this.tutor = new SayfernTutor({
       models: this.models,
       records: this.records,
       lang: this.lang,
       library: this.library,
       anki: this.anki,
-      extensions: this.extensions,
       now,
       newId: this.newId,
       explanationLanguage: () => this.settings.explanationLanguage(),
@@ -211,7 +197,6 @@ export class SayfernApp implements CoreApi {
       anki: this.anki,
       library: this.library,
       lang: this.lang,
-      extensions: this.extensions,
       settings: this.settings,
       resolveModel: (ref) => this.resolveModel(ref),
       emit: (channel, payload) => this.emitEvent(channel, payload),
@@ -230,17 +215,15 @@ export class SayfernApp implements CoreApi {
     });
     this.review = new ReviewService(stage2);
     this.quizzes = new QuizService(stage2);
-    this.builder = new BuilderService(stage2);
     bindSlot(this, this.review, REVIEW_METHODS);
     bindSlot(this, this.quizzes, QUIZ_METHODS);
-    bindSlot(this, this.builder, BUILDER_METHODS);
     this.decks = new DeckService(stage2);
     bindSlot(this, this.decks, DECK_METHODS);
     this.voice = new VoiceService(stage2);
     bindSlot(this, this.voice, VOICE_METHODS);
   }
 
-  /** One-time setup: v0.1 session import (once), extensions. Call before serving requests. */
+  /** One-time setup: v0.1 session import (once). Call before serving requests. */
   async init(): Promise<void> {
     const s = await this.settings.get();
     if (!s.legacyImported) {
@@ -251,7 +234,6 @@ export class SayfernApp implements CoreApi {
         console.error("Legacy session import failed:", errorText(err));
       }
     }
-    await this.extensions.load();
     for (const info of this.lang.languages()) this.refreshAnki(info.id);
     this.recountWords(this.lang.languages().map((l) => l.id));
     this.ensureDictionaries();
@@ -1011,7 +993,7 @@ export class SayfernApp implements CoreApi {
     return this.createAndOpen({ language, kind: "placement", title: LANGUAGE_META[language].titles.placement, ...(band ? { levelBand: band } : {}) });
   }
 
-  // ============================================================ data & extensions
+  // ============================================================ data
 
   /**
    * Stops all work (turns, openings, sign-in, Anki refreshes) and deletes the learner's data from disk.
@@ -1022,7 +1004,6 @@ export class SayfernApp implements CoreApi {
     const deviceId = opts.keepSignIns ? (await this.settings.get()).deviceId : undefined;
     for (const ctrl of this.inflight.values()) ctrl.abort();
     this.quizzes.abortAll();
-    await this.builder.abortAll();
     await this.decks.abortAll();
     await this.cancelLogin();
     await this.whenIdle();
@@ -1048,7 +1029,6 @@ export class SayfernApp implements CoreApi {
       settings,
       records: await this.records.exportAll(),
       quizzes: await this.quizzes.exportAll(),
-      builder: await this.builder.exportAll(),
       library,
       anki: await this.anki.getConfig(),
     };
@@ -1064,17 +1044,5 @@ export class SayfernApp implements CoreApi {
     const d = new Date(this.now());
     const pad = (n: number) => String(n).padStart(2, "0");
     return `sayfern-export-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
-  }
-
-  async listExtensions(): Promise<ExtensionInfo[]> {
-    return this.extensions.list();
-  }
-
-  setExtensionEnabled(id: string, enabled: boolean): Promise<ExtensionInfo[]> {
-    return this.extensions.setEnabled(id, enabled);
-  }
-
-  get extensionsDir(): string {
-    return this.extensions.dir;
   }
 }

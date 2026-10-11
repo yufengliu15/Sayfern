@@ -14,15 +14,6 @@ files:
   - out/**
   - build/icon.png
   - package.json
-  # The feature builder's kit: findKitRoot finds it next to out/ (KIT_FILES and KIT_DIRS in src/core/builder/kit.ts).
-  - docs/feature-builder.md
-  - docs/feature-sdk.d.ts
-  - docs/extensions.md
-  - src/core/contracts.ts
-  - src/core/extensions/index.ts
-  - src/shared/records.ts
-  - src/shared/lang.ts
-  - examples/extensions/**
   - "!**/*.map"
 artifactName: Sayfern-${version}-${os}-${arch}.${ext}
 publish: null

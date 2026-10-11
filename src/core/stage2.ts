@@ -1,9 +1,8 @@
-// Shared wiring for the Stage 2 services (review, quiz, builder, decks). SayfernApp builds one
+// Shared wiring for the Stage 2 services (review, quiz, decks, voice). SayfernApp builds one
 // Stage2Deps, constructs each service with it, and binds the service's slot methods
 // (src/shared/stage2/*) onto itself so main's IPC loop finds them like any other method.
 import type { Api, CredentialStore, Model, MutableModels } from "@earendil-works/pi-ai";
 import type { AnkiConnectService } from "./anki";
-import type { FileExtensionHost } from "./extensions";
 import type { DefaultLanguageService } from "./lang";
 import type { FileLibraryService } from "./library";
 import type { JsonRecordsStore } from "./records";
@@ -20,7 +19,6 @@ export interface Stage2Deps {
   anki: AnkiConnectService;
   library: FileLibraryService;
   lang: DefaultLanguageService;
-  extensions: FileExtensionHost;
   settings: SettingsStore;
   /** Throws a learner-readable error when the model isn't available or signed in. */
   resolveModel(ref: ModelRef): Model<Api>;

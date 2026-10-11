@@ -1,6 +1,6 @@
 // Colour themes. Light is the default (no `data-theme` attribute on <html>). The token values live in
-// styles.css (three blocks) and are mirrored in FEATURE_SDK_CSS; only `paper` is repeated here, for the
-// window background that main paints before the page loads.
+// styles.css (three blocks); only `paper` is repeated here, for the window background that main paints
+// before the page loads.
 import { msg } from "./i18n";
 
 export type Theme = "light" | "forest" | "ink";

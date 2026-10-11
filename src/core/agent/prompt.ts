@@ -55,7 +55,6 @@ export interface PromptData {
   catalogue: GrammarPoint[];
   focus?: GrammarPoint | null;
   reading?: { doc: LibraryDoc; current: number; paragraphs: LibraryParagraph[] } | null;
-  additions: string[];
   /** Anki vocabulary summary, when Anki is on and the language has a snapshot. */
   anki?: { overview: AnkiOverview; now: number } | null;
   /** The language the tutor explains in (interface language): "German". Default English. */
@@ -183,7 +182,6 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     now: deps.now(),
     targets: targets.filter((t) => t.status === "pending" || t.status === "asked"),
     catalogue: grammar.slice(0, TUNING.maxCatalogue).map((g) => g.point),
-    additions: deps.extensions?.promptAdditions(language) ?? [],
     explain: await explainIn(deps),
     pacing: computePacing(messages, new Set(corrections.filter(countableCorrection).map((c) => c.messageId))),
   };
@@ -638,7 +636,6 @@ export function renderSystemPrompt(d: PromptData) {
     catalogueBlock(d),
     FEEDBACK_RULES,
     TOOL_PROTOCOL,
-    ...d.additions,
   ];
   return blocks.filter((b) => b && b.trim()).join("\n\n");
 }

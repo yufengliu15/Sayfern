@@ -1,7 +1,7 @@
 // Dependencies shared by the tutor's parts (prompt, tools, turn loop, retries).
 import type { Api, Model, MutableModels } from "@earendil-works/pi-ai";
 import { translator, type Translator } from "../../shared/i18n";
-import type { AnkiService, ExtensionHost, LanguageService, LibraryService, RecordsStore } from "../contracts";
+import type { AnkiService, LanguageService, LibraryService, RecordsStore } from "../contracts";
 
 export interface TutorDeps {
   models: MutableModels;
@@ -9,7 +9,6 @@ export interface TutorDeps {
   lang: LanguageService;
   library: LibraryService;
   anki: AnkiService;
-  extensions?: ExtensionHost;
   now: () => number;
   newId: () => string;
   /** Whether Anki targets should be selected (config.enabled). */

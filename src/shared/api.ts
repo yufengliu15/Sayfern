@@ -30,7 +30,7 @@ import type {
   Verdict,
   WordUsage,
 } from "./records";
-import { BUILDER_METHODS, DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type BuilderApi, type DeckApi, type QuizApi, type ReviewApi } from "./stage2";
+import { DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type DeckApi, type QuizApi, type ReviewApi } from "./stage2";
 import type { CourseView } from "./course";
 import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "./types";
 
@@ -116,18 +116,6 @@ export interface AnkiStatus {
   snapshots: Partial<Record<Language, Pick<AnkiSnapshot, "syncedAt" | "matureCount" | "reviewedToday"> & { cards: number }>>;
 }
 
-export interface ExtensionInfo {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  enabled: boolean;
-  /** Absolute folder path. */
-  path: string;
-  error?: string;
-  contributes: { tools: string[]; languages: string[] };
-}
-
 export interface NewSessionOptions {
   language: Language;
   kind?: SessionKind;
@@ -162,10 +150,10 @@ export type ChatEvent =
 // ---------------------------------------------------------------- API
 
 /**
- * Stage 2 methods live in per-feature slots (src/shared/stage2/: review, quiz, builder, decks) so the
+ * Stage 2 methods live in per-feature slots (src/shared/stage2/: review, quiz, decks) so the
  * features can grow independently; SayfernApp binds each slot to its core service.
  */
-export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, VoiceApi {
+export interface SayfernApi extends ReviewApi, QuizApi, DeckApi, VoiceApi {
   // settings, providers, auth
   getSettings(): Promise<Settings>;
   setSettings(patch: Partial<Settings>): Promise<Settings>;
@@ -267,17 +255,14 @@ export interface SayfernApi extends ReviewApi, QuizApi, BuilderApi, DeckApi, Voi
   /** `band`: the learner's own rough level, picked before the chat; the diagnostic starts there. */
   startPlacement(language: Language, band?: LevelBand): Promise<SessionView>;
 
-  // data & extensions (F-09, F-11)
+  // data (F-11)
   exportData(): Promise<{ path: string } | null>;
   /**
    * Deletes every record, the library, settings and the Anki link, then restarts the backend fresh
-   * (the renderer reloads afterwards). Downloaded dictionaries and installed extensions stay.
+   * (the renderer reloads afterwards). Downloaded dictionaries stay.
    * `keepSignIns`: keep model sign-ins and API keys.
    */
   eraseAllData(opts: { keepSignIns: boolean }): Promise<void>;
-  listExtensions(): Promise<ExtensionInfo[]>;
-  setExtensionEnabled(id: string, enabled: boolean): Promise<ExtensionInfo[]>;
-  openExtensionsFolder(): Promise<void>;
   /** Stage 3: asks macOS for microphone access (prompts once). True when Sayfern may record. */
   requestMicrophone(): Promise<boolean>;
 
@@ -293,7 +278,6 @@ export const EVENT_CHANNELS = {
   authEvent: "evt:auth",
   authPrompt: "evt:auth-prompt",
   dictionaryProgress: "evt:dictionary-progress",
-  builder: "evt:builder",
 } as const;
 
 /** Every method except event subscriptions (`on*`), which listen on EVENT_CHANNELS instead. */
@@ -308,7 +292,6 @@ export const ipcChannel = (m: ApiMethod): string => `ipc:${m}`;
 const METHOD_TABLE: Record<ApiMethod, true> = {
   ...REVIEW_METHODS,
   ...QUIZ_METHODS,
-  ...BUILDER_METHODS,
   ...DECK_METHODS,
   ...VOICE_METHODS,
   getSettings: true,
@@ -374,9 +357,6 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   startPlacement: true,
   exportData: true,
   eraseAllData: true,
-  listExtensions: true,
-  setExtensionEnabled: true,
-  openExtensionsFolder: true,
   requestMicrophone: true,
   openExternal: true,
 };

@@ -18,7 +18,7 @@ test("SayfernApp: quiz methods are bound; quiz evidence shows on the grammar pag
   const offline = (async () => {
     throw new Error("offline");
   }) as unknown as typeof fetch;
-  const app = new SayfernApp({ dataDir: dir, models, credentials, fetch: offline, now: () => new Date(2026, 8, 30, 15).getTime(), emit: () => undefined, extensionLog: () => undefined });
+  const app = new SayfernApp({ dataDir: dir, models, credentials, fetch: offline, now: () => new Date(2026, 8, 30, 15).getTime(), emit: () => undefined });
   await app.init();
   const m = faux.getModel();
   const ref: ModelRef = { provider: m.provider, id: m.id };

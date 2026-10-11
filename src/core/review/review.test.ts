@@ -126,7 +126,6 @@ async function makeApp(anki = fakeAnki()) {
     ankiFetch: anki.fetch,
     now: () => clock.t,
     emit: () => undefined,
-    extensionLog: () => undefined,
   });
   await app.init();
   await app.ankiSetConfig({ enabled: true, url: "http://127.0.0.1:8765", decks: [] });

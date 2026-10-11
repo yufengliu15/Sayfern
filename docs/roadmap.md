@@ -5,7 +5,7 @@ What comes after v0.5.0, and where each piece plugs into the code. Stage and fea
 | Stage | Scope | Status |
 |---|---|---|
 | 1 | Text learning (Chinese and Japanese; nine more languages and 12 interface locales in v0.7.0) | Built: v0.1.0 to v0.3.1 (v0.4.0 added the benchmark). Feature status in [`stage1.md`](stage1.md). |
-| 2 | Corrections review, Anki export, quizzes, AI feature builder | Built: v0.5.0. Feature status in [`stage2.md`](stage2.md). Follow-ups below. |
+| 2 | Corrections review, Anki export, quizzes | Built: v0.5.0. Feature status in [`stage2.md`](stage2.md). Follow-ups below. |
 | 3 | Voice | Partly built: v0.8.0 (listening, talking, several ElevenLabs accounts). Assessment and audio quizzes next. |
 
 ---
@@ -38,7 +38,7 @@ The Course screen and the tutor's syllabus come from one data file per language 
 
 - **Review > Corrections (S2-01..S2-03).** Every correction across sessions with kind, status, grammar and search filters, hide-and-retry, and export of selected corrections to Anki as cloze or situation cards through Sayfern's own note types (ADR 20). `src/core/review/`.
 - **Quizzes (S2-04..S2-09).** A sentence-style quiz builder (focus, sources, level incl. HSK 2.0/3.0 and JLPT, formats, length), batched generation with local validation of every item, local grading of fixed formats and model grading of open ones, and quiz evidence kept apart from conversation (ADR 19). `src/core/quiz/`.
-- **Customize: the feature builder (S2-10..S2-13).** The learner's model reads a builder kit, writes a feature, tests it and finishes; sandboxed tabs and Today activities, live preview, sealed versions with rollback, and a review gate for full-access code (ADR 21). `src/core/builder/`, `src/main/features.ts`.
+- **Customize: the feature builder (S2-10..S2-13).** Removed in 0.27.0 (ADR 36).
 - **Anki decks (S2-14..S2-16, v0.6.0).** A welcome-page step that pushes Anki (shared decks on AnkiWeb or a generated deck), and a deck generator with checked readings, local ruby, ElevenLabs or Edge audio, added straight to Anki in batches (ADR 22). `src/core/decks/`.
 - **Foundation.** Per-feature API slots bound with `bindSlot` (ADR 18), Review nav (⌘4, Progress ⌘5), per-feature stylesheets and mock slots.
 
@@ -67,16 +67,6 @@ Anki decks (v0.6.0):
 - Images on cards (an /ankigen option) are not built.
 - The sample preview plays audio from data: URLs; batches don't show audio in the app.
 - A generated deck is followed automatically; nothing syncs it right away (the next sync or session start does).
-
-Feature builder:
-- **Check on macOS:** the OS sandbox (the Linux e2e needed `--no-sandbox` because the container runs as root) and font fallback inside feature frames.
-- `run_tests` also loads main-side modules that `test.js` imports, in the sandboxed page; main-side code that needs `node:` APIs can't be unit-tested by the builder.
-- Surfaces beyond tab and activity (statistics widgets, dictionaries, importers, integrations, quiz formats or grading rules) are not implemented; hand-installed extensions' surfaces are ignored.
-- Results from sandboxed features stay per feature: they don't feed grammar evidence or Progress (they are exported).
-- One build at a time per feature. No token or cost cap per build beyond the 25-iteration cap; usage is stored per turn but not shown.
-- "Ask for changes" sends a compact history (prompts and outcomes) plus the file list, not the full previous transcript.
-- Rolling back to an unapproved full-access version is blocked only while the feature is on (turning it on then asks for review).
-- A test can fake its own result object; test counts measure what the model's tests claim.
 
 ---
 
@@ -107,9 +97,9 @@ Verified against the v0.5.0 code. Each item says where a fix would go.
 | 1 | **Retry after a failed turn duplicates the learner message.** The failed turn keeps its saved learner message; Retry sends the same text again as a new message, so the conversation shows it twice and words are counted twice (S1-23). | `retryLast` in `src/renderer/src/lib/chatStream.ts` calls `send` again; `runTurn` in `src/core/agent/turn.ts` always appends. Fix with a retry API that reuses the existing learner message (skip `appendMessage` and `recordLearnerWords`). |
 | 2 | **Retry on a failed opening does nothing.** Openings have no learner message and no stored input, so `retryLast` returns without sending. | `useChat.retry` / `retryLast` in the renderer; needs an API to restart an opening (for example re-running `viewWithOpening`, which already restarts when the only tutor messages have errors). |
 | 3 | ~~Grammar "Explain again" is rejected.~~ **Fixed in 0.2.2:** the request rides in the opening (`SessionMeta.openWith = "explain"`). | |
-| 4 | **Disabled extension language packs stay loaded until restart.** Same for approved built features that register a language pack. | `LanguageService.registerPack` has no unregister; `FileExtensionHost.loadAll` in `src/core/extensions/index.ts`. |
+| 4 | ~~Disabled extension language packs stay loaded until restart.~~ **Gone in 0.27.0:** extensions were removed (ADR 36). | |
 | 5 | **No context trimming.** Every turn sends the full transcript; very long sessions will hit context limits and cost more. | `runLoop` in `src/core/agent/turn.ts` (`transcript`). The prompt already carries long-term memory (ADR 16), so older turns can be dropped or summarized. |
-| 6 | ~~Packaged app untested; no packaging or signing.~~ **Packaging added in 0.16.0** ([packaging.md](packaging.md)): CI builds a .dmg, an .exe and a Flatpak on every push to `main`. kuromoji's dictionary, pdf.js and the builder kit load from the packaged app (checked on macOS). Still open: Developer ID signing and notarization, Windows SmartScreen signing, a check by hand on Windows and Linux, auto-update. | `electron-builder.yml`, `.github/workflows/release.yml`, `flatpak/`. |
+| 6 | ~~Packaged app untested; no packaging or signing.~~ **Packaging added in 0.16.0** ([packaging.md](packaging.md)): CI builds a .dmg, an .exe and a Flatpak on every push to `main`. kuromoji's dictionary and pdf.js load from the packaged app (checked on macOS). Still open: Developer ID signing and notarization, Windows SmartScreen signing, a check by hand on Windows and Linux, auto-update. | `electron-builder.yml`, `.github/workflows/release.yml`, `flatpak/`. |
 | 7 | ~~JMdict download URL resolution never verified live.~~ **Verified 2026-10-02** on the owner's Mac: JMdict with German glosses installed (129,073 entries) through the GitHub releases API. | `LIVE=1 npx tsx --test src/core/lang/live.test.ts` re-checks it. |
 | 8 | **Chinese segmentation is greedy longest match.** Forward maximum matching against CC-CEDICT mis-splits some phrases; without the dictionary it falls back to `Intl.Segmenter`. | `ChinesePack.splitHan` in `src/core/lang/zh.ts`. |
 | 9 | **PDFs with columns or vertical text parse poorly; no OCR.** Lines are grouped by baseline in content order; scanned PDFs import empty with a warning. | `toLines` / `toParagraphs` in `src/core/library/pdf.ts`. |
@@ -122,10 +112,10 @@ Verified against the v0.5.0 code. Each item says where a fix would go.
 | 16 | **Full scans on some reads.** `getProgress` reads every session file; `findMessageSession` may scan every session. Fine now, slow with years of data. | `src/core/records/store.ts`, `src/core/app/index.ts`. |
 | 17 | ~~Repository state: nothing committed in the owner's repo.~~ **Resolved:** the v0.4.0 baseline is committed and tagged `v0.4.0` in the owner's repo. | Commit and tag `v0.5.0` the same way. |
 | 18 | ~~Session stop button misstyled.~~ **Fixed in 0.5.0:** the reader marker rule is scoped to `div.stop`. | |
-| 19 | **Unused placeholder styles.** The `.cust*` rules for the old Customize placeholder are still in `styles.css`. | `src/renderer/src/styles.css`. |
+| 19 | ~~Unused placeholder styles (`.cust*`).~~ **Gone in 0.27.0** with the Customize screen (ADR 36). | |
 | 20 | **Partial `addNotes` batches.** If AnkiConnect rejects a batch after adding part of it, the per-note fallback reports those notes as "already there" with no note id stored. Rare: duplicates and empty fields are filtered first. | `AnkiConnectService.addNotes` in `src/core/anki/index.ts`. |
 | 21 | **Edited Sayfern note types aren't repaired.** If the learner renames or deletes fields of "Sayfern Cloze" / "Sayfern Recall" in Anki, adding fails per card with Anki's message. | `ensureNoteType` in `src/core/anki/index.ts`, `src/core/review/cards.ts`. |
-| 22 | **Mock Anki word counts include builder nouns.** `mockBuilder.ts` adds six measure-word nouns to the zh mock Anki cards (unless `?fresh=1`), which shifts mock counts on other screens. | `src/renderer/src/dev/mockBuilder.ts`. |
+| 22 | ~~Mock Anki word counts include builder nouns.~~ **Gone in 0.27.0:** `mockBuilder.ts` was removed (ADR 36). | |
 | 23 | **Translations need a native-speaker pass.** All 12 catalogs were model-written (v0.7.0; pt-PT in v0.14.0). Some phrasing around placeholders is stiff (language names arrive capitalized and in the nominative; sentence fragments joined in code). | `src/shared/i18n/<locale>.ts`; joins in `Settings.tsx` (audio credits), `QuizzesTab.tsx` (mad-lib). |
 | 24 | **Dictionary gaps for new languages.** zh, ko and vi glosses are English only; English with a Korean or Vietnamese interface (and an English one) gets English definitions only (Open English WordNet), and English–Chinese WikDict mixes simplified and traditional characters; the kaikki.org Vietnamese URL is deprecated upstream; WikDict and kaikki downloads were checked live once (2026-10-01), JMdict German glosses on the owner's Mac (2026-10-02). | `choices` in `src/core/lang/index.ts`, `src/core/lang/wordlists.ts`. |
 | 25 | **Lemmas are rule-based.** Spanish, Portuguese, Italian, French, German, Russian and Korean forms are reduced with suffix rules and irregular tables, checked against the dictionary; forms the rules miss look up as the surface word. | `src/core/lang/lemma.ts`. |

@@ -16,5 +16,4 @@ Design source for the Sayfern UI (10 screens, Stages 1-3).
 | Progress.dc.html | Local stats | 1 |
 | Corrections.dc.html | Corrections + Anki export | 2 |
 | Quiz.dc.html | Quiz builder | 2 |
-| Customize.dc.html | Feature builder | 2 |
 | Voice.dc.html | Voice session | 3 |

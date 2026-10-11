@@ -34,7 +34,6 @@ The config is [`electron-builder.yml`](../electron-builder.yml). `npm run dist` 
 Things to know:
 
 - `productName` is "Sayfern", but `app.name` stays `sayfern`. electron-builder does not write `productName` into the packaged `package.json`, so the data folder and the Keychain item do not change.
-- The feature builder's kit (`KIT_FILES`, `KIT_DIRS` in `src/core/builder/kit.ts`) is listed in `files`. A test in `builder.test.ts` fails if the two lists are not the same.
 - The macOS microphone text is in `mac.extendInfo`. Keep it the same as `MIC` in `scripts/brand-electron-app.mjs`.
 
 ## Signing

@@ -4,7 +4,6 @@ import { cjkClass, fmtAgo, practisedLabel } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
 import { langName, msg, t } from "../i18n";
 import { navigate, sessionRoute, settingsRoute, type ParsedRoute, type Route } from "../router";
-import { FeatureNav } from "./FeatureNav";
 import { Fern, Icon, type IconName } from "./icons";
 
 const NAV: { route: Route; name: ParsedRoute["name"]; label: string; icon: IconName; key: string }[] = [
@@ -107,7 +106,6 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
             </button>
           );
         })}
-        <FeatureNav route={route} />
       </div>
 
       <div className="recent">
@@ -136,10 +134,6 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
 
       <div className="foot">
         <div className="nav">
-          <button className={route.name === "customize" ? "on" : ""} aria-current={route.name === "customize" ? "page" : undefined} onClick={() => navigate("customize")}>
-            <Icon name="customize" />
-            <span>{t("Customize")}</span>
-          </button>
           <button className={route.name === "settings" ? "on" : ""} aria-current={route.name === "settings" ? "page" : undefined} onClick={() => navigate("settings")}>
             <Icon name="settings" />
             <span>{t("Settings")}</span>

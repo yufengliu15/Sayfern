@@ -177,7 +177,6 @@ export interface RecordsStore {
 
 /**
  * One implementation per language (F-08). Adding a language = adding a pack.
- * Extensions may register packs at runtime.
  */
 export interface LanguagePack {
   info: LanguageInfo;
@@ -211,8 +210,6 @@ export interface LanguageService {
   lookup(language: Language, word: string): Promise<LookupResult>;
   dictionaryStatus(language: Language): Promise<DictionaryStatus>;
   installDictionary(language: Language, onProgress: (p: DictionaryProgress) => void): Promise<DictionaryStatus>;
-  /** Extensions can add languages (F-08, F-09). */
-  registerPack(pack: LanguagePack, dictionary?: DictionaryProvider): void;
 }
 
 // ================================================================ library
@@ -350,10 +347,10 @@ export interface Tutor {
   endSession(sessionId: string): Promise<import("../shared/api").EndSummary>;
 }
 
-// ================================================================ extensions (F-09)
+// ================================================================ tutor tools
 
 /**
- * A tool contributed by core or an extension. `recordingOnly` tools just store
+ * A tool the tutor can call. `recordingOnly` tools just store
  * data: after the model calls them the turn ends without a follow-up request
  * (S1-27). Other tools return content the model needs, so the loop continues.
  */
@@ -375,11 +372,4 @@ export interface ToolContext {
   library: LibraryService;
   anki: AnkiService;
   lang: LanguageService;
-}
-
-export interface ExtensionHost {
-  /** Tools contributed by enabled extensions. */
-  tools(): TutorTool[];
-  /** Extra system-prompt paragraphs contributed by enabled extensions. */
-  promptAdditions(language: Language): string[];
 }

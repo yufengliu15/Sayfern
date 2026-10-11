@@ -1229,18 +1229,6 @@ mark.pm { color: var(--fern-dark); background: linear-gradient(transparent 60%, 
 .erase-actions { display: flex; gap: 8px; margin-left: auto; }
 .erase > .err { margin: 0 0 14px; }
 .saved-path .mono { font-size: 12px; color: var(--ink-2); background: var(--paper-3); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
-.extlist { display: flex; flex-direction: column; }
-.ext { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; }
-.ext + .ext { border-top: 1px solid var(--line-3); }
-.ext-i { width: 38px; height: 38px; border-radius: 11px; background: var(--fern-soft); color: var(--fern); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ext.off .ext-i { background: var(--paper-2); color: var(--muted); }
-.ext-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.ext-n { display: flex; align-items: baseline; gap: 8px; }
-.ext-n b { font-size: 15px; font-weight: 600; }
-.ext-n .mono { font-size: 11.5px; color: var(--muted); }
-.ext-t > p { font-size: 13.5px; color: var(--ink-3); line-height: 1.5; }
-.ext-t .err { margin-top: 4px; font-size: 12.5px; }
-.ext-c { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .tag { font-size: 11px; color: var(--ink-3); background: var(--paper-3); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
 .badge-off { background: var(--paper-2); color: var(--ink-3); }
 .badge-err { background: var(--seal-bg); color: var(--seal); border: 1px solid var(--seal-line); }
@@ -1298,19 +1286,6 @@ mark.pm { color: var(--fern-dark); background: linear-gradient(transparent 60%, 
 .wfoot { display: flex; align-items: center; gap: 10px; padding: 18px 32px 24px; border-top: 1px solid var(--line-3); }
 .wfoot .muted { margin-right: auto; white-space: nowrap; }
 .wcard > .err { margin: 0 32px 4px; }
-
-/* ================================================================ customize */
-.cust { max-width: 980px; }
-.cust .display { max-width: 760px; }
-.cust-lead { font-size: 16px; line-height: 1.6; color: var(--ink-3); max-width: 620px; margin-top: -8px; }
-.cust-demo { margin-top: 28px; padding: 18px; display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
-.cust-input { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--white); color: var(--placeholder); font-size: 16px; }
-.cust-input svg { color: var(--fern); }
-.cust-input span:first-of-type { flex: 1; }
-.cust-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
-.cust-ideas .chip { cursor: default; }
-.cust-ext { padding: 4px 22px; max-width: 760px; }
-.cust-manage { margin-top: 14px; align-self: flex-start; }
 
 @media (max-width: 1320px) {
   .gd-cols { grid-template-columns: 1fr; }
