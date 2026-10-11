@@ -17,6 +17,9 @@ import { buildSystemPrompt, SPOKEN_MARKER } from "./prompt";
 import { leakedCalls, leakStart, pendingTail, stripLeak, type LeakedCall } from "./leak";
 import { stripPasted } from "./text";
 import { toolContext, turnTools, type TurnState } from "./tools";
+import { pickQuestion, questionLevel } from "./questions";
+import { LANGUAGE_META } from "../../shared/languages";
+import { courseLevel } from "../../shared/course";
 
 export const MAX_ITERATIONS = 5;
 export const MAX_TOKENS = 1500;
@@ -33,9 +36,9 @@ export function modelLabel(model: Model<Api>): string {
   return `${model.provider}/${model.id}`;
 }
 
-export function kickoffText(session: SessionMeta, opts: { newTopic?: boolean } = {}): string {
-  if (opts.newTopic) {
-    return "(The learner pressed \"New topic\". Drop the current topic without summing it up and open a fresh one, clearly different from what this session has covered so far. Pick something that fits their interests if you know them. Start.)";
+export function kickoffText(session: SessionMeta, opts: { topicQuestion?: string } = {}): string {
+  if (opts.topicQuestion) {
+    return `(The learner pressed "New topic". Drop the current topic without summing it up and open a fresh one with this question: "${opts.topicQuestion}" Ask it in your own words at their level, simpler if needed. If they skip it or answer briefly, follow their lead. Start.)`;
   }
   if (session.kind === "practice" && session.unitId && session.openWith === "explain") {
     return "(The learner started a course unit and asked for a quick overview of its grammar first. Give the short overview, then open the conversation. Start.)";
@@ -116,6 +119,7 @@ export async function runOpening(deps: TutorDeps, input: OpeningInput): Promise<
   const session = await deps.records.getSession(input.sessionId).catch(() => null);
   if (!session) return unsavedError(deps, input, `Session not found: ${input.sessionId}`);
   await ensureTargets(deps, session).catch(() => undefined);
+  const topicQuestion = input.newTopic ? await nextQuestion(deps, session) : undefined;
   const base = await deps.records.getTranscript(session.id).catch(() => [] as Message[]);
   return runLoop(deps, {
     session,
@@ -123,8 +127,23 @@ export async function runOpening(deps: TutorDeps, input: OpeningInput): Promise<
     signal: input.signal,
     onEvent: input.onEvent,
     base,
-    userPi: { role: "user", content: kickoffText(session, { newTopic: input.newTopic }), timestamp: deps.now() },
+    userPi: { role: "user", content: kickoffText(session, { topicQuestion }), timestamp: deps.now() },
   });
+}
+
+/** The question for "New topic": fits the learner's level, not yet asked in this language. Saved on the session. */
+async function nextQuestion(deps: TutorDeps, session: SessionMeta): Promise<string> {
+  const [levels, sessions] = await Promise.all([
+    deps.records.getLevels(session.language).catch(() => ({ current: {} })),
+    deps.records.listSessions(session.language).catch(() => [] as SessionMeta[]),
+  ]);
+  const asked = new Set([...sessions, session].flatMap((s) => s.topicQuestions ?? []));
+  const level = questionLevel(LANGUAGE_META[session.language].levels, courseLevel(levels.current));
+  const q = pickQuestion({ level, difficulty: session.difficulty, asked, random: deps.random ?? Math.random });
+  await deps.records
+    .updateSession(session.id, { topicQuestions: [...(session.topicQuestions ?? []), q.id] })
+    .catch(() => undefined);
+  return q.text;
 }
 
 async function recordLearnerWords(deps: TutorDeps, session: SessionMeta, user: ChatMessage): Promise<void> {

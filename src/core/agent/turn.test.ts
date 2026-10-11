@@ -4,6 +4,7 @@ import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, type Messag
 import type { TutorEvent } from "../contracts";
 import { makeHarness } from "./testkit";
 import { kickoffText, NO_REPLY_YET } from "./turn";
+import { TOPIC_QUESTIONS } from "./questions";
 import { SayfernTutor } from "./index";
 
 const abort = () => new AbortController().signal;
@@ -495,20 +496,26 @@ test("record_evidence accepts corrections sent as JSON text", async () => {
   assert.equal(corrections.length, 1);
 });
 
-test("new topic: a hidden kickoff asks for a fresh topic mid-session", async () => {
+test("new topic: a hidden kickoff asks a fresh question from the list, saved on the session", async () => {
   const h = makeHarness();
+  const tutor = new SayfernTutor({ ...h.deps, random: () => 0 });
   const sid = await h.newSession();
-  h.faux.setResponses([fauxAssistantMessage("你好！"), fauxAssistantMessage("换个话题吧！你最近看了什么电影？")]);
+  h.faux.setResponses([fauxAssistantMessage("你好！"), fauxAssistantMessage("换个话题吧！你最近看了什么电影？"), fauxAssistantMessage("再换一个！")]);
   await h.tutor.runTurn({ sessionId: sid, text: "你好", model: h.model, signal: abort(), onEvent: () => undefined });
-  const reply = await h.tutor.runOpening({ sessionId: sid, model: h.model, signal: abort(), onEvent: () => undefined, newTopic: true });
+  const reply = await tutor.runOpening({ sessionId: sid, model: h.model, signal: abort(), onEvent: () => undefined, newTopic: true });
   assert.equal(reply.text, "换个话题吧！你最近看了什么电影？");
+  await tutor.runOpening({ sessionId: sid, model: h.model, signal: abort(), onEvent: () => undefined, newTopic: true });
+  const asked = (await h.records.getSession(sid))!.topicQuestions!;
+  assert.equal(asked.length, 2);
+  assert.notEqual(asked[0], asked[1]);
   const transcript = await h.records.getTranscript(sid);
   const kickoff = transcript[2];
   assert.equal(kickoff.role, "user");
   assert.match(String(kickoff.content), /New topic/);
-  assert.equal(kickoff.content, kickoffText({ kind: "chat" } as never, { newTopic: true }));
+  const first = TOPIC_QUESTIONS.find((q) => q.id === asked[0])!;
+  assert.equal(kickoff.content, kickoffText({ kind: "chat" } as never, { topicQuestion: first.text }));
   const msgs = await h.records.getMessages(sid);
-  assert.deepEqual(msgs.map((m) => m.role), ["user", "tutor", "tutor"]);
+  assert.deepEqual(msgs.map((m) => m.role), ["user", "tutor", "tutor", "tutor"]);
 });
 
 test("leaked tool call in the reply text: hidden from the learner, salvaged as a real call, kept out of the transcript", async () => {

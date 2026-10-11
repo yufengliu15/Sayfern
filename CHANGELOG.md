@@ -6,6 +6,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-10
+
+### Changed
+
+- **Translate one message at a time.** The Translate chip at the top of the session is gone. Each tutor message has its own Translate button, next to Copy, that shows or hides the translation of that message. "Translate the tutor automatically" (Settings) still shows every translation at the start; the button hides one.
+
+### Fixed
+
+- **Learner bubble too narrow.** Since the Copy button (0.22.0), the learner's bubble wrapped at about half the column. It now uses the full width again, and its limit went from 82% to 94% of the column (up to 1000 px).
+
+## [0.25.0] - 2026-10-10
+
+### Changed
+
+- **New topic asks a real question.** The tutor now opens the new topic with a get-to-know-you question from a list of 263 (for example "What is the most memorable meal you've ever had?"), asked in the target language and in its own words. Each question has a CEFR level for how hard it is to answer, and the pick is at most two levels above the learner. "Go easier" lowers the limit, "go harder" leaves out questions below their level. Questions already asked in that language are skipped until all are used (ADR 35).
+
 ## [0.24.0] - 2026-10-09
 
 ### Changed

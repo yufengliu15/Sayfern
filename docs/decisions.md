@@ -187,6 +187,18 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 35. New topic opens with a levelled question (v0.25.0)
+
+"New topic" let the model pick the next topic, and models fall back on the same few (films, food, weekend plans). The owner supplied a list of 308 get-to-know-you questions.
+
+- **Decision.**
+  - **A fixed list.** `TOPIC_QUESTIONS` (`src/core/agent/questions.ts`) holds 263 of them, in English, for the prompt only: the tutor asks the question in the target language, in its own words. The owner removed questions about death and dying, trauma, shame and secrets, body image, violence, divisive beliefs and grudges, and ones that need a human history with the asker. Two dark ones stay on purpose (71, one year to live; 205, a question for god).
+  - **A level per question.** Each has a CEFR level (A1 to C2) for how hard it is to answer well, the same for every language. A model ranked them in one quick pass and a review moved 38; it is a rough guide, not fixed.
+  - **Pick by level.** The learner's level on their language's scale maps onto A1 to C2 by position (`questionLevel`; unknown = A2). A question may be at most two levels above them, any level below. The difficulty slider moves the window: easier lowers the ceiling by its amount, harder leaves out questions below their level.
+  - **No repeats.** Asked ids are saved on the session (`SessionMeta.topicQuestions`); questions asked in any session of that language are skipped until the window is used up.
+- **Consequences.** New topics vary more and fit the level. Questions are personal: the kickoff tells the tutor to follow the learner's lead if they skip or answer briefly. Practice sessions get a question too; their focus pattern still comes from the session block.
+- **Where.** `src/core/agent/questions.ts`, `nextQuestion` and `kickoffText` in `turn.ts`; tests in `questions.test.ts`, `turn.test.ts`.
+
 ## ADR 34. One place per tutor rule (v0.23.1)
 
 Benchmark reading, 2026-10-09: the system prompt had grown to about 42 rules, many written two or three times in different words (bring in a target, never name the pattern, romanization, the correction kinds, "call record_evidence once", the explanation language, the level target). Some contradicted each other: role-play said "at the learner's level" while the persona said "slightly above", the difficulty block pointed at the persona by quoting it, pacing told unit sessions and role-plays to move on while their own blocks said otherwise, and language notes said "no translations" to beginners the persona allowed to gloss. Conflicting rules already cost accuracy once (v0.16.1: 9 tutor errors, 1 after the fix).

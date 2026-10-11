@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "О чём хотите поговорить сегодня?",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "Напишите строчку-другую. Репетитор ответит на вашем уровне и запомнит, что вы практикуете.",
   "Ended": "Завершено",
-  "Translate the tutor's messages": "Переводить сообщения репетитора",
+  "Hide translation": "Скрыть перевод",
   "Tokens and estimated cost for this session at list price": "Токены и примерная стоимость этого занятия по прайсу",
   "Wrapping up…": "Подводим итоги…",
   "Summary": "Итоги",

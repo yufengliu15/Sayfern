@@ -3,7 +3,7 @@
   color-scheme: light;
   /* Chat column: 700px on small windows, growing with the window up to 1000px. */
   --chat-max: max(700px, min(1000px, 80%));
-  --bubble-max: min(760px, 82%);
+  --bubble-max: min(1000px, 94%);
 
   /* ---- Light (default) ---- */
   --paper: #f4f0e7;
@@ -424,11 +424,11 @@ button.chip:hover { border-color: var(--line-hover); color: var(--ink); backgrou
   border-radius: 20px 20px 6px 20px; padding: 14px 20px 12px; animation: fade-up 0.2s ease-out;
 }
 .umsg .msg-text { font-size: 21px; }
-.umsg-row { align-self: flex-end; display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; max-width: 100%; }
+.umsg-row { align-self: stretch; display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; max-width: 100%; }
 .umsg-row .umsg { min-width: 0; }
 .umsg-row .msg-copy { opacity: 0; transition: opacity 0.15s; flex: none; }
 .umsg-row:hover .msg-copy, .umsg-row .msg-copy:focus-visible, .umsg-row .msg-copy.on { opacity: 1; }
-.msg-copy.on { color: var(--fern); }
+.msg-copy.on, .msg-tr.on { color: var(--fern); }
 .umsg.pending { opacity: 0.75; }
 .mk { background: linear-gradient(transparent 62%, color-mix(in srgb, var(--seal-2) 22%, transparent) 62%); border-bottom: 2px solid var(--seal-2); border-radius: 1px; }
 .mk.mk-light { background: none; border-bottom: 2px dotted var(--note-mark); }

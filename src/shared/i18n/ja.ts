@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "今日は何を話しますか？",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "1〜2行書いてみましょう。チューターはあなたのレベルに合わせて答え、練習した内容を覚えます。",
   "Ended": "終了",
-  "Translate the tutor's messages": "チューターのメッセージを翻訳",
+  "Hide translation": "翻訳を隠す",
   "Tokens and estimated cost for this session at list price": "このセッションのトークン数と定価での推定料金",
   "Wrapping up…": "まとめています…",
   "Summary": "まとめ",

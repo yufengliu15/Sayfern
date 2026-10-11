@@ -20,6 +20,8 @@ export interface TutorDeps {
   translator: () => Promise<Translator>;
   /** Whether a turn that skipped record_evidence gets a second, tool-only request. Default: needsEvidencePass. */
   evidencePass?: (model: Model<Api>) => boolean;
+  /** Random source for the "New topic" question. Default: Math.random. */
+  random?: () => number;
 }
 
 export type TutorOptions = Omit<TutorDeps, "now" | "newId" | "ankiEnabled" | "explanationLanguage" | "translator"> & {

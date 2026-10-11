@@ -477,7 +477,6 @@ export function ReaderScreen({ docId, paragraph, navigate }: ReaderScreenProps) 
               grammarById={chat.grammarById}
               model={app.model}
               streaming={chat.stream ? { text: chat.stream.text, tools: chat.stream.tools, error: chat.stream.error } : null}
-              showTranslations={false}
               translations={{}}
               onCorrectionUpdate={chat.onCorrectionUpdate}
               onOpenGrammar={(g) => navigate(grammarRoute(g))}

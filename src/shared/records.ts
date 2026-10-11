@@ -48,6 +48,8 @@ export interface SessionMeta {
   scenarioId?: string;
   /** placement sessions: the learner's own rough level, picked before the chat. */
   levelBand?: LevelBand;
+  /** "New topic" questions asked in this session (ids in src/core/agent/questions.ts), oldest first. */
+  topicQuestions?: number[];
   /** Active (non-idle) milliseconds, text practice only (S1-24). */
   activeMs: number;
   /** Stage 3 (S3-04): speaking and listening milliseconds, counted apart from activeMs. */

@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "오늘은 무슨 이야기를 해 볼까요?",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "한두 줄 써 보세요. 튜터가 내 수준에 맞춰 답하고 연습한 내용을 기억해요.",
   "Ended": "종료됨",
-  "Translate the tutor's messages": "튜터 메시지 번역",
+  "Hide translation": "번역 숨기기",
   "Tokens and estimated cost for this session at list price": "이 세션의 토큰 수와 정가 기준 예상 비용",
   "Wrapping up…": "마무리하는 중…",
   "Summary": "요약",

@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "今天想聊什麼？",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "寫一兩句話。家教會用符合你程度的方式回答，並記住你練習過的內容。",
   "Ended": "已結束",
-  "Translate the tutor's messages": "翻譯家教的訊息",
+  "Hide translation": "隱藏翻譯",
   "Tokens and estimated cost for this session at list price": "本次對話的 Token 數，以及依定價估算的費用",
   "Wrapping up…": "正在收尾…",
   "Summary": "總結",

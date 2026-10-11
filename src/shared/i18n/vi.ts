@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "Hôm nay bạn đang nghĩ gì?",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "Viết một hai dòng. Gia sư sẽ trả lời hợp trình độ của bạn và ghi nhớ những gì bạn luyện tập.",
   "Ended": "Đã kết thúc",
-  "Translate the tutor's messages": "Dịch tin nhắn của gia sư",
+  "Hide translation": "Ẩn bản dịch",
   "Tokens and estimated cost for this session at list price": "Số token và chi phí ước tính của buổi học này theo giá niêm yết",
   "Wrapping up…": "Đang tổng kết…",
   "Summary": "Tổng kết",

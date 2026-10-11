@@ -35,7 +35,8 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
   const chat = useChat(id);
   const { view, setView, stream, corrections, messages, grammarById, targets } = chat;
   const [inspectorOpen, setInspectorOpen] = useStoredFlag("sayfern.inspector", true);
-  const [translateOn, setTranslateOn] = useState(!!app.settings.autoTranslate);
+  // Per tutor message: shown or hidden; messages not toggled follow the auto-translate setting.
+  const [shown, setShown] = useState<Record<string, boolean>>({});
   const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
   const requested = useRef(new Set<string>());
   const [summary, setSummary] = useState<EndSummary | null>(null);
@@ -64,11 +65,12 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
   }, [inspectorOpen, setInspectorOpen]);
 
   // Translations (S1-08), cached per message
+  const autoTranslate = !!app.settings.autoTranslate;
   useEffect(() => {
-    if (!translateOn || !view) return;
+    if (!view) return;
     const next: Record<string, TranslationState> = {};
     for (const m of view.messages) {
-      if (m.role !== "tutor" || !m.text || requested.current.has(m.id)) continue;
+      if (m.role !== "tutor" || !m.text || !(shown[m.id] ?? autoTranslate) || requested.current.has(m.id)) continue;
       requested.current.add(m.id);
       // A cached translation counts only when it is in the current interface language.
       if (m.translation && (m.translationLang ?? "English") === uiLocaleInfo(app.locale).promptName) {
@@ -87,7 +89,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
       }
     }
     if (Object.keys(next).length) setTranslations((s) => ({ ...s, ...next }));
-  }, [translateOn, view, app.model, app.locale]);
+  }, [shown, autoTranslate, view, app.model, app.locale]);
 
   // Stick to the bottom while the learner is at the bottom.
   useLayoutEffect(() => {
@@ -227,16 +229,6 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
             </div>
           </div>
 
-          <button
-            className={cls("chip chip-toggle", translateOn && "on")}
-            aria-pressed={translateOn}
-            onClick={() => setTranslateOn(!translateOn)}
-            title={t("Translate the tutor's messages")}
-          >
-            <Icon name="translate" size={16} />
-            <span>{t("Translate")}</span>
-          </button>
-
           {meta.usage.input + meta.usage.output > 0 && (
             <span className="chip mono tok" title={t("Tokens and estimated cost for this session at list price")}>
               {fmtUsage(meta.usage)}
@@ -285,8 +277,8 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
               grammarById={grammarById}
               model={app.model}
               streaming={stream ? { text: stream.text, tools: stream.tools, error: stream.error } : null}
-              showTranslations={translateOn}
-              translations={translations}
+              translations={Object.fromEntries(messages.filter((m) => shown[m.id] ?? autoTranslate).map((m) => [m.id, translations[m.id] ?? {}]))}
+              onTranslate={(mid) => setShown((s) => ({ ...s, [mid]: !(s[mid] ?? autoTranslate) }))}
               onCorrectionUpdate={onCorrectionUpdate}
               onOpenGrammar={openGrammar}
               onOpenSource={openSource}

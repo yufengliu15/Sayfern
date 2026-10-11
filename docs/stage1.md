@@ -70,7 +70,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 | S1-05 | Adaptive conversation | Done | `src/core/agent/prompt.ts` (level, learner, session kind, follow-ups, targets, Anki knowledge, catalogue) | |
 | S1-06 | Inline corrections | Done | `record_evidence.corrections`, `CorrectionCard`: retry → reveal, always inline (the end-of-session summary lists them again) | |
 | S1-07 | Hover lookup | Done | `lang.annotate` + `lang.lookup`, `AnnotatedText`, `WordPopover`, dictionary install from the popover | Chinese segmentation is greedy longest match. JMdict download never verified live. |
-| S1-08 | Optional translations | Done | `tutor.translate`, cached on the message; Translate toggle and Preferences auto-translate | |
+| S1-08 | Optional translations | Done | `tutor.translate`, cached on the message; Translate button under each tutor message (next to Copy) and Preferences auto-translate | |
 | S1-09 | Save word with sentence | Done | `records.saveWord` from the popover and the reader selection; listed in Library | |
 | S1-10 | Library | Done | `FileLibraryService` import of txt, md, html, epub, pdf with a text layer | Scanned PDFs import empty with a warning (no OCR); multi-column and vertical PDFs parse poorly. |
 | S1-11 | Read with tutor | Done | Reading session (`openReading`), `Reader.tsx`, checkpoints (UI and `update_checkpoint`), passage in the prompt | |

@@ -755,7 +755,7 @@ const catalog: Catalog = {
   "What's on your mind today?": "A cosa stai pensando oggi?",
   "Write a line or two. The tutor answers at your level and remembers what you practise.": "Scrivi una riga o due. Il tutor risponde al tuo livello e ricorda cosa hai praticato.",
   "Ended": "Terminata",
-  "Translate the tutor's messages": "Traduci i messaggi del tutor",
+  "Hide translation": "Nascondi traduzione",
   "Tokens and estimated cost for this session at list price": "Token e costo stimato di questa sessione a prezzo di listino",
   "Wrapping up…": "Chiusura…",
   "Summary": "Riepilogo",

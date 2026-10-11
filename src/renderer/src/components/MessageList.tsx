@@ -25,8 +25,10 @@ export interface MessageListProps {
   grammarById: Record<string, GrammarSummary>;
   model?: ModelRef;
   streaming?: { text: string; tools: ToolActivity[]; error?: string } | null;
-  showTranslations: boolean;
+  /** Translations to show, keyed by message id; a message missing here is not translated. */
   translations: Record<string, TranslationState>;
+  /** Shows or hides one tutor message's translation; no Translate button without it. */
+  onTranslate?(messageId: string): void;
   onCorrectionUpdate(c: Correction): void;
   onOpenGrammar(id: string): void;
   onOpenSource(s: SourceRef): void;
@@ -59,7 +61,8 @@ export function MessageList(p: MessageListProps) {
                 m={m}
                 language={p.language}
                 targets={p.targets}
-                translation={p.showTranslations ? p.translations[m.id] : undefined}
+                translation={p.translations[m.id]}
+                onTranslate={p.onTranslate}
                 onOpenSource={p.onOpenSource}
                 onRetry={i === lastIdx && m.error && m.error !== "Stopped" ? p.onRetry : undefined}
               />
@@ -146,6 +149,7 @@ function TutorMessage({
   language,
   targets,
   translation,
+  onTranslate,
   onOpenSource,
   onRetry,
 }: {
@@ -153,6 +157,7 @@ function TutorMessage({
   language: Language;
   targets: string[];
   translation?: TranslationState;
+  onTranslate?(messageId: string): void;
   onOpenSource(s: SourceRef): void;
   onRetry?: () => void;
 }) {
@@ -173,9 +178,20 @@ function TutorMessage({
         <div className="msg-voice">
           {!m.error && <SpeakButtons id={m.id} text={m.text} language={language} kind="message" sessionId={m.sessionId} small />}
           <CopyButton text={m.text} />
+          {onTranslate && !m.error && (
+            <button
+              className={cls("iconb sm msg-tr", translation && "on")}
+              aria-pressed={!!translation}
+              aria-label={translation ? t("Hide translation") : t("Translate")}
+              title={translation ? t("Hide translation") : t("Translate")}
+              onClick={() => onTranslate(m.id)}
+            >
+              <Icon name="translate" size={15} />
+            </button>
+          )}
         </div>
       )}
-      {translation && (
+      {translation && (translation.loading || translation.text || translation.error) && (
         <p className={cls("tr", translation.loading && "loading")}>
           {translation.loading ? t("Translating…") : (translation.text ?? (translation.error ? t(translation.error) : undefined))}
         </p>

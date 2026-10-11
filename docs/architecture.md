@@ -587,7 +587,7 @@ Channel for every method: `ipc:<methodName>`, arguments in order. Core implement
 | `renameSession(id, title)` | Rename (non-empty) | `records.updateSession` |
 | `deleteSession(id)` | Delete session and its rows (no UI calls it yet) | `records.deleteSession` |
 | `setDifficulty(id, difficulty)` | -2..2 ("Go easier / go harder"), clamped | `records.updateSession`; read by `difficultyBlock` |
-| `newTopic(id, model)` | `{ requestId }`; the tutor opens a fresh topic | `tutor.runOpening({ newTopic: true })`, streamed like an opening |
+| `newTopic(id, model)` | `{ requestId }`; the tutor opens a fresh topic | `tutor.runOpening({ newTopic: true })`, streamed like an opening; the kickoff carries a question from `TOPIC_QUESTIONS` picked by level (`pickQuestion`), its id saved in `SessionMeta.topicQuestions` |
 | `send(id, { text, pastedSpans? }, model)` | Start a turn; returns `{ requestId }`; progress via `onChatEvent` | `startRequest` → `tutor.runTurn` |
 | `abort(requestId)` | Stop a running turn | `AbortController` |
 | `translate(messageId, model)` | Translate a tutor message (cached on it) | `tutor.translate` |
@@ -849,7 +849,7 @@ Screens (`src/renderer/src/screens/`):
 |---|---|---|---|
 | `Today.tsx` | `today` | Resume card, start tiles (talk, continue reading or open the library, grammar), role-play tiles (`SCENARIOS`, `src/shared/scenarios.ts`: `newSession` with `scenarioId`), "Your activities" (built features, `FeatureActivities`), placement prompt, next course unit (course languages), follow-ups, week numbers, levels | `getHome`, `newSession`, `openReading`, `startPlacement`, `featureSurfaces` (via `useFeatureSurfaces`) |
 | `Course.tsx` | `course` | Progress ring; dark "Up next" card with the unit's pattern chips; syllabus map (one dot per grammar point, by level and state; level tiles pick the level shown); the level's units as a responsive grid (segmented bar, pattern chips, "+N"); a unit opens a side drawer with every point (pattern, name, state) and the "Go over this unit's grammar quickly first?" choice; Beta placeholder for languages without a course. `UnitStart` is still used by Today | `getCourse`, `startUnit` |
-| `Session.tsx` | `session/<id>` | Conversation, translate toggle, token/cost chip, end session, inspector (⌘I), rename by double-click, New topic and difficulty slider (`SessionTools`) | `getSession` (via `useChat`), `send`, `abort`, `setDifficulty`, `newTopic`, `renameSession`, `endSession`, `translate` |
+| `Session.tsx` | `session/<id>` | Conversation, Translate button on each tutor message, token/cost chip, end session, inspector (⌘I), rename by double-click, New topic and difficulty slider (`SessionTools`) | `getSession` (via `useChat`), `send`, `abort`, `setDifficulty`, `newTopic`, `renameSession`, `endSession`, `translate` |
 | `Library.tsx` | `library` | Shelf, import by kind, debounced search, rename/delete, saved words | `listDocs`, `importDocs`, `searchLibrary`, `renameDoc`, `deleteDoc`, `listSavedWords`, `deleteSavedWord` |
 | `Reader.tsx` | `reader/<docId>[/<p>]` | Paper page with ruby toggle, lookups, checkpoint, selection toolbar, reading chat pane | `getDoc`, `openReading`, `getParagraphs`, `setCheckpoint`, `saveWord` |
 | `Grammar.tsx` | `grammar[/<id>]` | Catalogue with filters; detail with state ladder, counts, pattern card, every attempt (disputable; quiz attempts link to their quiz), "In quizzes: X of Y right", corrections; Practise / Explain again | `listGrammar`, `getGrammar`, `disputeObservation`, `practiseGrammar` |
