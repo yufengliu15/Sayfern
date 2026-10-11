@@ -441,6 +441,7 @@ const MODELS: ModelInfo[] = [
   { provider: "openai", id: "gpt-5", name: "GPT-5", reasoning: true, input: ["text", "image"], contextWindow: 400_000 },
   { provider: "openai", id: "gpt-5-mini", name: "GPT-5 mini", reasoning: true, input: ["text", "image"], contextWindow: 400_000 },
   { provider: "deepseek", id: "deepseek-chat", name: "DeepSeek V3", reasoning: false, input: ["text"], contextWindow: 128_000 },
+  { provider: "llamacpp", id: "qwen3-8b-q4_k_m", name: "qwen3-8b-q4_k_m", reasoning: false, input: ["text"], contextWindow: 32_768 },
 ];
 
 interface Reply {
@@ -557,7 +558,18 @@ export function createMockApi(): SayfernApi {
   const providers: ProviderInfo[] = [
     { id: "anthropic", name: "Anthropic", note: "Claude. Sign in with Pro/Max or use an API key.", canApiKey: true, oauthLabel: "Sign in with Claude Pro/Max", oauthIsSubscription: true, connected: "oauth", connectedVia: "Claude Max" },
     { id: "openai", name: "OpenAI", note: "GPT. Sign in with ChatGPT or use an API key.", canApiKey: true, oauthLabel: "Sign in with ChatGPT", oauthIsSubscription: true, connected: "api_key" },
-    { id: "deepseek", name: "DeepSeek", note: "DeepSeek API key.", canApiKey: true, oauthIsSubscription: false, connected: null },
+    { id: "deepseek", name: "DeepSeek", note: "DeepSeek API key.", canApiKey: true, oauthIsSubscription: false, connected: "api_key" },
+    { id: "google", name: "Google", note: "Gemini API key.", canApiKey: true, oauthIsSubscription: false, connected: "api_key" },
+    { id: "opencode-go", name: "OpenCode Go", note: "OpenCode Go API key. A plan with 5-hour, weekly and monthly limits.", canApiKey: true, oauthIsSubscription: false, connected: null },
+    {
+      id: "llamacpp",
+      name: "llama.cpp",
+      note: "Runs a model on this computer with llama-server. Start the server first.",
+      canApiKey: false,
+      oauthIsSubscription: false,
+      connected: null,
+      local: { engine: "llamacpp", defaultUrl: "http://127.0.0.1:47823/v1", docsUrl: "https://github.com/ggml-org/llama.cpp/tree/master/tools/server" },
+    },
   ];
 
   let profile: LearnerProfile = {
@@ -1432,6 +1444,37 @@ export function createMockApi(): SayfernApi {
     },
     listProviders: async () => clone(providers),
     listModels: async () => clone(MODELS.filter((m) => providers.find((p) => p.id === m.provider)?.connected)),
+    providerUsage: async (providerId) => {
+      await wait(250);
+      const p = providers.find((x) => x.id === providerId);
+      if (!p?.connected || p.local) return {};
+      const spent = (today: number, month: number) => ({
+        today: { requests: Math.round(today * 40), tokens: Math.round(today * 90_000), cost: today },
+        last30Days: { requests: Math.round(month * 40), tokens: Math.round(month * 90_000), cost: month },
+      });
+      const now = Date.now();
+      if (p.connected === "oauth")
+        return {
+          billingUrl: "https://claude.ai/settings/usage",
+          windows: [
+            { kind: "session", usedPercent: 37, resetsAt: now + 2.4 * 3_600_000 },
+            { kind: "weekly", usedPercent: 82, resetsAt: now + 3 * 86_400_000 },
+          ],
+        };
+      if (providerId === "deepseek") return { billingUrl: "https://platform.deepseek.com/usage", balance: { amount: 8.42, currency: "USD" }, spent: spent(0.03, 1.12) };
+      if (providerId === "google") return { billingUrl: "https://aistudio.google.com/usage", free: true, spent: spent(0.4, 6) };
+      if (providerId === "opencode-go")
+        return {
+          billingUrl: "https://opencode.ai/auth",
+          spent: spent(0, 0),
+          windows: [
+            { kind: "session", usedPercent: 4 },
+            { kind: "weekly", usedPercent: 21, resetsAt: now + 4 * 86_400_000 },
+            { kind: "monthly", usedPercent: 48, resetsAt: now + 19 * 86_400_000 },
+          ],
+        };
+      return { billingUrl: "https://platform.openai.com/settings/organization/billing/overview", spent: spent(0.18, 4.75) };
+    },
     setApiKey: async (providerId, key) => {
       await wait(300);
       if (key.length < 8) throw new Error("That key looks too short.");
@@ -1448,6 +1491,24 @@ export function createMockApi(): SayfernApi {
     logout: async (providerId) => {
       const p = providers.find((x) => x.id === providerId);
       if (p) p.connected = null;
+    },
+    connectLocal: async (engine, baseUrl) => {
+      await wait(400);
+      const p = providers.find((x) => x.id === engine);
+      if (p?.local) {
+        p.connected = "api_key";
+        p.connectedVia = baseUrl;
+        p.local.baseUrl = baseUrl;
+      }
+      return clone(MODELS.filter((m) => m.provider === engine));
+    },
+    disconnectLocal: async (engine) => {
+      const p = providers.find((x) => x.id === engine);
+      if (p) {
+        p.connected = null;
+        p.connectedVia = undefined;
+        if (p.local) p.local.baseUrl = undefined;
+      }
     },
     answerAuthPrompt: async () => {},
     onAuthEvent: (cb) => {

@@ -32,7 +32,7 @@ import type {
 } from "./records";
 import { DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type DeckApi, type QuizApi, type ReviewApi } from "./stage2";
 import type { CourseView } from "./course";
-import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "./types";
+import type { AuthEventPayload, AuthPromptPayload, LocalEngineId, ModelInfo, ModelRef, ProviderInfo, ProviderUsage, Settings, UiLocale } from "./types";
 
 export type * from "./stage2";
 import { VOICE_METHODS, type VoiceApi } from "./stage3";
@@ -161,10 +161,16 @@ export interface SayfernApi extends ReviewApi, QuizApi, DeckApi, VoiceApi {
   systemLocale(): Promise<UiLocale>;
   listProviders(): Promise<ProviderInfo[]>;
   listModels(): Promise<ModelInfo[]>;
+  /** Plan limits, balance or local spend for a connected provider (connect screen). Never rejects for provider errors: they come back in `error`. */
+  providerUsage(providerId: string): Promise<ProviderUsage>;
   setApiKey(providerId: string, key: string): Promise<void>;
   login(providerId: string): Promise<void>;
   cancelLogin(): Promise<void>;
   logout(providerId: string): Promise<void>;
+  /** Saves a local server and reads its models. Rejects with the server's error if it cannot be reached. */
+  connectLocal(engine: LocalEngineId, baseUrl: string, apiKey?: string): Promise<ModelInfo[]>;
+  /** Forgets a local server. */
+  disconnectLocal(engine: LocalEngineId): Promise<void>;
   answerAuthPrompt(promptId: string, value: string | null): Promise<void>;
   onAuthEvent(cb: (e: AuthEventPayload) => void): () => void;
   onAuthPrompt(cb: (p: AuthPromptPayload) => void): () => void;
@@ -299,10 +305,13 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   systemLocale: true,
   listProviders: true,
   listModels: true,
+  providerUsage: true,
   setApiKey: true,
   login: true,
   cancelLogin: true,
   logout: true,
+  connectLocal: true,
+  disconnectLocal: true,
   answerAuthPrompt: true,
   listLanguages: true,
   getHome: true,

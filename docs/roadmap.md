@@ -70,6 +70,16 @@ Anki decks (v0.6.0):
 
 ---
 
+## Local models (v0.28.0)
+
+Built: llama.cpp (`llama-server`) through the engine table in `src/core/local/` (ADR 37, [`local-models.md`](local-models.md)).
+
+### Next
+
+- **Other local engines:** Ollama, LM Studio, vLLM, MLX-LM, SGLang and Jan. Each one is an entry in `LOCAL_ENGINES` plus a `listModels`; [`local-models.md`](local-models.md#add-another-local-inference-engine) has the steps and notes for each.
+- **Try small models for real:** which sizes record evidence well enough, per language. A benchmark scenario for a local model would show it (`docs/benchmark.md`).
+- **Smaller gaps:** the API key is plain text in `settings.json`; the connect screen has one server per engine; a server started without `--jinja` is not detected (tool calls are ignored without an error).
+
 ## Stage 3: voice
 
 ### Built in v0.8.0 (ADR 24)

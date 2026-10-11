@@ -2,7 +2,7 @@
 
 Conversational language learning for free. A Mac app with an AI tutor that remembers what you're learning.
 
-**Version:** 0.27.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 13 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
+**Version:** 0.29.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 13 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Mission: from 1 to infinity
 
@@ -30,7 +30,12 @@ The first launch opens **onboarding**: connect one model provider, pick your lan
 | Anthropic | Claude Pro/Max (uses the plan's monthly Agent SDK credit) | yes |
 | OpenAI | Sign in with ChatGPT | yes |
 | OpenRouter | OpenRouter sign-in | yes |
-| DeepSeek, Google | | yes |
+| DeepSeek, Google, OpenCode Zen, OpenCode Go | | yes |
+| llama.cpp (local) | No account: Sayfern talks to your own `llama-server` | no key (optional) |
+
+**Usage.** Each connected provider shows what is left: the 5-hour and weekly limits for Claude Pro/Max and ChatGPT sign-ins (and the 5-hour, weekly and monthly limits for OpenCode Go), the balance for DeepSeek and OpenRouter, and for every API key what Sayfern spent on this computer. Anthropic and OpenAI API keys cannot report a balance, so a link opens the billing page.
+
+**Local models.** Run a model on your own computer with [llama.cpp](https://github.com/ggml-org/llama.cpp) and pick **llama.cpp** on the connect screen. Nothing leaves your Mac. Start the server with `llama-server -hf <repo>:<quant> --jinja -c 16384` (`--jinja` is needed for tool calls). Details, model advice and fixes: [`docs/local-models.md`](docs/local-models.md).
 
 Credentials are encrypted with Electron `safeStorage` (key held in the macOS Keychain) and stored in `~/Library/Application Support/sayfern/`. The first time, macOS may ask to allow access to "sayfern Safe Storage". Click **Always Allow**. It may ask once more after the first `npm run dev` of v0.3.1, because the dev app is re-signed with the Sayfern name and icon.
 
@@ -82,6 +87,7 @@ Model access goes through [`@earendil-works/pi-ai`](https://github.com/badlogic/
 
 - [`AGENTS.md`](AGENTS.md): start here if you're changing the code (human or coding agent).
 - [`docs/architecture.md`](docs/architecture.md): how everything fits together, module by module.
+- [`docs/local-models.md`](docs/local-models.md): run a local model with llama.cpp, and add other local engines.
 - [`docs/decisions.md`](docs/decisions.md): why it's built this way.
 - [`docs/roadmap.md`](docs/roadmap.md): Stage 2 follow-ups, Stage 3, and known gaps.
 - [`docs/stage1.md`](docs/stage1.md): Stage 1 features and their status.

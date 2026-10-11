@@ -122,7 +122,7 @@ Key `Token` contract (`src/shared/lang.ts`): tokens cover the input exactly and 
 | Symbol | File | Role |
 |---|---|---|
 | `createSayfernModels(credentials)` | `src/core/providers.ts` | `createModels({ credentials })` then `setProvider()` for each factory in `FACTORIES`: anthropic, openai, deepseek, openrouter, google. Adding a pi-ai provider is one line here. |
-| `describeProviders(models, credentials)` | same | Builds `ProviderInfo[]`: `canApiKey`, `oauthLabel` (friendlier labels in `LOGIN_LABELS` for anthropic and openai; pi-ai's `loginLabel` otherwise), `oauthIsSubscription`, `connected` (from `models.checkAuth`), `connectedVia`, a short `note` from `NOTES`. |
+| `describeProviders(models, credentials, localServers)` | same | Builds `ProviderInfo[]` (local engines are added after the cloud providers, section 5.1a): `canApiKey`, `oauthLabel` (friendlier labels in `LOGIN_LABELS` for anthropic and openai; pi-ai's `loginLabel` otherwise), `oauthIsSubscription`, `connected` (from `models.checkAuth`), `connectedVia`, a short `note` from `NOTES`. |
 | `listAvailableModels(models)` | same | `models.getAvailable()` mapped to `ModelInfo` (provider, id, name, reasoning, input modalities, contextWindow). |
 | `FileCredentialStore` | `src/core/credential-file-store.ts` | Implements pi-ai's `CredentialStore` (`read`, `list`, `modify`, `delete`). One JSON file, writes serialized on a promise chain (pi-ai relies on serialized `modify` so concurrent requests never double-refresh an OAuth token). Optional `Cipher`; main passes one backed by `safeStorage`. |
 
@@ -136,7 +136,30 @@ Auth modes as registered in v0.5.0: every provider accepts an API key; anthropic
 
 Decrypted `data` is `Record<providerId, Credential>` as defined by pi-ai (`{ "type": "api_key", "key": "sk-..." }` or an OAuth credential). The smoke script passes no cipher, so `.sayfern-dev/credentials.json` has `"encrypted": false` and plain JSON in `data`.
 
-### 5.2 `app/`: `SayfernApp` and `SettingsStore`
+### 5.1a `local/`: local model servers (v0.28.0)
+
+**Purpose.** Connect models that run on the learner's computer, through OpenAI-compatible servers (ADR 37). User guide and the steps to add an engine: [`local-models.md`](local-models.md).
+
+| Symbol | File | Role |
+|---|---|---|
+| `LOCAL_ENGINES` | `src/core/local/engines.ts` | Table keyed by `LocalEngineId` (`src/shared/types.ts`, today `"llamacpp"`). Each `LocalEngine` has `id`, `name`, `defaultUrl`, `docsUrl`, `note` and `listModels(baseUrl, apiKey, fetch)`. llama.cpp reads `GET <baseUrl>/models` and `GET <root>/props` (`n_ctx`, vision). |
+| `registerLocal(models, engine, server, fetch)` | `src/core/local/index.ts` | Lists the models, then `models.setProvider(createProvider({ ..., api: openAICompletionsApi() }))`. Rejects if the server cannot be reached. |
+| `refreshLocals(models, servers, fetch)` | same | Re-registers every saved server (at startup and in `listModels`). Never throws; a server that is down keeps its last list. |
+
+`describeProviders` (section 5.1) skips local provider ids in the loop and then appends one `ProviderInfo` per local engine, with `local: { engine, baseUrl?, defaultUrl, docsUrl }`, so the connect screen can show a URL field. `SayfernApp.connectLocal` saves `Settings.localServers[engine]` only after `registerLocal` succeeds. `disconnectLocal` (also called by `logout` for a local id) removes the setting and the provider. Local calls use `ankiFetch` (Node's `fetch`), because the servers are on localhost. Non-Claude models get the evidence pass (ADR 25).
+
+### 5.1b `usage/`: provider usage (v0.29.0)
+
+**Purpose.** The usage line beside each connected provider on the connect screen: plan limits, balance, and what Sayfern spent with an API key on this computer (ADR 38).
+
+| Symbol | File | Role |
+|---|---|---|
+| `UsageLog` | `src/core/usage/log.ts` | `records/usage.json`: local day (`localDate`) → provider id → `{ requests, tokens, cost }`. Keeps 60 days. `totals(provider)` returns today and the last 30 days (`lastDates`). |
+| `meterModels(models, log)` | `src/core/usage/meter.ts` | A `Proxy` over `MutableModels` that logs each reply from `streamSimple` and `completeSimple` when the provider uses an API key (not OAuth, not `LOCAL_ENGINES`). Tokens = input + cache read + cache write + output; cost = pi-ai's `usage.cost.total`. `SayfernApp` wraps `deps.models` with it, so every service is metered. |
+| `USAGE_SOURCES` | `src/core/usage/live.ts` | Per provider: `oauth` fetcher (Claude `api.anthropic.com/api/oauth/usage`, ChatGPT `chatgpt.com/backend-api/wham/usage` with the `chatgpt-account-id` from the token), `apiKey` fetcher (DeepSeek `/user/balance`, OpenRouter `/api/v1/key` `limit_remaining`, OpenCode Go `opencode.ai/zen/go/v1/usage`), `billingUrl`, `free` (Google). |
+| `UsageService` | `src/core/usage/index.ts` | `forProvider(id)`: `{}` when not connected; else the billing or plan page, `spent` for API keys, and the live part, cached `LIVE_TTL_MS` (2 min) per provider and auth type. Failures come back as `error`, never thrown. `forget(id)` after `setApiKey`, `login`, `logout`. |
+
+
 
 **Purpose.** The facade. Wires every service and implements `CoreApi` (all of `SayfernApi` except the Electron-only methods), including the Stage 2 slot methods bound from `ReviewService`, `QuizService` and `DeckService` (section 16.1). Main's IPC table routes to it; the smoke script and `app.test.ts` call it directly.
 
@@ -508,11 +531,12 @@ Everything lives under Electron `userData` (`~/Library/Application Support/sayfe
 
 ```
 credentials.json                encrypted (safeStorage); plain in .sayfern-dev
-settings.json                   Settings
+settings.json                   Settings (includes `localServers`: `{ llamacpp: { baseUrl, apiKey? } }`, key in plain text)
 records/
   sessions/<sessionId>.json     SessionFile: meta, messages, transcript, targets
   quizzes/<quizId>.json         QuizFile: spec, status, alignment, provenance, items with keys and answers (section 16.3)
   corrections.json  grammar.json  observations.json  saved-words.json
+  usage.json                    API-key model calls per local day and provider (section 5.1b; not exported)
   activity.json  levels.json  profile.json
   word-usage-zh.json  word-usage-ja.json  writing-zh.json  writing-ja.json
   *.corrupt-<ms>                unreadable file moved aside by JsonFile
@@ -536,8 +560,11 @@ Channel for every method: `ipc:<methodName>`, arguments in order. Core implement
 | `getSettings()` | Read settings | `SettingsStore.get` |
 | `setSettings(patch)` | Shallow-merge settings | `SettingsStore.update` |
 | `listProviders()` | Providers with auth state | `describeProviders` |
-| `listModels()` | Models usable with current credentials | `listAvailableModels` |
+| `listModels()` | Models usable with current credentials; reads saved local servers again first | `refreshLocals`, `listAvailableModels` |
+| `providerUsage(providerId)` | Plan windows, balance, local spend and billing page for a connected provider (section 5.1b) | `UsageService.forProvider` |
 | `setApiKey(providerId, key)` | Store an API key | `credentials.modify` → `{ type: "api_key", key }` |
+| `connectLocal(engine, baseUrl, apiKey?)` | Save a local server if it answers; returns its `ModelInfo[]` (section 5.1a) | `registerLocal` + `SettingsStore.update({ localServers })` |
+| `disconnectLocal(engine)` | Forget a local server | `SettingsStore.update`, `models.deleteProvider` |
 | `login(providerId)` | OAuth sign-in (see 11.2) | `models.login(id, "oauth", authInteraction, { getDeviceId })` |
 | `cancelLogin()` | Abort sign-in, reject open prompts | `loginAbort.abort()` |
 | `logout(providerId)` | Remove credentials | `models.logout` |

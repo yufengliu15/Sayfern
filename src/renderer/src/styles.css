@@ -756,8 +756,16 @@ button.q:hover .q1 { color: var(--side-ink); text-decoration: underline; text-de
 .prov-top { display: flex; align-items: center; gap: 12px; }
 .prov-top .nm { font-size: 16px; font-weight: 600; }
 .prov-top .nt { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.prov > .nt { font-size: 13px; color: var(--muted); }
 .badge { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--fern-soft); color: var(--fern-dark); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .prov-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.usage { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--ink-3); }
+.usage-wins { display: grid; grid-template-columns: max-content 120px auto; align-items: center; gap: 6px 12px; }
+.usage-win { display: contents; }
+.usage-k { color: var(--ink-2); }
+.usage-bar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.usage-bar i { display: block; height: 100%; background: var(--fern); }
+.usage-bar.low i { background: var(--seal); }
 .keyrow { display: flex; gap: 8px; }
 .keyrow .input { flex: 1; font-family: var(--mono); font-size: 13px; }
 .note { font-size: 12.5px; color: var(--muted); line-height: 1.5; }

@@ -8,6 +8,9 @@ import type { Theme } from "./themes";
 export type { Language } from "./records";
 export type { UiLocale } from "./locales";
 
+/** Local inference engines Sayfern can connect to (src/core/local/engines.ts). */
+export type LocalEngineId = "llamacpp";
+
 export interface ProviderInfo {
   id: string;
   name: string;
@@ -19,6 +22,40 @@ export interface ProviderInfo {
   /** How the provider is currently authenticated, or null. */
   connected: "api_key" | "oauth" | null;
   connectedVia?: string;
+  /** Present for local engines: the URL field on the connect screen. */
+  local?: { engine: LocalEngineId; baseUrl?: string; defaultUrl: string; docsUrl: string };
+}
+
+/** One plan limit from the provider: the 5-hour window, the week, the month. */
+export interface UsageWindow {
+  kind: "session" | "weekly" | "monthly";
+  /** 0..100. */
+  usedPercent: number;
+  /** Epoch ms; absent when the window has not started. */
+  resetsAt?: number;
+}
+
+export interface UsageSpend {
+  requests: number;
+  tokens: number;
+  /** USD at list price. */
+  cost: number;
+}
+
+/** What the connect screen shows beside a connected provider. */
+export interface ProviderUsage {
+  /** Plan limits from the provider (subscription sign-ins, OpenCode Go). */
+  windows?: UsageWindow[];
+  /** Money left on the account or the key, from the provider. */
+  balance?: { amount: number; currency: string };
+  /** API-key calls Sayfern made on this computer. Absent for subscription sign-ins. */
+  spent?: { today: UsageSpend; last30Days: UsageSpend };
+  /** Free tier with no limits the API reports (Google): show requests and tokens, not cost. */
+  free?: boolean;
+  /** The provider's billing or usage page. */
+  billingUrl?: string;
+  /** The live check failed; `spent` still shows. */
+  error?: string;
 }
 
 export interface ModelInfo {
@@ -60,6 +97,8 @@ export interface Settings {
   elevenLabsAccounts?: { id: string; label: string; credential: string; keyHint: string; addedAt: number }[];
   /** Stage 3: voice preferences; DEFAULT_VOICE_PREFS fills what is missing. */
   voice?: Partial<VoicePrefs>;
+  /** Local servers by engine. Absent = not connected. */
+  localServers?: Partial<Record<LocalEngineId, { baseUrl: string; apiKey?: string }>>;
   /** v0.1 sessions (<userData>/sessions) were imported into records once. */
   legacyImported?: boolean;
 }

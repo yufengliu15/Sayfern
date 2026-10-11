@@ -50,7 +50,7 @@ import { SKILLS } from "../../shared/records";
 import { LANGUAGE_META } from "../../shared/languages";
 import { buildCourseView, findUnit, type CourseView } from "../../shared/course";
 import { findScenario } from "../../shared/scenarios";
-import type { AuthEventPayload, AuthPromptPayload, ModelInfo, ModelRef, ProviderInfo, Settings, UiLocale } from "../../shared/types";
+import type { AuthEventPayload, AuthPromptPayload, LocalEngineId, ModelInfo, ModelRef, ProviderInfo, ProviderUsage, Settings, UiLocale } from "../../shared/types";
 import { SayfernTutor } from "../agent";
 import { lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
 import { TARGET_COUNT } from "../agent/turn";
@@ -60,6 +60,7 @@ import type { TutorEvent } from "../contracts";
 import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { describeProviders, listAvailableModels } from "../providers";
+import { LOCAL_ENGINES, refreshLocals, registerLocal } from "../local";
 import { JsonRecordsStore } from "../records";
 import { QuizService } from "../quiz";
 import { DeckService } from "../decks";
@@ -69,6 +70,7 @@ import { ElevenLabsAccounts, VoiceService } from "../voice";
 import { VOICE_METHODS, type VoiceApi } from "../../shared/stage3";
 import { DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type DeckApi, type QuizApi, type ReviewApi } from "../../shared/stage2";
 import { SettingsStore } from "./settings";
+import { meterModels, UsageLog, UsageService } from "../usage";
 
 export { SettingsStore, DEFAULT_SETTINGS } from "./settings";
 
@@ -134,6 +136,7 @@ export class SayfernApp implements CoreApi {
   readonly quizzes: QuizService;
   readonly decks: DeckService;
   readonly voice: VoiceService;
+  readonly usage: UsageService;
 
   private readonly emitEvent: SayfernAppDeps["emit"];
   private readonly now: () => number;
@@ -147,6 +150,8 @@ export class SayfernApp implements CoreApi {
   /** Background Anki refreshes (ensureFresh), per language. */
   private readonly ankiRefresh = new Map<Language, Promise<void>>();
   /** messageId → sessionId, for translate(messageId). */
+  /** Local model servers are on localhost: like AnkiConnect, use Node's fetch, not Chromium's. */
+  private readonly localFetch: typeof fetch;
   private readonly messageSessions = new Map<string, string>();
   private readonly pendingPrompts = new Map<string, (value: string | null) => void>();
   private loginAbort: AbortController | null = null;
@@ -155,10 +160,14 @@ export class SayfernApp implements CoreApi {
 
   constructor(deps: SayfernAppDeps) {
     this.dataDir = deps.dataDir;
-    this.models = deps.models;
+    this.now = deps.now ?? Date.now;
+    // Every model call goes through the meter, so API-key spend is logged in one place.
+    const usageLog = new UsageLog(join(this.dataDir, "records", "usage.json"), this.now);
+    this.models = meterModels(deps.models, usageLog);
+    this.usage = new UsageService({ models: this.models, log: usageLog, fetch: deps.fetch ?? globalThis.fetch.bind(globalThis), now: this.now });
+    this.localFetch = deps.ankiFetch ?? deps.fetch ?? globalThis.fetch.bind(globalThis);
     this.credentials = deps.credentials;
     this.emitEvent = deps.emit;
-    this.now = deps.now ?? Date.now;
     this.newId = deps.newId ?? randomUUID;
     this.openUrl = deps.openExternal;
     const now = this.now;
@@ -234,6 +243,7 @@ export class SayfernApp implements CoreApi {
         console.error("Legacy session import failed:", errorText(err));
       }
     }
+    await refreshLocals(this.models, s.localServers, this.localFetch);
     for (const info of this.lang.languages()) this.refreshAnki(info.id);
     this.recountWords(this.lang.languages().map((l) => l.id));
     this.ensureDictionaries();
@@ -329,18 +339,40 @@ export class SayfernApp implements CoreApi {
     return this.settings.systemLocale();
   }
 
-  listProviders(): Promise<ProviderInfo[]> {
-    return describeProviders(this.models, this.credentials);
+  async listProviders(): Promise<ProviderInfo[]> {
+    return describeProviders(this.models, this.credentials, (await this.settings.get()).localServers);
   }
 
-  listModels(): Promise<ModelInfo[]> {
+  async listModels(): Promise<ModelInfo[]> {
+    await refreshLocals(this.models, (await this.settings.get()).localServers, this.localFetch);
     return listAvailableModels(this.models);
+  }
+
+  async connectLocal(engine: LocalEngineId, baseUrl: string, apiKey?: string): Promise<ModelInfo[]> {
+    const server = { baseUrl: baseUrl.trim(), ...(apiKey?.trim() ? { apiKey: apiKey.trim() } : {}) };
+    // Throws if the server cannot be reached; nothing is saved then.
+    await registerLocal(this.models, engine, server, this.localFetch);
+    const { localServers } = await this.settings.get();
+    await this.settings.update({ localServers: { ...localServers, [engine]: server } });
+    return (await listAvailableModels(this.models)).filter((m) => m.provider === engine);
+  }
+
+  async disconnectLocal(engine: LocalEngineId): Promise<void> {
+    const { localServers = {} } = await this.settings.get();
+    const { [engine]: _gone, ...rest } = localServers;
+    await this.settings.update({ localServers: rest });
+    this.models.deleteProvider(engine);
+  }
+
+  providerUsage(providerId: string): Promise<ProviderUsage> {
+    return this.usage.forProvider(providerId);
   }
 
   async setApiKey(providerId: string, key: string): Promise<void> {
     const trimmed = key.trim();
     if (!trimmed) throw new Error("Paste a key first.");
     await this.credentials.modify(providerId, async () => ({ type: "api_key", key: trimmed }));
+    this.usage.forget(providerId);
   }
 
   /** Stable per-install id (Sign in with ChatGPT registers it as the agent host). */
@@ -357,6 +389,7 @@ export class SayfernApp implements CoreApi {
     try {
       const deviceId = await this.getDeviceId();
       await this.models.login(providerId, "oauth", this.authInteraction(ctrl.signal), { getDeviceId: () => deviceId });
+      this.usage.forget(providerId);
     } finally {
       if (this.loginAbort === ctrl) this.loginAbort = null;
     }
@@ -368,6 +401,8 @@ export class SayfernApp implements CoreApi {
   }
 
   logout(providerId: string): Promise<void> {
+    if (providerId in LOCAL_ENGINES) return this.disconnectLocal(providerId as LocalEngineId);
+    this.usage.forget(providerId);
     return this.models.logout(providerId);
   }
 

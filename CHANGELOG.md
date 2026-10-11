@@ -6,6 +6,29 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-10
+
+### Added
+
+- **Usage beside each provider.** The connect screen (Settings > Models, welcome page) shows what is left under each connected provider (ADR 38):
+  - Claude Pro/Max and Sign in with ChatGPT: the 5-hour and weekly limits, with the percent left and the reset time.
+  - DeepSeek: the account balance. OpenRouter: the credit left on the key, if the key has a limit.
+  - OpenCode Go: the 5-hour, weekly and monthly limits.
+  - Every API key: what Sayfern spent on this computer today and in the last 30 days, at list price. Google shows requests and tokens instead, because AI Studio's free tier does not report its limits.
+  - A link to the provider's billing or usage page.
+- **Usage log.** Every model call made with an API key (chat, quizzes, grading, decks, card drafts) is counted in `records/usage.json`. Subscription sign-ins and local models are not counted.
+- **OpenCode Zen and OpenCode Go** as API-key providers.
+- **API.** `providerUsage(providerId)`.
+
+## [0.28.0] - 2026-10-10
+
+### Added
+
+- **Local models (llama.cpp).** Connect a `llama-server` on your own computer from the connect screen, in Settings or on the welcome page. Sayfern asks the server for its models and context size, and chats through its OpenAI-compatible API. No account or key is needed (a key is optional). Start the server with `--jinja`, so tool calls work. See [`docs/local-models.md`](docs/local-models.md) (ADR 37).
+- **One engine table.** `LOCAL_ENGINES` (`src/core/local/engines.ts`) holds each engine's default URL, note and model listing, so Ollama, LM Studio, vLLM or MLX-LM are a small change. The guide lists notes for each.
+- **API.** `connectLocal(engine, baseUrl, apiKey?)` saves a server only if it answers and returns its models. `disconnectLocal(engine)` removes it. Saved servers live in `settings.json` under `localServers`.
+- **Docs.** New `docs/local-models.md`: install, model advice, troubleshooting, and how to add another engine.
+
 ## [0.27.0] - 2026-10-10
 
 ### Removed

@@ -189,6 +189,35 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 38. Provider usage beside each provider: live limits where they exist, local spend elsewhere (v0.29.0)
+
+Owner decision, 2026-10-10.
+
+- **Context.** Learners could not see how much of their plan or balance was left without opening each provider's site. Providers differ a lot. Subscription sign-ins (Claude Pro/Max, ChatGPT) have a 5-hour and a weekly window, readable only from endpoints that Claude Code and Codex use and that Anthropic and OpenAI do not document. DeepSeek and OpenRouter have documented balance endpoints for normal keys. Anthropic and OpenAI API keys cannot read a balance at all (only admin keys can read cost). Google AI Studio's free tier has limits that the API does not report. OpenCode Go has a usage endpoint; OpenCode Zen has no balance endpoint (open issue anomalyco/opencode#44189).
+- **Decision.**
+  - **One table of sources.** `USAGE_SOURCES` (`src/core/usage/live.ts`) gives each provider an `oauth` fetcher (subscription windows), an `apiKey` fetcher (balance or plan windows), a billing or usage page, and `free` for Google. A provider without an entry shows only local spend.
+  - **Use the undocumented subscription endpoints.** `api.anthropic.com/api/oauth/usage` and `chatgpt.com/backend-api/wham/usage`, with the token pi-ai already holds (`models.getAuth`). They can change without notice; a failure shows "Could not check the limits right now." and never blocks anything. Answers are cached for 2 minutes (`LIVE_TTL_MS`), because Anthropic returns 429 when the endpoint is polled.
+  - **Local spend for every API key.** `meterModels` wraps the models object once, so every reply (chat, evidence pass, quizzes, grading, decks, card drafts, end of session) is logged in `records/usage.json` per local day and provider. Subscription sign-ins and local servers are not logged. The cost is pi-ai's list-price estimate, so the screen says "Spent on this computer", not "balance". Google shows requests and tokens instead of cost, because the free tier costs nothing.
+  - **No admin keys.** Sayfern does not ask for an Anthropic or OpenAI admin key to read real org cost. The billing page link covers that.
+  - **OpenCode Zen and OpenCode Go** are added as API-key providers (pi-ai `opencode`, `opencode-go`).
+- **Consequences.** Spend is only what Sayfern used on this computer; other apps on the same key do not show. Windows reflect the whole plan, including Claude Code or Codex use. If Anthropic or OpenAI change their endpoints, the limit rows disappear until the parser in `live.ts` is updated. The connect screen's note about Claude's Agent SDK credit is out of date (Anthropic's 7 October 2026 update says third-party apps still use plan limits) and should be reworded.
+- **Where.** `src/core/usage/` (`log.ts`, `meter.ts`, `live.ts`, `index.ts`), `SayfernApp.providerUsage`, `src/shared/types.ts` (`ProviderUsage`, `UsageWindow`, `UsageSpend`), `UsageLine` in `src/renderer/src/components/Connect.tsx`.
+
+## ADR 37. Local models through OpenAI-compatible servers (v0.28.0)
+
+Owner decision, 2026-10-10.
+
+- **Context.** Every provider so far needed a cloud account, an API key or a subscription. Some learners want Sayfern to run offline, keep all text on their Mac, or avoid cost. Most local inference servers expose the OpenAI chat API.
+- **Decision.**
+  - **Servers, not embedded inference.** Sayfern does not bundle a model runtime. The learner runs a server and Sayfern connects to its URL. The app stays small, and the learner picks the runtime, the model and the hardware.
+  - **llama.cpp first.** `llama-server` is free, runs on macOS, Linux and Windows, handles GGUF models of any size, supports tool calls with `--jinja`, and reports its context size. It is also the engine inside other tools (Ollama, LM Studio and Jan build on it).
+  - **One engine table.** `LOCAL_ENGINES` in `src/core/local/engines.ts`, keyed by `LocalEngineId`, holds what differs between engines: default URL, docs link, a note, and `listModels`. Chat is the same for all engines (pi-ai's OpenAI completions API). Adding Ollama, LM Studio or vLLM is a table entry plus a model listing, not a new code path ([`docs/local-models.md`](local-models.md)).
+  - **Keyless.** A local server needs no account. The connect screen asks for a URL and an optional API key (for `--api-key` servers). These sit in `settings.json` (`localServers`), not in `credentials.json`, because they are a setting of this computer. The key is plain text there. Providers are registered from this setting at startup.
+  - **Models are listed live.** Sayfern asks the server each time, and never keeps a fixed model list. The learner changes the loaded model in the server, and Sayfern shows it. `connectLocal` saves a server only if it answers, so a typo does not leave a dead entry.
+  - **No special tutor path.** Non-Claude models already get the evidence pass (ADR 25), so a local model records corrections through the extra tool-only request. The tutor prompt is the same.
+- **Consequences.** Quality depends on the model: small models correct worse and may skip tool calls. Servers started without `--jinja` ignore tools, so no evidence is recorded; the guide and the note say so. The learner must size the context (16k or more). Cost and usage numbers for local models are zero.
+- **Where.** `src/core/local/`, `src/shared/types.ts` (`LocalEngineId`, `Settings.localServers`), `src/shared/api.ts` (`connectLocal`, `disconnectLocal`), `src/renderer/src/components/Connect.tsx`, `docs/local-models.md`.
+
 ## ADR 36. Remove the feature builder and extensions (v0.27.0)
 
 Owner decision, 2026-10-10. Supersedes ADR 21, and the extension host described in ADR 1 and ADR 7.
