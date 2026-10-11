@@ -6,7 +6,7 @@ import { LANGUAGE_META } from "../../shared/languages";
 import type { GrammarSummary, Language, LevelEstimate } from "../../shared/records";
 import { LANGUAGES } from "../../shared/records";
 import { buildSystemPrompt } from "../agent/prompt";
-import { makeHarness } from "../agent/testkit";
+import { makeHarness, userBlocks } from "../agent/testkit";
 import { canonicalGrammarId } from "../agent/text";
 import { turnTools } from "../agent/tools";
 import { overviewText, unitText } from "./index";
@@ -158,7 +158,7 @@ test("unit session: the tutor opens it and the prompt carries the unit", async (
   const reply = await h.tutor.runOpening({ sessionId: s.id, model: h.model, signal: new AbortController().signal, onEvent: () => {} });
   assert.equal(reply.topicStart, true);
   const transcript = await h.records.getTranscript(s.id);
-  assert.match(String(transcript[0].content), /started a course unit/);
+  assert.match(userBlocks(transcript[0])[0], /started a course unit/);
   const prompt = await buildSystemPrompt(h.deps, s);
   assert.match(prompt, /# Session: course unit\nUnit zh-hsk30-1-08 \(HSK 1\): Special sentence patterns/);
   assert.match(prompt, /zh:bi-comparison \| A 比 B \+ Adj/);
@@ -172,7 +172,7 @@ test("unit session with a grammar overview: the opening gives a short summary fi
   h.faux.setResponses([fauxAssistantMessage([fauxText("い形容詞：高いです。…どんな町ですか？"), fauxToolCall("record_evidence", {} as never)], { stopReason: "toolUse" })]);
   await h.tutor.runOpening({ sessionId: s.id, model: h.model, signal: new AbortController().signal, onEvent: () => {} });
   const transcript = await h.records.getTranscript(s.id);
-  assert.match(String(transcript[0].content), /started a course unit and asked for a quick overview of its grammar first/);
+  assert.match(userBlocks(transcript[0])[0], /started a course unit and asked for a quick overview of its grammar first/);
   const prompt = await buildSystemPrompt(h.deps, s);
   assert.match(prompt, /# Session: course unit\nUnit ja-n5-04 \(N5\)/);
   assert.match(prompt, /quick overview of this unit's grammar/);

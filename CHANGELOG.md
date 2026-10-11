@@ -6,6 +6,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-11
+
+### Changed
+
+- **Cheaper tutor turns.** The system prompt now stays the same all session. What changes every turn (levels, pacing numbers, grammar to revisit, Anki words, the unit's progress, grammar ids) goes as notes on the newest learner message, in the request only. Providers can now read the whole history from their cache instead of writing it again on every turn (ADR 39).
+- **Website.** The benchmark section shows the clean 2026-10-11 run (Sayfern 0.30.0 vs Claude Code 2.1.295 + skill in a clean profile, eight scenarios: 3.1× less plan-limit usage). The accuracy table is removed.
+
 ## [0.29.0] - 2026-10-10
 
 ### Added

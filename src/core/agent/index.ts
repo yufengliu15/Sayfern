@@ -11,7 +11,7 @@ import { endSession, translate } from "./session";
 import { runOpening, runTurn } from "./turn";
 
 export type { TutorDeps, TutorOptions } from "./deps";
-export { buildSystemPrompt, gatherPromptData, renderSystemPrompt } from "./prompt";
+export { buildPrompt, buildSystemPrompt, gatherPromptData, renderPrompt, renderSystemPrompt } from "./prompt";
 export { turnTools } from "./tools";
 
 export class SayfernTutor implements Tutor {

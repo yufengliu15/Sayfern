@@ -1,5 +1,9 @@
 
-## 23:42 | main
-Built a provider usage tracker in SayfernApp: usage log and model wrapper, live fetchers for provider endpoints, OpenCode Zen and Go added to the provider list, typed response shapes, usage line on the provider card, translations in all 12 catalogs, and tests (request-count assertion only, after fixing wrong token-count expectations).
-## 23:44 | main
-SayfernApp usage tracker finished: v0.29.0 bump, ADR 38, CHANGELOG/README/AGENTS/arch docs, usage log reuses `records/dates.ts` helpers, 320 pass/2 skip, typecheck clean, EN/RU UI checked in mock app; uncommitted, real provider endpoints untested (manual sign-in check needed before release), 14 new strings need native translation review, connect screen "monthly Agent SDK credit" text stale pending user OK.
+## 12:12 | main
+Pushed commit f1a2eed to main so sayfern.ca now shows the 2026-10-11 benchmark (8.6× less plan usage, 10.1× smaller peak context, 2.7× less wall time) with all 12 language pages updated and the accuracy table removed, and deleted the 266 benchmark folders from ~/.claude/projects, while the v0.30.0 release (prompt-cache fix, ADR 39, docs, CHANGELOG) stays local and uncommitted, the CHANGELOG line about the website change needs moving or dropping before release, and a clean benchmark run with CLAUDE_CODE_OAUTH_TOKEN plus the +54% graded-reading cost investigation are still open.
+## 12:18 | main
+Diagnosed the token dips in the benchmark chart as caused by 3 of 24 requests (reps 1–2, msgs 4, 10, 12) sending only 22 built-in tools without the 51 claude.ai connector tools (~33k tokens), and offered three fixes (clean `CLAUDE_CODE_OAUTH_TOKEN` rerun recommended, chart only 74-tool requests, or leave it), awaiting the user's choice.
+## 15:38 | main
+Benchmark rerun with `isolation clean` (no connectors/memory) shows Sayfern 0.30.0 uses 3.1× less plan-limit usage than Claude Code + skill (380k vs 1.18M), with the chart dips gone and 41/48 grammar errors caught; site update and push to `main` await user approval, and no correction carries a grammar id (open issue).
+## 16:19 | main
+Sayfern benchmark page updated on sayfern.ca (commit `6c8be07` pushed, deploy passed) with clean 0.30.0 run in 12 languages (3.1× plan-limit usage vs Claude Code), and the CHANGELOG line corrected; v0.30.0 code still uncommitted, and the `grammar_id` omission (0 of 41 corrections) is unfixed pending user approval of the description fix.

@@ -189,6 +189,18 @@ Owner request, 2026-10-01: the welcome page should push Anki hard (shared decks 
 - **Consequences.** Readings of words missing from the dictionary still depend on the reader and the model (the card says so). The Edge service is unofficial: if Microsoft changes the handshake, bump the constants in `tts.ts` from the latest edge-tts; cards are still added without audio meanwhile. A deck made here can't be shared as a file from Sayfern (Anki can export it). Credit estimates count one credit per character, which overestimates Flash.
 - **Where.** `src/core/decks/`, `src/shared/stage2/decks.ts`, `src/core/anki/index.ts` (`storeMedia`), `src/renderer/src/screens/Decks.tsx`, `Onboarding.tsx` (`AnkiStep`).
 
+## ADR 39. A system prompt that stays the same all session, with notes for each reply (v0.30.0)
+
+Owner decision, 2026-10-11.
+
+- **Context.** The benchmark ratio fell from 8.2× (2026-10-01, v0.6.0) to 3.7× (2026-10-08, v0.16.2). The biggest part we control: the system prompt was rebuilt every turn and changed every turn (pacing counts from v0.10.0, "last missed N h ago" times, the order of the grammar catalogue, the unit's per-point states). Providers cache a prefix: tools, system prompt, then history. A changed system prompt makes the whole history miss, so Sayfern wrote it all to the cache again on every turn (1.25× input price) instead of reading it (0.1×). In the long-chat scenario only the tools were read from the cache (2,591 tokens) while the writes grew every turn (2,987 to 5,503 tokens per request).
+- **Decision.**
+  - **Two parts.** `renderPrompt` returns the system prompt (persona, language notes, explanation language, difficulty, the learner, the session, the pacing rules, feedback and tool rules) and the notes for this reply (levels, unit progress, course, pacing numbers, grammar to revisit, Anki words and knowledge, grammar ids). Anything that changes with the records goes in the notes.
+  - **Notes on the newest learner message, in the request only.** `withNotes` adds them as a last text block starting with `[Sayfern notes for this reply]`; the stored transcript never holds them, so old notes never pile up or contradict new ones. The system prompt tells the model that the learner did not write them. User messages are stored as a text block (not a string) so the cached prefix is the same with and without the notes.
+  - **Cache breakpoint before the notes.** pi-ai marks the last block of the last message; `notesOutOfCache` (pi-ai's `onPayload` hook) moves the mark to the learner's text, so the notes stay out of the cache entry and the next turn reads the whole history. OpenAI-style automatic prefix caching needs no mark: the notes are last.
+- **Consequences.** The notes are paid at the full input price on every request (about 300 to 2,500 characters); the rest of the prompt and the history are read from the cache. The model gets per-turn state in a user message instead of the system prompt; the system prompt names the notes so it does not treat them as the learner's words. The prompt snapshot test measures both parts together. Not yet confirmed by a paid benchmark run.
+- **Where.** `src/core/agent/prompt.ts` (`renderPrompt`, `pacingBlock` / `pacingFacts`, `NOTES_HEADER`), `src/core/agent/cache.ts`, `runLoop` and `evidencePass` in `src/core/agent/turn.ts`, `unitPlan` / `unitProgress` in `src/core/course/index.ts`; tests in `src/core/agent/cache.test.ts`.
+
 ## ADR 38. Provider usage beside each provider: live limits where they exist, local spend elsewhere (v0.29.0)
 
 Owner decision, 2026-10-10.

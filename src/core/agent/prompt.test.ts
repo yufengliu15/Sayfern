@@ -9,7 +9,6 @@ import { makeHarness, type Harness } from "./testkit";
 import { turnTools } from "./tools";
 import { EVIDENCE_NUDGE } from "./turn";
 import { courseFor, findUnit, grammarStates, nextUnit } from "../../shared/course";
-import { unitText } from "../course";
 import type { SessionMeta } from "../../shared/records";
 
 /** record_evidence as the model reads it: description, every parameter description and the evidence-pass nudge. */
@@ -199,7 +198,7 @@ test("pacing: counts learner replies since the last topic start and the clean st
   assert.equal(computePacing([m("u1", "user")], new Set()).turnsOnTopic, 1, "no topic start: count from the session start");
 });
 
-test("pacing block: rules always, move-on nudge once the topic is used up", async () => {
+test("pacing: rules always, numbers in the notes, move-on nudge once the topic is used up", async () => {
   const h = makeHarness();
   const sid = await h.newSession();
   const say = async (i: number) => {
@@ -207,7 +206,8 @@ test("pacing block: rules always, move-on nudge once the topic is used up", asyn
     await h.records.appendMessage({ id: `t${i}`, sessionId: sid, role: "tutor", text: "好。", at: h.clock.t + i });
   };
   const fresh = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
-  assert.doesNotMatch(fresh, /# Pacing/, "no pacing block before the learner says anything");
+  assert.match(fresh, /# Pacing\nAlways answer what the learner just said first/, "the rules are in the system prompt all session");
+  assert.doesNotMatch(fresh, /# Pacing now/, "no pacing numbers before the learner says anything");
   await say(1);
   const early = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
   assert.match(early, /# Pacing\nAlways answer what the learner just said first/);
@@ -287,7 +287,7 @@ test("topic_change in record_evidence marks the reply as a topic start", async (
   assert.equal((await turn("好的。你周末做什么？", {})).topicStart, undefined);
   assert.equal((await turn("说到周末，你去过长城吗？", { topic_change: true })).topicStart, true);
   const p = await buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
-  assert.doesNotMatch(p, /# Pacing/, "the new topic has no learner replies yet");
+  assert.doesNotMatch(p, /# Pacing now/, "the new topic has no learner replies yet");
 });
 
 // Prompt snapshot guard. Every tutor rule is written once; this test fails when a rule is duplicated,
@@ -340,7 +340,7 @@ function situations(h: Harness) {
     ),
     unitExplain: {
       ...base("zh", { levels: estimates("HSK 3"), session: { kind: "practice", unitId: unit.id, openWith: "explain" }, pacing: { turnsOnTopic: 2, cleanStreak: 1, recentLength: 10 } }),
-      unit: { unit, text: unitText(unit, grammarStates([])) },
+      unit: { unit, states: grammarStates([]) },
     },
     targeted: base("zh", {
       levels: estimates("HSK 3"),
@@ -362,7 +362,9 @@ function situations(h: Harness) {
 // Measured after the one-place-per-rule refactor: bare 3584, chatFull 7101, unitExplain 5851, targeted 4728, reading 3852,
 // placementBeginner 4992, roleplayGerman 4422, jaBeginner 4550, tools 3169 chars. Budgets are those plus about 10%,
 // so a duplicated rule or a new paragraph shows up here.
-const BUDGET = { bare: 3950, chatFull: 7800, unitExplain: 6450, targeted: 5200, reading: 4250, placementBeginner: 5500, roleplayGerman: 4870, jaBeginner: 5000, tools: 3490 };
+// ADR 39 split the prompt into a cached system prompt and per-reply notes: chat prompts now carry the pacing rules
+// from the first turn and the notes rule, so bare grew to 4591 (system 4114, notes 475); the others stayed in budget.
+const BUDGET = { bare: 5050, chatFull: 7800, unitExplain: 6450, targeted: 5200, reading: 4250, placementBeginner: 5500, roleplayGerman: 4870, jaBeginner: 5000, tools: 3490 };
 
 test("prompt snapshot: size budget, no rule written twice, every rule group still present", async () => {
   const h = makeHarness();

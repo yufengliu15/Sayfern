@@ -4,7 +4,7 @@ import { translator } from "../../shared/i18n";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createModels, fauxProvider, type Api, type Model } from "@earendil-works/pi-ai";
+import { createModels, fauxProvider, type Api, type Message, type Model } from "@earendil-works/pi-ai";
 import type { AnkiCard, AnkiConfig, AnkiSnapshot, AnkiWordFilter, Language, LevelBand, PracticeTarget, SessionKind } from "../../shared/records";
 import { aggregateWords, buildOverview, checkWordsIn, wordPage } from "../anki/words";
 import type { AnkiAddResult, AnkiNoteInput, AnkiNoteType, AnkiService, TutorEvent } from "../contracts";
@@ -13,6 +13,13 @@ import { DefaultLanguageService } from "../lang";
 import { FileLibraryService } from "../library";
 import { SayfernTutor } from "./index";
 import type { TutorDeps } from "./deps";
+
+/** Text blocks of a user message, in order (a stored message has one; a request adds the notes block). */
+export function userBlocks(m: Message | undefined): string[] {
+  if (m?.role !== "user") return [];
+  if (typeof m.content === "string") return [m.content];
+  return m.content.flatMap((c) => (c.type === "text" ? [c.text] : []));
+}
 
 /** Anki stand-in: a settable card list; word queries use the real pure functions (anki/words.ts). */
 export class FakeAnki implements AnkiService {

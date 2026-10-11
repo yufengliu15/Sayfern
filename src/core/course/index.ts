@@ -31,20 +31,43 @@ function wordSeparator(unit: CourseUnit) {
   return script === "han" || script === "japanese" ? "、" : ", ";
 }
 
+const stateText = (states: GrammarStates, id: string) => {
+  const st = states.get(id);
+  return st ? STATE_TEXT[st] : "not seen yet";
+};
+
+function unitStatusLine(unit: CourseUnit, states: GrammarStates) {
+  const { status, solid } = unitStatus(unit, states);
+  return `Status: ${status}, ${solid}/${unit.grammar.length} points used correctly on their own.`;
+}
+
 /** Everything the tutor needs about one unit, with the learner's state per point. */
 export function unitText(unit: CourseUnit, states: GrammarStates): string {
-  const { status, solid } = unitStatus(unit, states);
   return [
-    `Unit ${unit.id} (${unit.level}): ${unit.title}. Status: ${status}, ${solid}/${unit.grammar.length} points used correctly on their own.`,
+    `Unit ${unit.id} (${unit.level}): ${unit.title}. ${unitStatusLine(unit, states)}`,
     `Goal: ${unit.goal}`,
     "Grammar (use these ids in record_evidence):",
-    ...unit.grammar.map((g) => {
-      const st = states.get(g.id);
-      return `- ${g.id} | ${g.pattern} | ${g.name}. ${g.note} Learner: ${st ? STATE_TEXT[st] : "not seen yet"}.`;
-    }),
+    ...unit.grammar.map((g) => `- ${g.id} | ${g.pattern} | ${g.name}. ${g.note} Learner: ${stateText(states, g.id)}.`),
     `Topic ideas: ${unit.topics.join("; ")}.`,
     `Core words: ${unit.words.join(wordSeparator(unit))}.`,
   ].join("\n");
+}
+
+/** The unit without the learner's state: the same all session, so it can stay in the cached system prompt. */
+export function unitPlan(unit: CourseUnit): string {
+  return [
+    `Unit ${unit.id} (${unit.level}): ${unit.title}.`,
+    `Goal: ${unit.goal}`,
+    "Grammar (use these ids in record_evidence):",
+    ...unit.grammar.map((g) => `- ${g.id} | ${g.pattern} | ${g.name}. ${g.note}`),
+    `Topic ideas: ${unit.topics.join("; ")}.`,
+    `Core words: ${unit.words.join(wordSeparator(unit))}.`,
+  ].join("\n");
+}
+
+/** The learner's state per point of the unit, for the notes sent with each reply. */
+export function unitProgress(unit: CourseUnit, states: GrammarStates): string {
+  return [unitStatusLine(unit, states), ...unit.grammar.map((g) => `- ${g.id}: ${stateText(states, g.id)}`)].join("\n");
 }
 
 /** Most units the overview lists: full-syllabus courses have up to ~60 units per level. */

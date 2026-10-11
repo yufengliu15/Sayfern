@@ -13,7 +13,8 @@ import type { OpeningInput, TurnInput, TutorEvent, TutorTool } from "../contract
 import type { ChatMessage, SessionMeta, ToolActivity, UsageTotals } from "../../shared/records";
 import type { TutorDeps } from "./deps";
 import { needsEvidencePass, requestOptions } from "./options";
-import { buildSystemPrompt, SPOKEN_MARKER } from "./prompt";
+import { buildPrompt, SPOKEN_MARKER } from "./prompt";
+import { notesOutOfCache, withNotes } from "./cache";
 import { leakedCalls, leakStart, pendingTail, stripLeak, type LeakedCall } from "./leak";
 import { stripPasted } from "./text";
 import { toolContext, turnTools, type TurnState } from "./tools";
@@ -107,7 +108,8 @@ export async function runTurn(deps: TutorDeps, input: TurnInput): Promise<ChatMe
     onEvent: input.onEvent,
     base,
     // Spoken messages carry a marker so the tutor knows the text came from speech recognition.
-    userPi: { role: "user", content: input.spoken ? `${SPOKEN_MARKER} ${input.text}` : input.text, timestamp: at },
+    // A text block, not a string: the same shape with and without the notes keeps the cached prefix identical (cache.ts).
+    userPi: { role: "user", content: [{ type: "text", text: input.spoken ? `${SPOKEN_MARKER} ${input.text}` : input.text }], timestamp: at },
     userMessageId: user.id,
     userText: input.text,
     userSpoken: input.spoken === true,
@@ -127,7 +129,7 @@ export async function runOpening(deps: TutorDeps, input: OpeningInput): Promise<
     signal: input.signal,
     onEvent: input.onEvent,
     base,
-    userPi: { role: "user", content: kickoffText(session, { topicQuestion }), timestamp: deps.now() },
+    userPi: { role: "user", content: [{ type: "text", text: kickoffText(session, { topicQuestion }) }], timestamp: deps.now() },
   });
 }
 
@@ -236,6 +238,8 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   // Earlier replies saved before v0.9.1 may still hold leaked tool-call text: don't show it to the model again.
   const base = li.base.map((m) => (m.role === "assistant" && leakStart(textOf(m)) >= 0 ? withText(m, stripLeak(textOf(m))) : m));
   const transcript: Message[] = [...base, li.userPi];
+  /** Where the new user message sits: this turn's notes ride on it in requests only (cache.ts). */
+  const notesAt = base.length;
   /** transcript.length after the last fully completed iteration. */
   let committed = transcript.length;
   let completedIterations = 0;
@@ -245,6 +249,7 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   let failure: TurnFailure | null = null;
   let evidenceCalled = false;
   let systemPrompt = "";
+  let notes = "";
 
   const appendText = (delta: string) => {
     text += delta;
@@ -252,7 +257,7 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
   };
 
   try {
-    systemPrompt = await buildSystemPrompt(deps, session);
+    ({ system: systemPrompt, notes } = await buildPrompt(deps, session));
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (signal.aborted) throw new TurnFailure("Stopped", true);
       let needSeparator = false;
@@ -268,7 +273,11 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
         }
       };
       let message: AssistantMessage | undefined;
-      const stream = deps.models.streamSimple(model, { systemPrompt, messages: transcript, tools: piTools }, { signal, ...requestOptions(model, MAX_TOKENS) });
+      const stream = deps.models.streamSimple(
+        model,
+        { systemPrompt, messages: withNotes(transcript, notesAt, notes), tools: piTools },
+        { signal, ...requestOptions(model, MAX_TOKENS), onPayload: notesOutOfCache },
+      );
       for await (const ev of stream) {
         if (ev.type === "text_start") {
           needSeparator = (text + raw.slice(shown)).trim().length > 0;
@@ -364,7 +373,7 @@ async function runLoop(deps: TutorDeps, li: LoopInput): Promise<ChatMessage> {
       model,
       signal,
       systemPrompt,
-      messages: [...transcript.slice(0, committed), { role: "user", content: EVIDENCE_NUDGE, timestamp: deps.now() }],
+      messages: withNotes([...transcript.slice(0, committed), { role: "user", content: EVIDENCE_NUDGE, timestamp: deps.now() }], notesAt, notes),
       tool: evidenceTool,
       ctx,
       usage,
@@ -443,7 +452,7 @@ async function evidencePass(
     const stream = deps.models.streamSimple(
       p.model,
       { systemPrompt: p.systemPrompt, messages: p.messages, tools: [piTool] },
-      { signal: p.signal, ...requestOptions(p.model, EVIDENCE_PASS_TOKENS) },
+      { signal: p.signal, ...requestOptions(p.model, EVIDENCE_PASS_TOKENS), onPayload: notesOutOfCache },
     );
     let message: AssistantMessage | undefined;
     for await (const ev of stream) {

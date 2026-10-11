@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, type Message } from "@earendil-works/pi-ai";
 import type { TutorEvent } from "../contracts";
-import { makeHarness } from "./testkit";
+import { makeHarness, userBlocks } from "./testkit";
 import { kickoffText, NO_REPLY_YET } from "./turn";
 import { TOPIC_QUESTIONS } from "./questions";
 import { SayfernTutor } from "./index";
@@ -284,11 +284,10 @@ test("learner words exclude pasted spans", async () => {
 test("spoken messages are flagged and reach the model with the [spoken] marker", async () => {
   const h = makeHarness();
   const sid = await h.newSession();
-  let seen = "";
+  let seen: string[] = [];
   h.faux.setResponses([
     (ctx) => {
-      const last = ctx.messages.filter((m) => m.role === "user").at(-1);
-      seen = typeof last?.content === "string" ? last.content : JSON.stringify(last?.content ?? "");
+      seen = userBlocks(ctx.messages.filter((m) => m.role === "user").at(-1));
       return fauxAssistantMessage("好的！");
     },
   ]);
@@ -296,7 +295,9 @@ test("spoken messages are flagged and reach the model with the [spoken] marker",
   const msgs = await h.records.getMessages(sid);
   assert.equal(msgs[0].spoken, true);
   assert.equal(msgs[0].text, "我想去银行", "the display text has no marker");
-  assert.equal(seen, "[spoken] 我想去银行");
+  assert.equal(seen[0], "[spoken] 我想去银行");
+  assert.match(seen[1], /^\[Sayfern notes for this reply\]\n/, "this turn's notes ride on the learner message");
+  assert.deepEqual(userBlocks((await h.records.getTranscript(sid))[0]), ["[spoken] 我想去银行"], "the stored transcript has no notes");
 });
 
 test("Anki targets are selected once, marked asked from tutor text and used from learner words", async () => {
@@ -310,8 +311,7 @@ test("Anki targets are selected once, marked asked from tutor text and used from
   let prompt = "";
   h.faux.setResponses([
     (ctx) => {
-      const sys = ctx.messages.find((m) => m.role === "system");
-      prompt = sys && typeof sys.content === "string" ? sys.content : JSON.stringify(sys?.content ?? "");
+      prompt = userBlocks(ctx.messages.at(-1)).join("\n");
       return fauxAssistantMessage("你早上喝咖啡吗？");
     },
   ]);
@@ -416,7 +416,7 @@ test("runOpening: hidden kickoff in the transcript only, no learner message", as
   assert.deepEqual(msgs.map((m) => m.role), ["tutor"]);
   const t = await h.records.getTranscript(sid);
   assert.equal(t[0].role, "user");
-  assert.equal(t[0].role === "user" && t[0].content, kickoffText((await h.records.getSession(sid))!));
+  assert.deepEqual(userBlocks(t[0]), [kickoffText((await h.records.getSession(sid))!)]);
 });
 
 test("unknown session never throws", async () => {
@@ -511,9 +511,9 @@ test("new topic: a hidden kickoff asks a fresh question from the list, saved on 
   const transcript = await h.records.getTranscript(sid);
   const kickoff = transcript[2];
   assert.equal(kickoff.role, "user");
-  assert.match(String(kickoff.content), /New topic/);
+  assert.match(userBlocks(kickoff)[0], /New topic/);
   const first = TOPIC_QUESTIONS.find((q) => q.id === asked[0])!;
-  assert.equal(kickoff.content, kickoffText({ kind: "chat" } as never, { topicQuestion: first.text }));
+  assert.deepEqual(userBlocks(kickoff), [kickoffText({ kind: "chat" } as never, { topicQuestion: first.text })]);
   const msgs = await h.records.getMessages(sid);
   assert.deepEqual(msgs.map((m) => m.role), ["user", "tutor", "tutor", "tutor"]);
 });

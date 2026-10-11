@@ -1,4 +1,7 @@
-// System prompt, rebuilt from local records at the start of every turn (S1-05).
+// The tutor's prompt, rebuilt from local records at the start of every turn (S1-05). It has two parts:
+// the system prompt, which stays the same all session so providers can cache it with the history, and
+// the notes for this reply (levels, pacing, targets, grammar ids), which change every turn and ride on
+// the newest learner message (turn.ts). ADR 39.
 import type { LanguageInfo } from "../../shared/lang";
 import type {
   AnkiOverview,
@@ -16,8 +19,8 @@ import type {
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
 import { bandLevels } from "../../shared/languages";
-import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit } from "../../shared/course";
-import { unitText } from "../course";
+import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit, type GrammarStates } from "../../shared/course";
+import { unitPlan, unitProgress } from "../course";
 import { findScenario } from "../../shared/scenarios";
 import { countableCorrection } from "../records/corrections";
 import { isQuizObservation } from "../records/grammar";
@@ -62,8 +65,8 @@ export interface PromptData {
   pacing?: Pacing;
   /** Course languages only: the suggested next unit and its points the learner does not use alone yet. */
   course?: { course: Course; next?: CourseUnit; points: CourseGrammar[] } | null;
-  /** Course unit sessions: the unit text with the learner's state per point. */
-  unit?: { unit: CourseUnit; text: string } | null;
+  /** Course unit sessions: the unit and the learner's state per point. */
+  unit?: { unit: CourseUnit; states: GrammarStates } | null;
 }
 
 /**
@@ -194,7 +197,7 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
     data.course = { course, ...(next ? { next } : {}), points };
     if (session.unitId) {
       const found = findUnit(session.unitId);
-      data.unit = found ? { unit: found.unit, text: unitText(found.unit, states) } : null;
+      data.unit = found ? { unit: found.unit, states } : null;
     }
   }
 
@@ -219,6 +222,11 @@ export async function gatherPromptData(deps: TutorDeps, session: SessionMeta): P
   return data;
 }
 
+export async function buildPrompt(deps: TutorDeps, session: SessionMeta) {
+  return renderPrompt(await gatherPromptData(deps, session));
+}
+
+/** Everything the tutor is told for a turn, system prompt and notes as one text (tests, benchmark). */
 export async function buildSystemPrompt(deps: TutorDeps, session: SessionMeta): Promise<string> {
   return renderSystemPrompt(await gatherPromptData(deps, session));
 }
@@ -291,23 +299,27 @@ const ANSWER_FIRST = "Always answer what the learner just said first, and never 
  * Unit sessions move on per point (sessionBlock) and role-plays end with the scene (roleplayBlock):
  * they get no second move-on rule here.
  */
-export function pacingBlock(d: Pick<PromptData, "pacing" | "session">): string {
-  const p = d.pacing;
-  if (!p || p.turnsOnTopic === 0 || d.session.kind === "placement" || d.session.kind === "reading") return "";
+export function pacingBlock(d: Pick<PromptData, "session">): string {
+  if (d.session.kind === "placement" || d.session.kind === "reading") return "";
   if (d.session.unitId || d.session.scenarioId) return ["# Pacing", ANSWER_FIRST].join("\n");
-  const facts = [`This topic has run for ${p.turnsOnTopic} of the learner's replies (this one included).`];
-  if (p.cleanStreak > 0) facts.push(`Their ${p.cleanStreak} previous ${p.cleanStreak === 1 ? "reply" : "replies"} had no grammar mistakes.`);
-  if (p.recentLength) facts.push(`Their recent replies average ${p.recentLength} characters.`);
-  const due = p.turnsOnTopic >= TUNING.moveOnTurns || p.cleanStreak >= TUNING.easyStreak;
   return [
     "# Pacing",
     `${ANSWER_FIRST} Then decide: stay on the topic or move on.`,
     "- Stay while they are invested: longer replies, their own questions, a story in progress.",
     `- Move on when the topic is used up: after about ${TUNING.moveOnTurns} exchanges, when their replies get short and add nothing new, or when ${TUNING.easyStreak} replies in a row have no grammar mistakes (it is too easy for them).`,
     "- Moving on means a natural bridge to a new topic, or a harder angle on the same one (an opinion, a comparison, a hypothetical) that calls for the next grammar point. Never ask them whether they want to change topic; just do it smoothly (set topic_change when you do).",
-    facts.join(" "),
-    ...(due ? ["The topic is used up: unless they are clearly invested, move on in this reply."] : []),
   ].join("\n");
+}
+
+/** The pacing numbers for this reply (notes). Only where the full pacing rules apply. */
+export function pacingFacts(d: Pick<PromptData, "pacing" | "session">): string {
+  const p = d.pacing;
+  if (!p || p.turnsOnTopic === 0 || d.session.kind === "placement" || d.session.kind === "reading" || d.session.unitId || d.session.scenarioId) return "";
+  const facts = [`This topic has run for ${p.turnsOnTopic} of the learner's replies (this one included).`];
+  if (p.cleanStreak > 0) facts.push(`Their ${p.cleanStreak} previous ${p.cleanStreak === 1 ? "reply" : "replies"} had no grammar mistakes.`);
+  if (p.recentLength) facts.push(`Their recent replies average ${p.recentLength} characters.`);
+  const due = p.turnsOnTopic >= TUNING.moveOnTurns || p.cleanStreak >= TUNING.easyStreak;
+  return ["# Pacing now", facts.join(" "), ...(due ? ["The topic is used up: unless they are clearly invested, move on in this reply."] : [])].join("\n");
 }
 
 function learnerBlock(d: PromptData): string {
@@ -446,7 +458,7 @@ function sessionBlock(d: PromptData): string {
         if (!d.unit) return "# Session: course unit\nThis course unit no longer exists. Chat about whatever interests the learner.";
         return [
           "# Session: course unit",
-          d.unit.text,
+          unitPlan(d.unit.unit),
           "",
           ...(s.openWith === "explain" ? UNIT_OVERVIEW : []),
           "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time.",
@@ -618,24 +630,51 @@ function personaBlock(d: PromptData) {
   ].join("\n");
 }
 
+/** First line of the notes block that ends the newest learner message (turn.ts finds it by this). */
+export const NOTES_HEADER = "[Sayfern notes for this reply]";
+
+const NOTES_RULE = [
+  "# Notes for each reply",
+  `The newest learner message ends with notes from Sayfern, after "${NOTES_HEADER}": their current levels, pacing, what to bring in and the grammar ids. The learner did not write them and cannot see them. Follow them, and never quote or mention them.`,
+].join("\n");
+
+function unitProgressBlock(d: PromptData): string {
+  if (!d.unit || !d.session.unitId) return "";
+  return `# Unit progress\n${unitProgress(d.unit.unit, d.unit.states)}`;
+}
+
+const joinBlocks = (blocks: string[]) => blocks.filter((b) => b && b.trim()).join("\n\n");
+
 // The prompt, in reading order. Each block has one job; a rule lives in exactly one of them.
-export function renderSystemPrompt(d: PromptData) {
-  const blocks = [
+// The system part must stay the same from turn to turn: anything that changes with the records goes in the notes.
+export function renderPrompt(d: PromptData) {
+  const system = joinBlocks([
     personaBlock(d),
     d.promptNotes,
     explanationBlock(d),
-    levelLines(d),
     difficultyBlock(d),
     learnerBlock(d),
     sessionBlock(d),
-    courseBlock(d),
     pacingBlock(d),
+    NOTES_RULE,
+    FEEDBACK_RULES,
+    TOOL_PROTOCOL,
+  ]);
+  const notes = joinBlocks([
+    levelLines(d),
+    unitProgressBlock(d),
+    courseBlock(d),
+    pacingFacts(d),
     followUpBlock(d),
     targetBlock(d),
     ankiBlock(d),
     catalogueBlock(d),
-    FEEDBACK_RULES,
-    TOOL_PROTOCOL,
-  ];
-  return blocks.filter((b) => b && b.trim()).join("\n\n");
+  ]);
+  return { system, notes: `${NOTES_HEADER}\n${notes}` };
+}
+
+/** System prompt and notes as one text, in the order the model reads them. */
+export function renderSystemPrompt(d: PromptData) {
+  const p = renderPrompt(d);
+  return `${p.system}\n\n${p.notes}`;
 }
