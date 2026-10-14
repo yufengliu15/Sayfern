@@ -95,7 +95,7 @@ export interface SayfernAppDeps {
 }
 
 /** Methods that need Electron (dialogs, shell): main implements these itself. */
-export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExternal" | "requestMicrophone";
+export type ElectronOnlyMethod = "importDocs" | "exportData" | "eraseAllData" | "openExternal" | "requestMicrophone" | "checkForUpdates";
 
 /**
  * What "Erase all data" removes, relative to dataDir. Kept: dict/ (downloaded dictionaries, not learner data).

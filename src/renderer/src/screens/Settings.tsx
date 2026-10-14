@@ -1,6 +1,6 @@
 // Settings: models, languages and level, profile, Anki, voice, dictionaries, preferences, data.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { AnkiStatus } from "../../../shared/api";
+import type { AnkiStatus, UpdateStatus } from "../../../shared/api";
 import type { DictionaryProgress, DictionaryStatus, LanguageInfo } from "../../../shared/lang";
 import type { AnkiDeckMapping, AnkiOverview, Language, LearnerProfile, LevelBand, LevelEstimate, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
@@ -920,6 +920,7 @@ function PreferencesTab({ navigate }: { navigate: Navigate }) {
           <Switch checked={!!app.settings.autoTranslate} onChange={(v) => void app.updateSettings({ autoTranslate: v })} label={t("Translate the tutor automatically")} />
         </Row>
       </Group>
+      <UpdatesGroup />
       {import.meta.env.DEV && (
         <Group title={t("Debug")}>
           <Row label={t("Welcome page")} hint={t("Only in dev builds. Opens the first-run welcome page again. Finishing it saves its choices like a real first run.")}>
@@ -1150,6 +1151,53 @@ function VoiceTab() {
 }
 
 // ---------------------------------------------------------------- data
+
+/** Check for updates. On macOS the app menu has it too; Windows and Linux show no menu bar. */
+function UpdatesGroup() {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const check = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await api.checkForUpdates());
+    } catch (e) {
+      setStatus(null);
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Group title={t("Updates")}>
+      <Row label={t("Check for updates")} hint={t("See whether a newer version of Sayfern is out.")}>
+        <button className="btn btn-s" onClick={() => void check()} disabled={busy}>
+          {busy ? t("Checking…") : t("Check for updates")}
+        </button>
+      </Row>
+      {status && !status.available && (
+        <p className="saved-path" role="status">
+          <Icon name="check" size={14} stroke={2.4} /> {t("You have the newest version ({version}).", { version: status.current })}
+        </p>
+      )}
+      {status?.available && (
+        <Row
+          label={t("Sayfern {version} is available.", { version: status.latest })}
+          hint={status.flatpak ? tj("Update it in your software store, or run {command}.", { command: <span className="mono">flatpak update ca.sayfern.Sayfern</span> }) : undefined}
+        >
+          {!status.flatpak && (
+            <button className="btn btn-s" onClick={() => void api.openExternal(status.url)}>
+              <Icon name="download" size={15} />
+              {t("Download")}
+            </button>
+          )}
+        </Row>
+      )}
+      {error && <p className="err">{t(error)}</p>}
+    </Group>
+  );
+}
 
 function DataTab() {
   const [path, setPath] = useState<string | null>(null);

@@ -1474,6 +1474,14 @@ const catalog: Catalog = {
   "Billing page": "請求ページ",
   "OpenCode Zen API key. Pay as you go.": "OpenCode Zen の API キー。従量課金。",
   "OpenCode Go API key. A plan with 5-hour, weekly and monthly limits.": "OpenCode Go の API キー。5 時間・週間・月間の上限があるプラン。",
+  "Updates": "アップデート",
+  "Check for updates": "アップデートを確認",
+  "See whether a newer version of Sayfern is out.": "Sayfern の新しいバージョンが出ているか確認します。",
+  "You have the newest version ({version}).": "最新バージョンです（{version}）。",
+  "Sayfern {version} is available.": "Sayfern {version} が利用可能です。",
+  "Update it in your software store, or run {command}.": "ソフトウェアストアでアップデートするか、{command} を実行してください。",
+  "Download": "ダウンロード",
+  "Couldn't check for updates. Check your internet connection and try again.": "アップデートを確認できませんでした。インターネット接続を確認して、もう一度お試しください。",
 };
 
 export default catalog;

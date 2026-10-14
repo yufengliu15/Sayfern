@@ -1,11 +1,12 @@
 // Electron main: owns the window, dialogs, Keychain-backed credentials and the
 // IPC table. Everything else lives in SayfernApp (src/core/app, plain Node).
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, session, shell, systemPreferences, type MenuItemConstructorOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, session, shell, systemPreferences, type MenuItemConstructorOptions, type MessageBoxOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { SayfernApp, errorText, type CoreApi, type ElectronOnlyMethod } from "../core/app";
 import { FileCredentialStore } from "../core/credential-file-store";
 import { createSayfernModels } from "../core/providers";
+import { checkForUpdate, RELEASES_PAGE } from "../core/updates";
 import { installE2EFaux } from "./e2e";
 import { API_METHODS, EVENT_CHANNELS, ipcChannel, type SayfernApi } from "../shared/api";
 import type { UiLocale } from "../shared/locales";
@@ -16,6 +17,8 @@ import { themeInfo } from "../shared/themes";
 if (process.env.SAYFERN_E2E_DATA) app.setPath("userData", process.env.SAYFERN_E2E_DATA);
 const dataDir = app.getPath("userData");
 let win: BrowserWindow | null = null;
+/** The Flatpak sandbox: Flathub (or the learner's software store) owns updates there. */
+const IN_FLATPAK = !!process.env.FLATPAK_ID || existsSync("/.flatpak-info");
 
 // Chromium's network stack (system proxy settings, certificates) for main-process HTTP.
 const electronFetch = ((input: string | URL | Request, init?: RequestInit) =>
@@ -103,6 +106,10 @@ const electronOnly: Pick<SayfernApi, ElectronOnlyMethod> = {
   async openExternal(url) {
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url);
   },
+  async checkForUpdates() {
+    const r = await checkForUpdate(app.getVersion(), electronFetch);
+    return { current: r.current, latest: r.latest, available: r.status === "available", url: r.status === "available" ? r.url : RELEASES_PAGE, flatpak: IN_FLATPAK };
+  },
   async requestMicrophone() {
     // macOS asks once; after a "no" the learner has to allow it in System Settings > Privacy & Security.
     if (process.platform !== "darwin") return true;
@@ -160,6 +167,50 @@ const MENU_TEXT: Record<UiLocale, { about: string; hide: string; quit: string }>
   "pt-PT": { about: "Acerca do Sayfern", hide: "Ocultar Sayfern", quit: "Sair do Sayfern" },
 };
 
+/** "Check for Updates" text, per interface language. {v} = newest version, {cur} = this build's. */
+const UPDATE_TEXT: Record<UiLocale, { check: string; upToDate: string; upToDateDetail: string; available: string; availableDetail: string; flatpakDetail: string; download: string; later: string; failed: string; ok: string }> = {
+  en: { check: "Check for Updates…", upToDate: "You're up to date", upToDateDetail: "Sayfern {v} is the newest version.", available: "Sayfern {v} is available", availableDetail: "You have version {cur}.", flatpakDetail: "You have version {cur}. Update it in your software store, or run:", download: "Download", later: "Later", failed: "Couldn't check for updates", ok: "OK" },
+  "zh-Hans": { check: "检查更新…", upToDate: "已是最新版本", upToDateDetail: "Sayfern {v} 是最新版本。", available: "Sayfern {v} 现已推出", availableDetail: "你当前的版本是 {cur}。", flatpakDetail: "你当前的版本是 {cur}。请在软件商店中更新，或运行：", download: "下载", later: "稍后", failed: "无法检查更新", ok: "好" },
+  "zh-Hant": { check: "檢查更新項目…", upToDate: "已是最新版本", upToDateDetail: "Sayfern {v} 是最新版本。", available: "Sayfern {v} 已推出", availableDetail: "你目前的版本是 {cur}。", flatpakDetail: "你目前的版本是 {cur}。請在軟體商店中更新，或執行：", download: "下載", later: "稍後", failed: "無法檢查更新項目", ok: "好" },
+  ja: { check: "アップデートを確認…", upToDate: "最新の状態です", upToDateDetail: "Sayfern {v} は最新バージョンです。", available: "Sayfern {v} が利用可能です", availableDetail: "現在のバージョンは {cur} です。", flatpakDetail: "現在のバージョンは {cur} です。ソフトウェアストアでアップデートするか、次を実行してください：", download: "ダウンロード", later: "後で", failed: "アップデートを確認できませんでした", ok: "OK" },
+  ko: { check: "업데이트 확인…", upToDate: "최신 버전입니다", upToDateDetail: "Sayfern {v}이(가) 최신 버전입니다.", available: "Sayfern {v}을(를) 사용할 수 있습니다", availableDetail: "현재 버전은 {cur}입니다.", flatpakDetail: "현재 버전은 {cur}입니다. 소프트웨어 스토어에서 업데이트하거나 다음을 실행하세요:", download: "다운로드", later: "나중에", failed: "업데이트를 확인할 수 없습니다", ok: "확인" },
+  vi: { check: "Kiểm tra cập nhật…", upToDate: "Bạn đang dùng bản mới nhất", upToDateDetail: "Sayfern {v} là phiên bản mới nhất.", available: "Đã có Sayfern {v}", availableDetail: "Bạn đang dùng phiên bản {cur}.", flatpakDetail: "Bạn đang dùng phiên bản {cur}. Hãy cập nhật trong kho phần mềm, hoặc chạy:", download: "Tải về", later: "Để sau", failed: "Không thể kiểm tra cập nhật", ok: "OK" },
+  ru: { check: "Проверить обновления…", upToDate: "У вас последняя версия", upToDateDetail: "Sayfern {v} — самая новая версия.", available: "Доступна версия Sayfern {v}", availableDetail: "У вас версия {cur}.", flatpakDetail: "У вас версия {cur}. Обновите её в магазине приложений или выполните:", download: "Скачать", later: "Позже", failed: "Не удалось проверить обновления", ok: "ОК" },
+  fr: { check: "Rechercher des mises à jour…", upToDate: "Sayfern est à jour", upToDateDetail: "Sayfern {v} est la version la plus récente.", available: "Sayfern {v} est disponible", availableDetail: "Vous avez la version {cur}.", flatpakDetail: "Vous avez la version {cur}. Mettez-la à jour dans votre logithèque, ou lancez :", download: "Télécharger", later: "Plus tard", failed: "Impossible de rechercher des mises à jour", ok: "OK" },
+  it: { check: "Controlla aggiornamenti…", upToDate: "Sayfern è aggiornato", upToDateDetail: "Sayfern {v} è la versione più recente.", available: "È disponibile Sayfern {v}", availableDetail: "Hai la versione {cur}.", flatpakDetail: "Hai la versione {cur}. Aggiornala dal tuo store di software, oppure esegui:", download: "Scarica", later: "Più tardi", failed: "Impossibile controllare gli aggiornamenti", ok: "OK" },
+  es: { check: "Buscar actualizaciones…", upToDate: "Sayfern está actualizado", upToDateDetail: "Sayfern {v} es la versión más reciente.", available: "Sayfern {v} ya está disponible", availableDetail: "Tienes la versión {cur}.", flatpakDetail: "Tienes la versión {cur}. Actualízala desde tu tienda de software, o ejecuta:", download: "Descargar", later: "Más tarde", failed: "No se pudieron buscar actualizaciones", ok: "Aceptar" },
+  de: { check: "Nach Updates suchen …", upToDate: "Sayfern ist auf dem neuesten Stand", upToDateDetail: "Sayfern {v} ist die neueste Version.", available: "Sayfern {v} ist verfügbar", availableDetail: "Du hast Version {cur}.", flatpakDetail: "Du hast Version {cur}. Aktualisiere sie in deiner Softwareverwaltung oder führe aus:", download: "Herunterladen", later: "Später", failed: "Suche nach Updates fehlgeschlagen", ok: "OK" },
+  "pt-BR": { check: "Verificar Atualizações…", upToDate: "O Sayfern está atualizado", upToDateDetail: "O Sayfern {v} é a versão mais recente.", available: "O Sayfern {v} está disponível", availableDetail: "Você tem a versão {cur}.", flatpakDetail: "Você tem a versão {cur}. Atualize pela sua loja de software ou execute:", download: "Baixar", later: "Mais tarde", failed: "Não foi possível verificar atualizações", ok: "OK" },
+  "pt-PT": { check: "Procurar atualizações…", upToDate: "O Sayfern está atualizado", upToDateDetail: "O Sayfern {v} é a versão mais recente.", available: "O Sayfern {v} está disponível", availableDetail: "Tem a versão {cur}.", flatpakDetail: "Tem a versão {cur}. Atualize na sua loja de software, ou execute:", download: "Transferir", later: "Mais tarde", failed: "Não foi possível procurar atualizações", ok: "OK" },
+};
+
+const FLATPAK_UPDATE_COMMAND = "flatpak update ca.sayfern.Sayfern";
+let checkingUpdates = false;
+
+/** Menu > Check for Updates: asks GitHub for the newest release and says what to do in a native dialog. */
+async function checkUpdatesNow(locale: UiLocale): Promise<void> {
+  if (checkingUpdates) return;
+  checkingUpdates = true;
+  const t = UPDATE_TEXT[locale] ?? UPDATE_TEXT.en;
+  const show = (o: MessageBoxOptions) => (win && !win.isDestroyed() ? dialog.showMessageBox(win, o) : dialog.showMessageBox(o));
+  try {
+    const r = await checkForUpdate(app.getVersion(), electronFetch);
+    if (r.status === "current") {
+      await show({ type: "info", message: t.upToDate, detail: t.upToDateDetail.replace("{v}", r.current), buttons: [t.ok] });
+    } else if (IN_FLATPAK) {
+      await show({ type: "info", message: t.available.replace("{v}", r.latest), detail: `${t.flatpakDetail.replace("{cur}", r.current)}\n\n${FLATPAK_UPDATE_COMMAND}`, buttons: [t.ok] });
+    } else {
+      const { response } = await show({ type: "info", message: t.available.replace("{v}", r.latest), detail: t.availableDetail.replace("{cur}", r.current), buttons: [t.download, t.later], defaultId: 0, cancelId: 1 });
+      if (response === 0) await shell.openExternal(r.url);
+    }
+  } catch {
+    // checkForUpdate already logged the cause.
+    await show({ type: "warning", message: t.failed, buttons: [t.ok] });
+  } finally {
+    checkingUpdates = false;
+  }
+}
+
 let menuLocale: UiLocale | null = null;
 
 /** Rebuilds the menu when the interface language changed (startup and after setSettings). */
@@ -179,6 +230,10 @@ async function refreshTheme(): Promise<void> {
 
 function setUpBranding(locale: UiLocale = "en"): void {
   const text = MENU_TEXT[locale] ?? MENU_TEXT.en;
+  const updates = UPDATE_TEXT[locale] ?? UPDATE_TEXT.en;
+  // macOS only (the app menu). Windows and Linux hide the menu bar (titleBarStyle), so there the
+  // check lives in Settings > Preferences > Updates, which every platform has.
+  const checkUpdates: MenuItemConstructorOptions = { label: updates.check, click: () => void checkUpdatesNow(locale) };
   app.setAboutPanelOptions({ applicationName: DISPLAY_NAME, applicationVersion: app.getVersion(), copyright: "MIT License" });
   if (process.platform === "darwin" && !app.isPackaged && existsSync(ICON_PNG)) app.dock?.setIcon(ICON_PNG);
   // Electron's default menu, with the app's own items spelled "Sayfern" instead of app.name.
@@ -190,6 +245,7 @@ function setUpBranding(locale: UiLocale = "en"): void {
             label: DISPLAY_NAME,
             submenu: [
               { role: "about", label: text.about },
+              checkUpdates,
               { type: "separator" },
               { role: "services" },
               { type: "separator" },

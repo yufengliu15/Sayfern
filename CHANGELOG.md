@@ -6,6 +6,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-14
+
+### Added
+
+- **Check for Updates.** Asks GitHub for the newest release and compares it with this build (`src/core/updates`).
+  - macOS: Sayfern > Check for Updates…, under About Sayfern. A dialog says you are up to date, or offers Download (opens the release page).
+  - Every platform: Settings > Preferences > Updates. Windows and Linux use this one, because their menu bar is hidden.
+  - Flatpak: no download button. Sayfern says to update in the software store or with `flatpak update ca.sayfern.Sayfern`.
+- **API.** `checkForUpdates()` (Electron-only).
+
+### Changed
+
+- **macOS packaging.** An electron-builder `afterPack` hook (`scripts/after-pack.cjs`) runs `xattr -cr` on the built `Sayfern.app` before it is signed and put in the .dmg.
+
 ## [0.30.0] - 2026-10-11
 
 ### Changed

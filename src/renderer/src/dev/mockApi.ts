@@ -1846,6 +1846,10 @@ export function createMockApi(): SayfernApi {
       window.open(url, "_blank", "noopener");
     },
     requestMicrophone: async () => true,
+    checkForUpdates: async () => {
+      await wait(600);
+      return { current: "0.31.0", latest: "0.32.0", available: true, url: "https://github.com/yufengliu15/Sayfern/releases/latest", flatpak: false };
+    },
   };
   return api;
 }

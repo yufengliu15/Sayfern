@@ -17,6 +17,8 @@ files:
   - "!**/*.map"
 artifactName: Sayfern-${version}-${os}-${arch}.${ext}
 publish: null
+# macOS: `xattr -cr` on the .app before signing and the .dmg (scripts/after-pack.cjs).
+afterPack: scripts/after-pack.cjs
 
 mac:
   target:

@@ -1474,6 +1474,14 @@ const catalog: Catalog = {
   "Billing page": "帳單頁面",
   "OpenCode Zen API key. Pay as you go.": "OpenCode Zen API 金鑰。按用量付費。",
   "OpenCode Go API key. A plan with 5-hour, weekly and monthly limits.": "OpenCode Go API 金鑰。有 5 小時、每週和每月額度的方案。",
+  "Updates": "更新",
+  "Check for updates": "檢查更新",
+  "See whether a newer version of Sayfern is out.": "看看 Sayfern 是否有新版本。",
+  "You have the newest version ({version}).": "你已是最新版本（{version}）。",
+  "Sayfern {version} is available.": "Sayfern {version} 已推出。",
+  "Update it in your software store, or run {command}.": "請在軟體商店中更新，或執行 {command}。",
+  "Download": "下載",
+  "Couldn't check for updates. Check your internet connection and try again.": "無法檢查更新項目。請檢查網路連線後再試一次。",
 };
 
 export default catalog;

@@ -273,6 +273,18 @@ export interface SayfernApi extends ReviewApi, QuizApi, DeckApi, VoiceApi {
   requestMicrophone(): Promise<boolean>;
 
   openExternal(url: string): Promise<void>;
+  /** Asks GitHub for the newest release. Also in the macOS app menu (Sayfern > Check for Updates…). */
+  checkForUpdates(): Promise<UpdateStatus>;
+}
+
+/** `flatpak`: this build runs in the Flatpak sandbox, so the software store (Flathub) updates it, not a download. */
+export interface UpdateStatus {
+  current: string;
+  latest: string;
+  available: boolean;
+  /** The release page to download from (when `available`). */
+  url: string;
+  flatpak: boolean;
 }
 
 /**
@@ -368,6 +380,7 @@ const METHOD_TABLE: Record<ApiMethod, true> = {
   eraseAllData: true,
   requestMicrophone: true,
   openExternal: true,
+  checkForUpdates: true,
 };
 
 export const API_METHODS: readonly ApiMethod[] = Object.keys(METHOD_TABLE) as ApiMethod[];

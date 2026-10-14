@@ -1474,6 +1474,14 @@ const catalog: Catalog = {
   "Billing page": "Pagina di fatturazione",
   "OpenCode Zen API key. Pay as you go.": "Chiave API di OpenCode Zen. Paghi a consumo.",
   "OpenCode Go API key. A plan with 5-hour, weekly and monthly limits.": "Chiave API di OpenCode Go. Un piano con limiti di 5 ore, settimanali e mensili.",
+  "Updates": "Aggiornamenti",
+  "Check for updates": "Controlla aggiornamenti",
+  "See whether a newer version of Sayfern is out.": "Verifica se è uscita una nuova versione di Sayfern.",
+  "You have the newest version ({version}).": "Hai la versione più recente ({version}).",
+  "Sayfern {version} is available.": "È disponibile Sayfern {version}.",
+  "Update it in your software store, or run {command}.": "Aggiornala dal tuo store di software, oppure esegui {command}.",
+  "Download": "Scarica",
+  "Couldn't check for updates. Check your internet connection and try again.": "Impossibile controllare gli aggiornamenti. Controlla la connessione a Internet e riprova.",
 };
 
 export default catalog;

@@ -34,6 +34,7 @@ The config is [`electron-builder.yml`](../electron-builder.yml). `npm run dist` 
 Things to know:
 
 - `productName` is "Sayfern", but `app.name` stays `sayfern`. electron-builder does not write `productName` into the packaged `package.json`, so the data folder and the Keychain item do not change.
+- macOS: `scripts/after-pack.cjs` (the `afterPack` hook) runs `xattr -cr` on `Sayfern.app` before signing and the .dmg, so build-machine attributes never block codesign or ship in the app.
 - The macOS microphone text is in `mac.extendInfo`. Keep it the same as `MIC` in `scripts/brand-electron-app.mjs`.
 
 ## Signing

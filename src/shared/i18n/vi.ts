@@ -1474,6 +1474,14 @@ const catalog: Catalog = {
   "Billing page": "Trang thanh toán",
   "OpenCode Zen API key. Pay as you go.": "Khóa API OpenCode Zen. Dùng bao nhiêu trả bấy nhiêu.",
   "OpenCode Go API key. A plan with 5-hour, weekly and monthly limits.": "Khóa API OpenCode Go. Gói có giới hạn 5 giờ, theo tuần và theo tháng.",
+  "Updates": "Cập nhật",
+  "Check for updates": "Kiểm tra cập nhật",
+  "See whether a newer version of Sayfern is out.": "Xem đã có phiên bản Sayfern mới hơn chưa.",
+  "You have the newest version ({version}).": "Bạn đang dùng phiên bản mới nhất ({version}).",
+  "Sayfern {version} is available.": "Đã có Sayfern {version}.",
+  "Update it in your software store, or run {command}.": "Hãy cập nhật trong kho phần mềm, hoặc chạy {command}.",
+  "Download": "Tải về",
+  "Couldn't check for updates. Check your internet connection and try again.": "Không thể kiểm tra cập nhật. Hãy kiểm tra kết nối mạng rồi thử lại.",
 };
 
 export default catalog;
