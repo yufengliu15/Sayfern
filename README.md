@@ -19,8 +19,6 @@
 
 Sayfern is a desktop app where you learn a language by chatting with an AI tutor. The tutor corrects you like a teacher, keeps track of your grammar, words and level, and picks up where you left off. You bring your own model: a Claude Pro/Max or ChatGPT subscription, an API key, or a local model. All your records stay on your computer as plain JSON files.
 
-**Version:** 0.31.1 ([changelog](CHANGELOG.md))
-
 ## Features
 
 - **11 learning languages:** Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian and Vietnamese. Courses for nine of them (HSK 3.0, JLPT, TOPIK, English Grammar Profile, CEFR); Russian and Vietnamese are in Beta.
