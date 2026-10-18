@@ -199,7 +199,7 @@ export function Connect({ providers, onChanged, onDone, compact }: Props) {
         <div style={{ display: "flex", gap: 24, marginTop: 32, fontSize: 13.5, color: "var(--ink-3)" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="lock" size={16} />
-            {t("Keys encrypted with your Mac's Keychain")}
+            {t("Keys encrypted with your system keychain")}
           </span>
         </div>
       </div>

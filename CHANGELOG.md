@@ -6,6 +6,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-10-18
+
+### Changed
+
+- **Interface text no longer assumes a Mac.** "This Mac" is now "this computer", "your Mac's Keychain" is now "your system keychain", and "Nothing leaves your Mac" is now "Nothing leaves your computer". Updated in all 13 interface languages. Shortcut tooltips show Ctrl on Windows and Linux.
+- **Anki troubleshooting.** The macOS App Nap fix and the App Nap timeout error show only on macOS. Windows and Linux get a short "quit and reopen Anki" tip and error.
+- **User guide and AGENTS.md.** Credential storage and data-location text name every platform.
+
+### Fixed
+
+- **Linux on Wayland.** If the GPU process crashes on Wayland ("GPU process exited unexpectedly") and XWayland is there, Sayfern restarts on X11 and keeps using X11. Delete `~/.config/sayfern/use-x11` to try Wayland again.
+
 ## [0.31.1] - 2026-10-18
 
 ### Changed

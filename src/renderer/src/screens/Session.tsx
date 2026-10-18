@@ -13,6 +13,7 @@ import { SessionTools } from "../components/SessionTools";
 import { ModelPicker } from "../components/ModelPicker";
 import { useApp } from "../context";
 import { translateCached } from "../lib/cache";
+import { MOD } from "../lib/platform";
 import { stopStream } from "../lib/chatStream";
 import { cls, fmtUsage, KIND_LABEL, fontOf } from "../lib/format";
 import { STARTERS } from "../lib/samples";
@@ -241,7 +242,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           </button>
 
           {!inspectorOpen && (
-            <button className="iconb" onClick={() => setInspectorOpen(true)} aria-label={t("Show inspector")} title={t("Show inspector ({shortcut})", { shortcut: "⌘I" })}>
+            <button className="iconb" onClick={() => setInspectorOpen(true)} aria-label={t("Show inspector")} title={t("Show inspector ({shortcut})", { shortcut: `${MOD}I` })}>
               <Icon name="panel" />
             </button>
           )}

@@ -103,7 +103,7 @@ Where each decision lives in code is noted under **Where**. The full design is i
 ## ADR 13. Semantic versioning with a Keep a Changelog file
 
 - **Context.** The owner asked for explicit versioning.
-- **Decision.** `MAJOR.MINOR.PATCH`. While the major version is 0, minor versions add features and patch versions fix bugs. Every change bumps `package.json` (and `package-lock.json`) and the version line in `README.md`, and adds a `CHANGELOG.md` section in Keep a Changelog format (Added / Changed / Fixed).
+- **Decision.** `MAJOR.MINOR.PATCH`. While the major version is 0, minor versions add features and patch versions fix bugs. Every change bumps `package.json` (and `package-lock.json`), and adds a `CHANGELOG.md` section in Keep a Changelog format (Added / Changed / Fixed). The README and the website name no version, so a release does not change them; the README's release badge shows the newest version.
 - **Where.** `package.json`, `CHANGELOG.md`, `README.md`.
 
 ## ADR 14. Single instance and a navigation guard

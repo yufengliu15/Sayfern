@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useApp } from "../context";
 import { cjkClass, fmtAgo, practisedLabel } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
+import { MOD } from "../lib/platform";
 import { langName, msg, t } from "../i18n";
 import { navigate, sessionRoute, settingsRoute, type ParsedRoute, type Route } from "../router";
 import { Fern, Icon, type IconName } from "./icons";
@@ -14,9 +15,6 @@ const NAV: { route: Route; name: ParsedRoute["name"]; label: string; icon: IconN
   { route: "review", name: "review", label: msg("Review"), icon: "review", key: "5" },
   { route: "progress", name: "progress", label: msg("Progress"), icon: "progress", key: "6" },
 ];
-
-/** ⌘ on Mac, Ctrl elsewhere (the mock dev server runs in any browser). */
-export const MOD = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl ";
 
 export function Sidebar({ route }: { route: ParsedRoute }) {
   const app = useApp();

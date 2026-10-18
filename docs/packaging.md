@@ -93,4 +93,8 @@ After Flathub accepts the app, it makes the repository `flathub/ca.sayfern.Sayfe
 
 - No Windows ARM or Linux ARM builds (no free ARM runners for private repositories).
 - No auto-update in the app. Learners download each new version.
-- Windows and Linux builds are not tested by hand. Some text still says "Mac" (for example the default interface language note).
+- Windows builds are not tested by hand. The Linux `.tar.gz` ran on EndeavourOS (Wayland) only with `--ozone-platform=x11`; the automatic X11 fallback (`X11_MARKER` in `src/main/index.ts`) is not tested on Linux yet.
+
+## Linux: Wayland and X11
+
+Electron runs natively on Wayland. Some GPU drivers crash its GPU process there ("GPU process exited unexpectedly"). If XWayland is available (`WAYLAND_DISPLAY` and `DISPLAY` set, not in Flatpak), main catches the crash (`child-process-gone`, type `GPU`), writes `use-x11` in the data folder and relaunches with `--ozone-platform=x11`. Every later start sees the marker and relaunches once with the flag, because Chromium picks the platform before main runs, so `app.commandLine.appendSwitch` is too late. Delete `~/.config/sayfern/use-x11` to try Wayland again. A `--ozone-platform` flag on the command line turns the fallback off. In the Flatpak, `fallback-x11` gives no `DISPLAY` when Wayland is there, so the fallback does not run; users can turn off the Wayland socket (Flatseal) instead.

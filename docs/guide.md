@@ -20,7 +20,7 @@ The first launch opens **onboarding**: connect one model provider, pick your lan
 
 **Local models.** Run a model on your own computer with [llama.cpp](https://github.com/ggml-org/llama.cpp) and pick **llama.cpp** on the connect screen. Nothing leaves your computer. Start the server with `llama-server -hf <repo>:<quant> --jinja -c 16384` (`--jinja` is needed for tool calls). Details, model advice and fixes: [`local-models.md`](local-models.md).
 
-**Credentials** are encrypted with Electron `safeStorage` (key held in the macOS Keychain) and stored in `~/Library/Application Support/sayfern/`. The first time, macOS may ask to allow access to "sayfern Safe Storage". Click **Always Allow**.
+**Credentials** are encrypted with Electron `safeStorage`, which keeps its key in the system password store (macOS Keychain, Windows DPAPI, or the Linux secret service). They are stored in the Sayfern data folder (on macOS, `~/Library/Application Support/sayfern/`). On macOS, the first time, the system may ask to allow access to "sayfern Safe Storage". Click **Always Allow**.
 
 ## Dictionaries
 
@@ -45,4 +45,4 @@ Anki needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on 
 
 ## Your data
 
-Everything stays on your computer as JSON files (on macOS, in `~/Library/Application Support/sayfern/`). Export everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries stay, and you can keep your model sign-ins.
+Everything stays on your computer as JSON files (on macOS, in `~/Library/Application Support/sayfern/`; on Linux, in `~/.config/sayfern/`; on Windows, in `%APPDATA%\sayfern\`). Export everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries stay, and you can keep your model sign-ins.

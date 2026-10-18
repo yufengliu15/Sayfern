@@ -10,6 +10,7 @@ import { Switch } from "../components/ui";
 import { useApp } from "../context";
 import { clearLookups } from "../lib/cache";
 import { cls, fmtAgo, fmtNumber, fmtShortDate, fontOf } from "../lib/format";
+import { IS_MAC } from "../lib/platform";
 import { deckRoute, replaceRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
 import { sharedDecksUrl } from "../../../shared/stage2";
 import { uiLocaleInfo } from "../../../shared/locales";
@@ -37,10 +38,10 @@ const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string
   { id: "about", label: msg("About you"), icon: "user", title: msg("About you"), sub: msg("A few lines the tutor keeps in mind, so conversations are about your life.") },
   { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
   { id: "voice", label: msg("Voice"), icon: "speaker", title: msg("Voice"), sub: msg("Listen to the tutor and to words, and talk instead of typing.") },
-  { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Free dictionaries stored on this Mac, for lookups and for counting your words. Sayfern downloads one for each language you learn.") },
+  { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Free dictionaries stored on this computer, for lookups and for counting your words. Sayfern downloads one for each language you learn.") },
   { id: "appearance", label: msg("Appearance"), icon: "image", title: msg("Appearance"), sub: msg("Choose how Sayfern looks. The change applies at once.") },
   { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
-  { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this Mac, in plain files you can export.") },
+  { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this computer, in plain files you can export.") },
 ];
 const SKILL_LABEL: Record<Skill, string> = { reading: msg("Reading"), recognition: msg("Recognition"), writing: msg("Writing") };
 const BY_LABEL: Record<LevelEstimate["by"], string> = { self: msg("Set by you"), placement: msg("Placement chat"), observed: msg("Seen in your writing") };
@@ -170,7 +171,7 @@ function ModelsTab() {
         <div className="sgroup-h">
           <h3>{t("Providers")}</h3>
           <span className="muted small">
-            <Icon name="lock" size={13} /> {t("Keys are encrypted with your Mac's Keychain")}
+            <Icon name="lock" size={13} /> {t("Keys are encrypted with your system keychain")}
           </span>
         </div>
         <Connect compact providers={app.providers} onChanged={app.refreshAuth} />
@@ -562,7 +563,7 @@ function AnkiTab({ navigate }: { navigate: Navigate }) {
             <span className="n">2</span>
             <div>
               <b>{t("Restart Anki and keep it open while you practise.")}</b>
-              <p>{t("Sayfern talks to it at {url}. Nothing leaves your Mac.", { url: st.config.url })}</p>
+              <p>{t("Sayfern talks to it at {url}. Nothing leaves your computer.", { url: st.config.url })}</p>
             </div>
           </li>
           <li>
@@ -1040,7 +1041,7 @@ function VoiceTab() {
               <span className="srow-l">{accounts.length ? t("Add another account") : t("Add account")}</span>
               <span className="srow-h">
                 {t(
-                  "In ElevenLabs, open Developers, API keys and create a key with Text to Speech, Speech to Text and Voices read (add User read to see your credits). It's stored encrypted on this Mac. With several accounts, Sayfern uses them in order and moves on when one runs out of credits.",
+                  "In ElevenLabs, open Developers, API keys and create a key with Text to Speech, Speech to Text and Voices read (add User read to see your credits). It's stored encrypted on this computer. With several accounts, Sayfern uses them in order and moves on when one runs out of credits.",
                 )}{" "}
                 <button className="linkb" onClick={() => void api.openExternal("https://elevenlabs.io/app/settings/api-keys")}>
                   {t("Open ElevenLabs")}
@@ -1228,7 +1229,7 @@ function DataTab() {
           <li>
             <Icon name="grammar" size={17} />
             <span>
-              {tj("{what}, counted on this Mac, never by a model", { what: <b>{t("Grammar, words and levels")}</b> })}
+              {tj("{what}, counted on this computer, never by a model", { what: <b>{t("Grammar, words and levels")}</b> })}
             </span>
           </li>
           <li>
@@ -1240,7 +1241,7 @@ function DataTab() {
           <li>
             <Icon name="lock" size={17} />
             <span>
-              {tj("{what}, encrypted with the Keychain and never exported", { what: <b>{t("Model keys")}</b> })}
+              {tj("{what}, encrypted with the system keychain and never exported", { what: <b>{t("Model keys")}</b> })}
             </span>
           </li>
         </ul>
@@ -1374,7 +1375,12 @@ function AnkiTroubleshoot({ st, busy, onTest }: { st: AnkiStatus; busy: boolean;
   return (
     <Group title={t("Troubleshoot")}>
       <div className="anki-help">
-        {st.reason === "timeout" ? (
+        {st.reason === "timeout" && !IS_MAC ? (
+          <p>
+            <b>{t("Anki is open but not answering.")}</b>{" "}
+            {t("Anki may be busy or frozen, and AnkiConnect stops answering. Quit and reopen Anki, then test again.")}
+          </p>
+        ) : st.reason === "timeout" ? (
           <>
             <p>
               <b>{t("Anki is open but asleep.")}</b>{" "}

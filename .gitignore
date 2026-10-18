@@ -10,3 +10,6 @@ dist/
 bench/results/
 bench/fixtures/private/
 bench/bench.config.local.json
+
+# agent session memory
+.remember/

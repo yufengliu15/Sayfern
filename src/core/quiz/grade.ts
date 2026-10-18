@@ -1,4 +1,4 @@
-// Grading (S2-08): fixed-answer formats on this Mac, open answers by the model with a readable
+// Grading (S2-08): fixed-answer formats on this computer, open answers by the model with a readable
 // "uncertain" fallback when the model can't be reached or replies with something unusable.
 import type { Api, Model, MutableModels } from "@earendil-works/pi-ai";
 import { msg } from "../../shared/i18n";

@@ -515,7 +515,7 @@ function AudioPicker({
           <div className="dk-eleven">
             <p className="small muted">
               {t(
-                "Would you like to connect your ElevenLabs account? Create an API key in ElevenLabs under Developers, API keys (Text to Speech and Voices read are enough; add User read to see your credits), then paste it here. It's stored encrypted on this Mac with your model sign-ins.",
+                "Would you like to connect your ElevenLabs account? Create an API key in ElevenLabs under Developers, API keys (Text to Speech and Voices read are enough; add User read to see your credits), then paste it here. It's stored encrypted on this computer with your model sign-ins.",
               )}{" "}
               <button className="linkb" onClick={() => void api.openExternal("https://elevenlabs.io/app/settings/api-keys")}>
                 {t("Open ElevenLabs")}

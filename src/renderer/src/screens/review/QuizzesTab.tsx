@@ -53,9 +53,9 @@ const FOCUS_HINT: Record<QuizFocus, string> = {
 };
 const FORMAT_HINT: Record<QuizFormatChoice, string> = {
   mixed: msg("A mix suited to the focus"),
-  multiple_choice: msg("Graded on this Mac"),
-  cloze: msg("Type the missing word. Graded on this Mac"),
-  ordering: msg("Tap tiles into a sentence. Graded on this Mac"),
+  multiple_choice: msg("Graded on this computer"),
+  cloze: msg("Type the missing word. Graded on this computer"),
+  ordering: msg("Tap tiles into a sentence. Graded on this computer"),
   written: msg("Checked by the model"),
   scenario: msg("Reply in a short role-play. Checked by the model"),
 };
@@ -302,14 +302,14 @@ export function QuizzesTab({ language, navigate }: QuizzesTabProps) {
             <span className="eyebrow">{t(FORMAT_HEAD[previewFormat])}</span>
           </div>
           <QuizPreview language={language} format={previewFormat} L={L} />
-          <div className="qz-note">{t("Graded on this Mac. Written answers go to the model.")}</div>
+          <div className="qz-note">{t("Graded on this computer. Written answers go to the model.")}</div>
         </div>
         <div>
           <div className="eyebrow qz-rq-h">{t("Recent quizzes")}</div>
           {recent === null ? (
             <div className="skel-row" />
           ) : recent.length === 0 ? (
-            <p className="qz-empty">{t("Your quizzes show up here, with scores worked out on this Mac.")}</p>
+            <p className="qz-empty">{t("Your quizzes show up here, with scores worked out on this computer.")}</p>
           ) : (
             <ul className="qz-rq-list">
               {recent.slice(0, 6).map((q) => (

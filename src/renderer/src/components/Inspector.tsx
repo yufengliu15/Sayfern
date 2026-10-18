@@ -3,6 +3,7 @@ import type { SessionView } from "../../../shared/api";
 import type { ChatMessage, Language, PracticeTarget, SourceRef, TargetStatus } from "../../../shared/records";
 import { cls, fmtCost, fmtDuration, fmtTime, fmtTokens, STATE_CLASS, STATE_LABEL, fontOf, activityText } from "../lib/format";
 import { Icon } from "./icons";
+import { MOD } from "../lib/platform";
 import { msg, t } from "../i18n";
 
 export interface InspectorProps {
@@ -27,7 +28,7 @@ export function Inspector({ view, language, activeMs, onOpenGrammar, onOpenSourc
     <aside className="insp" aria-label={t("Session context")}>
       <div className="insp-top">
         <div className="eyebrow">{t("In this session")}</div>
-        <button className="iconb sm" onClick={onClose} aria-label={t("Hide inspector")} title={t("Hide inspector ({shortcut})", { shortcut: "⌘I" })}>
+        <button className="iconb sm" onClick={onClose} aria-label={t("Hide inspector")} title={t("Hide inspector ({shortcut})", { shortcut: `${MOD}I` })}>
           <Icon name="panel" size={16} />
         </button>
       </div>

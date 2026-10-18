@@ -1,7 +1,7 @@
 // Electron main: owns the window, dialogs, Keychain-backed credentials and the
 // IPC table. Everything else lives in SayfernApp (src/core/app, plain Node).
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, session, shell, systemPreferences, type MenuItemConstructorOptions, type MessageBoxOptions, type OpenDialogOptions, type SaveDialogOptions } from "electron";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SayfernApp, errorText, type CoreApi, type ElectronOnlyMethod } from "../core/app";
 import { FileCredentialStore } from "../core/credential-file-store";
@@ -19,6 +19,35 @@ const dataDir = app.getPath("userData");
 let win: BrowserWindow | null = null;
 /** The Flatpak sandbox: Flathub (or the learner's software store) owns updates there. */
 const IN_FLATPAK = !!process.env.FLATPAK_ID || existsSync("/.flatpak-info");
+
+// ---------- Linux: X11 fallback ----------
+// Electron runs natively on Wayland, where some GPU drivers crash the GPU process. When that happens
+// and XWayland is there, Sayfern writes this marker and restarts on X11; every later start uses X11
+// too. Delete the marker to try Wayland again. X11 sessions and working Wayland setups never see it.
+// The flag must be on the real command line (Chromium picks the platform before main runs), so a
+// start with the marker relaunches itself once with it.
+const X11_MARKER = join(dataDir, "use-x11");
+const OZONE_FLAG = "--ozone-platform=x11";
+const onXWayland = process.platform === "linux" && !IN_FLATPAK && !!process.env.WAYLAND_DISPLAY && !!process.env.DISPLAY;
+const hasOzoneFlag = process.argv.some((a) => a.startsWith("--ozone-platform"));
+/** Driver faults. A killed or out-of-memory GPU process says nothing about Wayland. */
+const GPU_FAULTS = new Set(["crashed", "abnormal-exit", "launch-failed"]);
+
+function relaunchOnX11() {
+  app.relaunch({ args: [...process.argv.slice(1), OZONE_FLAG] });
+  app.exit(0);
+}
+
+if (onXWayland && !hasOzoneFlag) {
+  if (existsSync(X11_MARKER)) relaunchOnX11();
+  app.on("child-process-gone", (_e, details) => {
+    if (details.type !== "GPU" || !GPU_FAULTS.has(details.reason)) return;
+    console.error(`GPU process ${details.reason} (exit ${details.exitCode}) on Wayland: restarting on X11.`);
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(X11_MARKER, `GPU process ${details.reason}, exit code ${details.exitCode}\n`);
+    relaunchOnX11();
+  });
+}
 
 // Chromium's network stack (system proxy settings, certificates) for main-process HTTP.
 const electronFetch = ((input: string | URL | Request, init?: RequestInit) =>

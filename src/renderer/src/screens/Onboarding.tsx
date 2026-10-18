@@ -106,7 +106,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
         </p>
         <div className="welcome-foot">
           <span>
-            <Icon name="lock" size={15} /> {t("Records stay on this Mac")}
+            <Icon name="lock" size={15} /> {t("Records stay on this computer")}
           </span>
           <span>
             <Icon name="spark" size={15} /> {t("Free and open source")}

@@ -251,7 +251,7 @@ export interface QuizApi {
   /** Newest first. */
   listQuizzes(language: Language): Promise<QuizListItem[]>;
   /**
-   * Grades one answer: fixed formats on this Mac, written and scenario answers by the model
+   * Grades one answer: fixed formats on this computer, written and scenario answers by the model
    * (with an "uncertain" fallback). `response` is the option text, the gap text, the tiles in
    * order joined with "", or the written text. Empty + reveal = show the answer.
    */

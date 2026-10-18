@@ -1,7 +1,7 @@
 // Taking (and reviewing) one quiz: route quiz/<id>. Owned by the quiz feature.
 // Generating state with Cancel, one question at a time (keyboard: 1-4 to choose, Enter to check
 // and continue, Backspace removes the last tile), immediate feedback with the key, and an end
-// summary computed on this Mac with links to the grammar pages.
+// summary computed on this computer with links to the grammar pages.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { Language } from "../../../shared/records";
 import type { QuizQuestion, QuizVerdict, QuizView } from "../../../shared/stage2";
@@ -517,7 +517,7 @@ function QuestionCard({
           </button>
           <span className="qz-keys muted">
             {q.format === "multiple_choice" ? t("1-4 to choose, Enter to check") : isOpen ? t("Enter to check, Shift+Enter for a new line") : t("Enter to check")}
-            {isOpen ? ` · ${t("checked by the model")}` : ` · ${t("graded on this Mac")}`}
+            {isOpen ? ` · ${t("checked by the model")}` : ` · ${t("graded on this computer")}`}
           </span>
         </div>
       ) : (
@@ -615,7 +615,7 @@ function Summary({
           )}
         </div>
         <p className="muted small">
-          {t("Scored on this Mac")}
+          {t("Scored on this computer")}
           {view.finishedAt ? ` · ${fmtShortDate(view.finishedAt)}` : ""}. {t("Unsure answers count as neither right nor wrong.")}
           {s.grammar.length > 0 && ` ${t("Your grammar pages now show these answers as quiz practice.")}`}
         </p>

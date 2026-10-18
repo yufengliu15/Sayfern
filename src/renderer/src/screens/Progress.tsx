@@ -94,9 +94,9 @@ export function ProgressScreen({ language, navigate }: ProgressScreenProps) {
             <h1 className="display">{s ? titleFor(s) : " "}</h1>
           </div>
           <div className="page-actions">
-            <span className="chip local-chip" title={t("Every number here is counted from your records on this Mac")}>
+            <span className="chip local-chip" title={t("Every number here is counted from your records on this computer")}>
               <Icon name="lock" size={14} />
-              {t("Counted on this Mac. No model calls.")}
+              {t("Counted on this computer. No model calls.")}
             </span>
             <div className="seg" role="radiogroup" aria-label={t("Time range")}>
               {RANGES.map((r) => (

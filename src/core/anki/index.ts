@@ -49,7 +49,9 @@ const FAILURE_MESSAGE: Record<AnkiFailure, string> = {
   refused:
     msg("Nothing is answering on Anki's port. Open Anki. If you just installed AnkiConnect, quit and reopen Anki once so the add-on loads."),
   timeout:
-    msg("Anki didn't answer in time. On macOS this usually means App Nap paused Anki while it's in the background."),
+    process.platform === "darwin"
+      ? msg("Anki didn't answer in time. On macOS this usually means App Nap paused Anki while it's in the background.")
+      : msg("Anki didn't answer in time. It may be busy or frozen. Quit and reopen Anki, then try again."),
   forbidden: msg("AnkiConnect refused the request (HTTP 403). Check its webCorsOriginList setting in Anki's add-on config."),
   not_ankiconnect: msg("Something answered on Anki's port, but it isn't AnkiConnect."),
   other: ANKI_UNREACHABLE,
