@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-18
+
+### Added
+
+- **Automatic update check.** Sayfern asks GitHub for the newest release when it starts, then once a day while it stays open. A failed check shows nothing.
+  - When a newer version is out, a notice shows at the bottom of the sidebar. Click it to open the release page (Flatpak: it opens Settings > Preferences, which says how to update). Click × to hide it until the next version (`sayfern.updates.dismissed` in localStorage).
+  - Settings > Preferences > Updates shows the result of the automatic check too (`src/renderer/src/lib/updates.ts` holds the status for both).
+
 ## [0.31.2] - 2026-10-18
 
 ### Changed

@@ -43,6 +43,10 @@ Anki needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on 
 
 **Quizzes** (Review > Quizzes) are built from your mistakes, Anki words, grammar, library or saved words, at your level or an HSK/JLPT level. Fixed formats are graded on your computer, and quiz answers count as practice apart from conversation.
 
+## Updates
+
+Sayfern asks GitHub for the newest release when it starts, and once a day while it stays open. This request sends only Sayfern's version number, none of your data. When a newer version is out, a notice shows at the bottom of the sidebar: click it to open the download page, or click × to hide it until the next version. Sayfern does not install updates by itself. In the Flatpak build, the notice opens **Settings > Preferences**, which says how to update from your software store. To check now, use **Settings > Preferences > Updates** (or **Sayfern > Check for Updates** on macOS).
+
 ## Your data
 
 Everything stays on your computer as JSON files (on macOS, in `~/Library/Application Support/sayfern/`; on Linux, in `~/.config/sayfern/`; on Windows, in `%APPDATA%\sayfern\`). Export everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries stay, and you can keep your model sign-ins.

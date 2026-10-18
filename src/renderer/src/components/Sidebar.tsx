@@ -3,6 +3,8 @@ import { useApp } from "../context";
 import { cjkClass, fmtAgo, practisedLabel } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
 import { MOD } from "../lib/platform";
+import { dismissUpdate, useUpdateNotice } from "../lib/updates";
+import { api } from "../api";
 import { langName, msg, t } from "../i18n";
 import { navigate, sessionRoute, settingsRoute, type ParsedRoute, type Route } from "../router";
 import { Fern, Icon, type IconName } from "./icons";
@@ -131,6 +133,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
       </div>
 
       <div className="foot">
+        <UpdateNotice />
         <div className="nav">
           <button className={route.name === "settings" ? "on" : ""} aria-current={route.name === "settings" ? "page" : undefined} onClick={() => navigate("settings")}>
             <Icon name="settings" />
@@ -156,6 +159,26 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
         <AnkiStatusRow />
       </div>
     </nav>
+  );
+}
+
+/** A newer release is out. Flatpak builds update from the software store, so they open Settings, which says how. */
+function UpdateNotice() {
+  const update = useUpdateNotice();
+  if (!update) return null;
+  return (
+    <div className="upd" role="status">
+      <button className="upd-go" onClick={() => (update.flatpak ? navigate(settingsRoute("preferences")) : void api.openExternal(update.url))}>
+        <Icon name="download" size={16} />
+        <span>
+          <b>{t("Sayfern {version} is available.", { version: update.latest })}</b>
+          {!update.flatpak && <small>{t("Download")}</small>}
+        </span>
+      </button>
+      <button className="upd-x" onClick={() => dismissUpdate(update.latest)} aria-label={t("Dismiss")} title={t("Dismiss")}>
+        <Icon name="x" size={14} stroke={2} />
+      </button>
+    </div>
   );
 }
 

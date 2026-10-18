@@ -2,6 +2,7 @@ import { Fragment, useEffect } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { WordPopoverHost } from "./components/WordPopover";
 import { AppProvider, useApp } from "./context";
+import { startUpdateChecks } from "./lib/updates";
 import { navigate, parseRoute, useRoute, type Route } from "./router";
 import { CourseScreen } from "./screens/Course";
 import { DecksScreen } from "./screens/Decks";
@@ -41,6 +42,8 @@ function Shell() {
   const app = useApp();
   const route = parseRoute(useRoute());
   const { language } = app;
+
+  useEffect(startUpdateChecks, []);
 
   // F-10: ⌘N new session, ⌘1..6 navigation.
   useEffect(() => {

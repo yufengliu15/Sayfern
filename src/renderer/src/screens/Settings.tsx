@@ -1,6 +1,6 @@
 // Settings: models, languages and level, profile, Anki, voice, dictionaries, preferences, data.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { AnkiStatus, UpdateStatus } from "../../../shared/api";
+import type { AnkiStatus } from "../../../shared/api";
 import type { DictionaryProgress, DictionaryStatus, LanguageInfo } from "../../../shared/lang";
 import type { AnkiDeckMapping, AnkiOverview, Language, LearnerProfile, LevelBand, LevelEstimate, Skill } from "../../../shared/records";
 import { api, errorText } from "../api";
@@ -23,6 +23,7 @@ import { PlacementStart } from "../components/PlacementStart";
 import { langName, msg, t, tj } from "../i18n";
 import { SpeakButtons } from "../components/Speak";
 import { loadVoiceStatus, setVoiceStatus, useVoiceStatus, VOICE_SAMPLES } from "../lib/voice";
+import { setUpdateStatus, useUpdateStatus } from "../lib/updates";
 import { VOICE_RATES, type VoiceStatus } from "../../../shared/stage3";
 
 export interface SettingsScreenProps {
@@ -1153,18 +1154,17 @@ function VoiceTab() {
 
 // ---------------------------------------------------------------- data
 
-/** Check for updates. On macOS the app menu has it too; Windows and Linux show no menu bar. */
+/** Check for updates. Sayfern also checks by itself (lib/updates.ts); this shows that result too. On macOS the app menu has it as well. */
 function UpdatesGroup() {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const status = useUpdateStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const check = async () => {
     setBusy(true);
     setError(null);
     try {
-      setStatus(await api.checkForUpdates());
+      setUpdateStatus(await api.checkForUpdates());
     } catch (e) {
-      setStatus(null);
       setError(errorText(e));
     } finally {
       setBusy(false);
@@ -1177,12 +1177,12 @@ function UpdatesGroup() {
           {busy ? t("Checking…") : t("Check for updates")}
         </button>
       </Row>
-      {status && !status.available && (
+      {status && !error && !status.available && (
         <p className="saved-path" role="status">
           <Icon name="check" size={14} stroke={2.4} /> {t("You have the newest version ({version}).", { version: status.current })}
         </p>
       )}
-      {status?.available && (
+      {status?.available && !error && (
         <Row
           label={t("Sayfern {version} is available.", { version: status.latest })}
           hint={status.flatpak ? tj("Update it in your software store, or run {command}.", { command: <span className="mono">flatpak update ca.sayfern.Sayfern</span> }) : undefined}
