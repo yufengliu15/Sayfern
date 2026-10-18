@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-10-18
+
+### Changed
+
+- **README.** Rewritten in the usual open-source layout: icon, badges, a screenshot of Today (`docs/images/today.png`), features, install, getting started, documentation, development, contributing, acknowledgements, license. It now names Windows and Linux next to macOS.
+- **User guide.** Setup and usage detail from the README (providers, usage limits, local models, credentials, dictionaries, Anki, review, quizzes, data) moved to the new `docs/guide.md`.
+- **AGENTS.md.** States the license as GPL-3.0-only (it still said MIT).
+
 ## [0.31.0] - 2026-10-14
 
 ### Added

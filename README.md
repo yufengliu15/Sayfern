@@ -1,102 +1,122 @@
+<div align="center">
+
+<img src="build/icon.png" alt="Sayfern icon" width="96">
+
 # Sayfern
 
-Conversational language learning for free. A Mac app with an AI tutor that remembers what you're learning.
+**Conversational language learning for free. An AI tutor that remembers what you're learning.**
 
-**Version:** 0.31.0 ([changelog](CHANGELOG.md)). **Status:** Stage 1 (text learning), Stage 2 (corrections review, Anki export, quizzes, Anki deck generator) and the first part of Stage 3 (listen to the tutor and words, talk instead of typing, with your ElevenLabs accounts or free voices). Learn Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian or Vietnamese, with the app in any of 13 interface languages (it follows your Mac's language by default). Feature status: [`docs/stage1.md`](docs/stage1.md), [`docs/stage2.md`](docs/stage2.md), [`docs/stage3.md`](docs/stage3.md). What's next: [`docs/roadmap.md`](docs/roadmap.md).
+[![Release](https://img.shields.io/github/v/release/yufengliu15/Sayfern)](https://github.com/yufengliu15/Sayfern/releases)
+[![Build](https://github.com/yufengliu15/Sayfern/actions/workflows/release.yml/badge.svg)](https://github.com/yufengliu15/Sayfern/actions/workflows/release.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-## Mission: from 1 to infinity
+[Website](https://sayfern.ca) · [Download](https://github.com/yufengliu15/Sayfern/releases) · [User guide](docs/guide.md) · [Changelog](CHANGELOG.md)
 
-Sayfern is for learners who already know some of a language and want to go much further through real conversation, up to an advanced level. It does not try to replace the first course that takes you from zero to your first words (0 to 1): a textbook, a class or a beginner app does that better, and Anki helps with the first words.
+<img src="docs/images/today.png" alt="The Today screen: continue a Chinese conversation, start the next course unit, or pick a role-play situation">
 
-Beginners are still welcome. They can write in their own language when they lack the words, and the tutor shows them how to say it. Words in their own language never count as words they wrote in the language they learn. Before a placement chat, you pick Beginner, Intermediate or Advanced, so the chat starts at the right place.
+</div>
 
-## Download
+Sayfern is a desktop app where you learn a language by chatting with an AI tutor. The tutor corrects you like a teacher, keeps track of your grammar, words and level, and picks up where you left off. You bring your own model: a Claude Pro/Max or ChatGPT subscription, an API key, or a local model. All your records stay on your computer as plain JSON files.
 
-Installers for macOS (`.dmg`), Windows (`.exe`) and Linux (`.flatpak`) are on the [releases page](https://github.com/yufengliu15/Sayfern/releases). They are not signed with a paid certificate yet: on macOS, right-click the app and click Open the first time; on Windows, click More info, then Run anyway. How they are built: [`docs/packaging.md`](docs/packaging.md).
+**Version:** 0.31.1 ([changelog](CHANGELOG.md))
 
-## Run it
+## Features
 
-Needs Node 22.19+ on macOS.
+- **11 learning languages:** Chinese, Japanese, Korean, English, Spanish, French, German, Italian, Portuguese, Russian and Vietnamese. Courses for nine of them (HSK 3.0, JLPT, TOPIK, English Grammar Profile, CEFR); Russian and Vietnamese are in Beta.
+- **13 interface languages.** The app follows your system language, and the tutor explains in it.
+- **Remembers you.** Corrections, grammar points, words and level estimates are stored after every turn. Every number you see is computed on your computer, not by the model.
+- **Corrections review and quizzes** built from your own mistakes, graded locally where possible.
+- **Anki integration** through AnkiConnect: the tutor keeps to words you know, turns corrections into cards, and can generate new decks with readings and audio.
+- **Voice:** listen to the tutor and talk instead of typing (ElevenLabs or free voices).
+- **Role-play scenarios, New topic and a difficulty slider** to keep conversations fresh.
+- **Many model providers:** Anthropic, OpenAI, OpenRouter, DeepSeek, Google, OpenCode, and local models through llama.cpp. Each provider shows its usage and limits.
+- **Light on your plan:** in our [benchmark](https://sayfern.ca/#benchmark), Sayfern uses about 3× less of your Claude plan limit than Claude Code with a tutoring skill ([method](docs/benchmark.md)).
+
+## Who it is for
+
+Sayfern takes learners **from 1 to infinity**: people who already know some of a language and want to go much further through real conversation. It does not try to replace a first course (0 to 1). Beginners are still welcome: they can write in their own language when they lack the words, and the tutor shows them how to say it.
+
+## Install
+
+Download the installer for your system from the [releases page](https://github.com/yufengliu15/Sayfern/releases):
+
+| System | File |
+|---|---|
+| macOS | `.dmg` |
+| Windows | `.exe` |
+| Linux | `.flatpak` or `.tar.gz` |
+
+> [!NOTE]
+> The installers are not signed with a paid certificate yet. On macOS, right-click the app and click **Open** the first time. On Windows, click **More info**, then **Run anyway**.
+
+Sayfern checks for new versions in **Settings > Preferences > Updates** (and **Sayfern > Check for Updates** on macOS).
+
+### Build from source
+
+Needs [Node.js](https://nodejs.org/) 22.19 or later.
 
 ```bash
+git clone https://github.com/yufengliu15/Sayfern.git
+cd Sayfern
 npm install
 npm run dev
 ```
 
-The first launch opens **onboarding**: connect one model provider, pick your languages and levels (or take a short placement chat), then optionally link Anki.
+To build an installer, run `npm run dist -- --mac --arm64` (or `--win`, `--linux`). See [`docs/packaging.md`](docs/packaging.md).
 
-| Provider | Sign in with a subscription | API key |
-|---|---|---|
-| Anthropic | Claude Pro/Max (uses the plan's monthly Agent SDK credit) | yes |
-| OpenAI | Sign in with ChatGPT | yes |
-| OpenRouter | OpenRouter sign-in | yes |
-| DeepSeek, Google, OpenCode Zen, OpenCode Go | | yes |
-| llama.cpp (local) | No account: Sayfern talks to your own `llama-server` | no key (optional) |
+## Getting started
 
-**Usage.** Each connected provider shows what is left: the 5-hour and weekly limits for Claude Pro/Max and ChatGPT sign-ins (and the 5-hour, weekly and monthly limits for OpenCode Go), the balance for DeepSeek and OpenRouter, and for every API key what Sayfern spent on this computer. Anthropic and OpenAI API keys cannot report a balance, so a link opens the billing page.
+1. Open Sayfern. The welcome page asks you to connect one model provider.
+2. Pick the languages you learn and your level, or take a short placement chat.
+3. Optionally link Anki (needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on).
+4. Start a chat on **Today**.
 
-**Local models.** Run a model on your own computer with [llama.cpp](https://github.com/ggml-org/llama.cpp) and pick **llama.cpp** on the connect screen. Nothing leaves your Mac. Start the server with `llama-server -hf <repo>:<quant> --jinja -c 16384` (`--jinja` is needed for tool calls). Details, model advice and fixes: [`docs/local-models.md`](docs/local-models.md).
+Providers, local models, dictionaries, Anki, quizzes and data export are in the [user guide](docs/guide.md).
 
-Credentials are encrypted with Electron `safeStorage` (key held in the macOS Keychain) and stored in `~/Library/Application Support/sayfern/`. The first time, macOS may ask to allow access to "sayfern Safe Storage". Click **Always Allow**. It may ask once more after the first `npm run dev` of v0.3.1, because the dev app is re-signed with the Sayfern name and icon.
+## Documentation
 
-- **Dictionaries** (CC-CEDICT for Chinese, JMdict for Japanese, Open English WordNet or WikDict for English, WikDict, Kengdic and Wiktionary for the others; 4 to 22 MB each) download by themselves for every language you learn, after the welcome page, at startup if one is missing, and when you add a language or change the interface language. Sayfern needs them for lookups and to tell your own language apart from the one you learn. A failed download shows in **Settings > Dictionaries** with a retry.
-- **Anki** needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on (code `2055492159`) and Anki running. Link a deck per language in **Settings > Anki**. Sayfern syncs every card (new ones too) and 90 days of review history, refreshing in the background when the snapshot is over 6 hours old. The tutor knows which words you know, are learning, will learn next and struggle with, and keeps to your known vocabulary. The last sync is cached, so all of this still works while Anki is closed. Can't connect? Settings > Anki shows the reason and a fix. If another app holds AnkiConnect's port, `sudo lsof -i :8765` shows which one.
-- **Review** (⌘4) lists every correction across sessions with filters and retries, and turns the ones you pick into Anki cards (cloze or situation prompts, with Sayfern's own note types). **Quizzes** (Review > Quizzes) are built from your mistakes, Anki words, grammar, library or saved words, at your level or an HSK/JLPT level; fixed formats are graded on your Mac, and quiz answers count as practice apart from conversation.
-- **Anki decks**: the welcome page explains why vocabulary in Anki makes everything easier, links to shared decks on AnkiWeb, and Sayfern can make a new deck with your model: words at your level, readings checked in the dictionary, ruby, example sentences and audio (ElevenLabs or free Microsoft voices), added straight to Anki in batches of 25.
-- **Export** everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries stay, and you can keep your model sign-ins.
+| Document | What it covers |
+|---|---|
+| [`docs/guide.md`](docs/guide.md) | Set up and use the app |
+| [`docs/local-models.md`](docs/local-models.md) | Run a local model with llama.cpp |
+| [`AGENTS.md`](AGENTS.md) | Start here to change the code (for people and coding agents) |
+| [`docs/architecture.md`](docs/architecture.md) | How everything fits together, module by module |
+| [`docs/decisions.md`](docs/decisions.md) | Why it is built this way |
+| [`docs/courses.md`](docs/courses.md) | How to write a language's course |
+| [`docs/roadmap.md`](docs/roadmap.md) | What comes next, and known gaps |
+| [`docs/stage1.md`](docs/stage1.md), [`stage2.md`](docs/stage2.md), [`stage3.md`](docs/stage3.md) | Feature status |
+| [`docs/benchmark.md`](docs/benchmark.md) | Benchmark against Claude Code with a skill |
 
-## Test without the UI
+## Development
+
+Sayfern is an Electron app with a React UI. All logic lives in plain Node in `src/core`, so you can test it without the UI.
 
 ```bash
-npm test                                   # unit + integration tests
+npm run typecheck                          # both TypeScript projects
+npm test                                   # unit and integration tests, no network
 npm run smoke -- selftest                  # offline end-to-end check with a fake provider
 npm run smoke -- login anthropic           # or: login openai, or: key <provider> <api-key>
-npm run smoke -- chat anthropic "你好！"   # streams a reply and prints recorded corrections
-npm run smoke -- models anthropic
-npm run bench -- run                       # Sayfern vs Claude Code + skill benchmark (docs/benchmark.md)
+npm run smoke -- chat anthropic "你好！"   # real provider from the terminal
+npm run smoke -- models anthropic          # list a provider's models
+npm run bench -- run                       # benchmark against Claude Code with a skill
+npx vite --config vite.mock.config.ts      # UI only, in a browser, with a mock backend
 ```
 
-The smoke script runs the same core as the app, with its own data and plain-text credentials in `./.sayfern-dev/` (gitignored).
+The smoke script uses its own data and plain-text credentials in `./.sayfern-dev/` (gitignored). The repo layout, contracts and rules are in [`AGENTS.md`](AGENTS.md).
 
-## Layout
+## Contributing
 
-```
-src/core/          plain Node, no Electron, unit-tested
-  app/             SayfernApp: wires the services below behind the SayfernApi surface
-  records/         sessions, corrections, grammar, words, levels, stats, export (JSON files)
-  lang/            Chinese + Japanese packs, dictionaries, lookup
-  library/         import txt/md/html/epub/pdf, reading checkpoints, search
-  anki/            AnkiConnect client, cached snapshots, word model (words.ts), note export
-  agent/           the tutor: prompt, tools, streaming turns, retries, summaries
-  review/          Stage 2: corrections review, Anki card drafts and export
-  quiz/            Stage 2: quiz generation, validation, grading, quiz evidence
-  decks/           Stage 2: Anki deck generator (word list, checked cards, text to speech, AnkiConnect)
-  providers.ts     model providers (pi-ai)
-src/main/          Electron main: window, dialogs, Keychain-backed credentials, IPC table
-src/preload/       generic bridge exposing SayfernApi as window.sayfern
-src/renderer/      React UI (runs against a mock API in a plain browser: npx vite -c vite.mock.config.ts)
-src/shared/        types and the renderer ↔ main API contract (Stage 2 slots in src/shared/stage2/)
-docs/              architecture, decisions, roadmap, Stage 1 and 2 feature maps
-scripts/           smoke test, OAuth page and dev app branding
-build/             app icon (icon.svg source, icon.png, icon.icns)
-```
+Bug reports and ideas are welcome in [GitHub Issues](https://github.com/yufengliu15/Sayfern/issues). Before you open a pull request, read [`AGENTS.md`](AGENTS.md), and make sure `npm run typecheck` and `npm test` pass. Translations of the interface live in `src/shared/i18n/`.
 
-Model access goes through [`@earendil-works/pi-ai`](https://github.com/badlogic/pi-mono/tree/main/packages/ai) (MIT), the provider layer behind the Pi coding agent. It handles OAuth sign-in, token refresh, streaming and ~40 providers.
+## Acknowledgements
 
-## Docs
-
-- [`AGENTS.md`](AGENTS.md): start here if you're changing the code (human or coding agent).
-- [`docs/architecture.md`](docs/architecture.md): how everything fits together, module by module.
-- [`docs/local-models.md`](docs/local-models.md): run a local model with llama.cpp, and add other local engines.
-- [`docs/decisions.md`](docs/decisions.md): why it's built this way.
-- [`docs/roadmap.md`](docs/roadmap.md): Stage 2 follow-ups, Stage 3, and known gaps.
-- [`docs/stage1.md`](docs/stage1.md): Stage 1 features and their status.
-- [`docs/stage2.md`](docs/stage2.md): Stage 2 features and their status.
-- [`docs/stage3.md`](docs/stage3.md): Stage 3 (voice) features and their status.
-- [`docs/benchmark.md`](docs/benchmark.md): benchmark vs Claude Code + skill.
+- [`@earendil-works/pi-ai`](https://github.com/badlogic/pi-mono/tree/main/packages/ai) for model providers, sign-in and streaming.
+- Dictionaries: [CC-CEDICT](https://cc-cedict.org/), [JMdict](https://www.edrdg.org/jmdict/j_jmdict.html), Kengdic, [WikDict](https://www.wikdict.com/), [Open English WordNet](https://en-word.net/) and [kaikki.org](https://kaikki.org/) (Wiktionary).
+- [kuromoji](https://github.com/takuyaa/kuromoji.js), [pinyin-pro](https://github.com/zh-lx/pinyin-pro), [pdf.js](https://github.com/mozilla/pdf.js), [Electron](https://www.electronjs.org/) and [React](https://react.dev/).
 
 ## License
 
 Copyright (C) 2026 Yufeng Liu
 
-Sayfern is free software, licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only). You can use, study, share and change it; if you distribute a modified version, it must stay under the same licence with its source available.
+Sayfern is free software under the [GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`). You can use, study, share and change it. If you distribute a modified version, it must stay under the same licence with its source available.

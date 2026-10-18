@@ -61,6 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.os }}
+          retention-days: 1
           path: |
             dist/*.dmg
             dist/*.exe
@@ -77,11 +78,13 @@ jobs:
         with:
           name: flatpak-source
           path: dist/flatpak/
+          retention-days: 7
       - if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: flathub-submission
           path: dist/flathub/
+          retention-days: 7
 
   flatpak:
     needs: [check, package]
@@ -104,6 +107,7 @@ jobs:
         with:
           name: flatpak
           path: Sayfern-*.flatpak
+          retention-days: 1
           if-no-files-found: error
 
   release:

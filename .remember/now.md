@@ -1,9 +1,11 @@
 
-## 12:12 | main
-Pushed commit f1a2eed to main so sayfern.ca now shows the 2026-10-11 benchmark (8.6× less plan usage, 10.1× smaller peak context, 2.7× less wall time) with all 12 language pages updated and the accuracy table removed, and deleted the 266 benchmark folders from ~/.claude/projects, while the v0.30.0 release (prompt-cache fix, ADR 39, docs, CHANGELOG) stays local and uncommitted, the CHANGELOG line about the website change needs moving or dropping before release, and a clean benchmark run with CLAUDE_CODE_OAUTH_TOKEN plus the +54% graded-reading cost investigation are still open.
-## 12:18 | main
-Diagnosed the token dips in the benchmark chart as caused by 3 of 24 requests (reps 1–2, msgs 4, 10, 12) sending only 22 built-in tools without the 51 claude.ai connector tools (~33k tokens), and offered three fixes (clean `CLAUDE_CODE_OAUTH_TOKEN` rerun recommended, chart only 74-tool requests, or leave it), awaiting the user's choice.
-## 15:38 | main
-Benchmark rerun with `isolation clean` (no connectors/memory) shows Sayfern 0.30.0 uses 3.1× less plan-limit usage than Claude Code + skill (380k vs 1.18M), with the chart dips gone and 41/48 grammar errors caught; site update and push to `main` await user approval, and no correction carries a grammar id (open issue).
-## 16:19 | main
-Sayfern benchmark page updated on sayfern.ca (commit `6c8be07` pushed, deploy passed) with clean 0.30.0 run in 12 languages (3.1× plan-limit usage vs Claude Code), and the CHANGELOG line corrected; v0.30.0 code still uncommitted, and the `grammar_id` omission (0 of 41 corrections) is unfixed pending user approval of the description fix.
+## 16:20 | main
+Audited Sayfern README-structure research brief: core claims verified vs GitHub Docs, standard-readme, Uptime Kuma, Zettlr, none contradicted; found `AGENTS.md` MIT vs GPL-3.0-only (`LICENSE`/`package.json`) and `package.json` desc ≠ README tagline, so AGENTS.md fix and owner decision on license/platform positioning still pending.
+## 16:22 | main
+Rewrote Sayfern README to standard OSS layout (117 lines, banner from `site/og.png`, install/getting-started/docs table), moved setup detail to new `docs/guide.md`, bumped version to 0.31.1 across `package.json`/lock/`AGENTS.md`/`CHANGELOG.md`, typecheck passes and `npm test` 329 pass/0 fail/2 skip, not committed; blocked on owner decisions (screenshot, outside PRs wording, stale `AGENTS.md` "MIT" vs GPL-3.0-only, `package.json` desc, website FAQ) and a push to `main` would publish v0.31.1.
+## 16:24 | main
+Reviewed uncommitted Sayfern README rewrite (README.md, untracked docs/guide.md, AGENTS.md, CHANGELOG.md, package.json/lock → v0.31.1): verdict BLOCK until license contradiction (AGENTS.md:7 MIT vs GPL-3.0-only) and unqualified "3.1× less plan limit" benchmark claim (README.md:32, estimate-only) are fixed; typecheck/test not run in review, guide.md must be staged, push to main publishes v0.31.1 release pending owner confirmation.
+## 16:25 | main
+Fixed the two reviewer-blocking issues in the uncommitted Sayfern README rewrite (AGENTS.md:7 license MIT→GPL-3.0-only; README benchmark claim "3.1×" → "about 3× less estimated plan-limit usage"), plus AGENTS guide entry wording and four dev commands restored to README; typecheck passes, tests not rerun (last run 329 pass), nothing committed, `docs/guide.md` still needs staging and push to main (publishes v0.31.1) awaits owner confirmation.
+## 16:36 | main
+Set Sayfern README license to GPL-3.0-only (kept), reworded benchmark to "about 3× less Claude plan-limit usage", added screenshot `docs/images/today.png` under the README badges, and updated the 0.31.1 CHANGELOG entry; nothing committed, and `docs/guide.md` plus the new image still need staging, and the pending decisions (keep "Contributing" PR invite, whether to push to main and publish v0.31.1) await owner confirmation.
