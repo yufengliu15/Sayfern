@@ -8,6 +8,7 @@ import { Connect } from "../components/Connect";
 import { Fern, Icon } from "../components/icons";
 import { useApp } from "../context";
 import { cls } from "../lib/format";
+import { Switch } from "../components/ui";
 import { LocalePicker } from "../components/LocalePicker";
 import { ThemeBlocks } from "../components/ThemePicker";
 import { themeInfo } from "../../../shared/themes";
@@ -44,6 +45,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
   const [bands, setBands] = useState<Partial<Record<Language, LevelBand>>>({});
   const [about, setAbout] = useState("");
   const [ankiPlan, setAnkiPlan] = useState<AnkiPlan | null>(null);
+  const [ping, setPing] = useState(app.settings.sendWeeklyPing !== false);
   // Reopened from Settings (dev builds): finishing still saves, but the learner can just close it.
   const previewing = !!app.settings.onboarded;
   const [busy, setBusy] = useState(false);
@@ -61,7 +63,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
       for (const l of ordered) if (levels[l] && levels[l] !== PLACE) await api.setSelfLevel(l, levels[l]!);
       if (about.trim()) await api.setProfile({ about: about.trim() });
       const placeIn = ordered.find((l) => levels[l] === PLACE);
-      await app.updateSettings({ onboarded: true, languages: ordered, language: placeIn ?? ordered[0] });
+      await app.updateSettings({ onboarded: true, languages: ordered, language: placeIn ?? ordered[0], sendWeeklyPing: ping });
       if (then === "settings") return navigate(settingsRoute("anki"));
       if (then === "decks" || ankiPlan === "generate") {
         await app.refreshSessions();
@@ -237,6 +239,15 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
                   <Icon name="library" size={14} />
                   {t("Textbooks and readers: add them in Library")}
                 </span>
+              </div>
+              <div className="wping">
+                <div>
+                  <span className="wping-l">{t("Count me as a weekly user")}</span>
+                  <p className="wstep-sub">
+                    {t("Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.")}
+                  </p>
+                </div>
+                <Switch checked={ping} onChange={setPing} label={t("Count me as a weekly user")} />
               </div>
             </Step>
           </div>

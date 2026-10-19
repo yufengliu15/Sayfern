@@ -17,7 +17,7 @@
 
 </div>
 
-Sayfern is a desktop app where you learn a language by chatting with an AI tutor. The tutor corrects you like a teacher, keeps track of your grammar, words and level, and picks up where you left off. You bring your own model: a Claude Pro/Max or ChatGPT subscription, an API key, or a local model. All your records stay on your computer as plain JSON files.
+Sayfern is a desktop app where you learn a language by chatting with an AI tutor. The tutor corrects you like a teacher, keeps track of your grammar, words and level, and picks up where you left off. You bring your own model: a Claude Pro/Max or ChatGPT subscription, an API key, or a local model. All your records stay on your computer as plain JSON files. Sayfern sends only an anonymous weekly ping to count users, and you can turn it off.
 
 ## Features
 

@@ -18,7 +18,7 @@ import type {
   Difficulty,
 } from "../../shared/records";
 import { SKILLS } from "../../shared/records";
-import { bandLevels } from "../../shared/languages";
+import { bandLevels, levelBand } from "../../shared/languages";
 import { courseFor, courseLevel, findUnit, grammarStates, nextUnit, type Course, type CourseGrammar, type CourseUnit, type GrammarStates } from "../../shared/course";
 import { unitPlan, unitProgress } from "../course";
 import { findScenario } from "../../shared/scenarios";
@@ -249,11 +249,14 @@ function levelShare(d: Pick<PromptData, "levels" | "info">): number | undefined 
   return d.info.levels.length > 1 ? i / (d.info.levels.length - 1) : 0;
 }
 
-/** Beginners: the bottom quarter of the scale, or a placement chat started as a beginner. */
-export function isBeginner(d: Pick<PromptData, "levels" | "info" | "session">): boolean {
+/**
+ * Beginners get their own persona (beginnerPersonaBlock): no level yet, a level in the Beginner band (A1-A2,
+ * N5-N4, HSK 1-3, TOPIK 1-2), or a placement chat started as a beginner.
+ */
+export function isBeginner(d: Pick<PromptData, "levels" | "session">): boolean {
   if (d.session.kind === "placement" && d.session.levelBand) return d.session.levelBand === "beginner";
-  const share = levelShare(d);
-  return share !== undefined && share < TUNING.beginnerBelow;
+  const level = courseLevel(d.levels);
+  return !level || levelBand(level) === "beginner";
 }
 
 /** The language beginners may fall back on: the interface language, unless that is the language they learn. */
@@ -262,13 +265,13 @@ function ownLanguage(d: Pick<PromptData, "info" | "explain">): string {
   return explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "their own language" : explain;
 }
 
-/** Reply length grows with the learner's level: beginners get short replies, advanced learners real paragraphs. */
+const room = (max: number) => `. When the reply brings in a target, you may write more to set up a natural context for it, up to ${max} sentences in all`;
+
+/** Reply length grows with the learner's level, up to real paragraphs. Beginners: beginnerPersonaBlock. */
 export function lengthRule(d: Pick<PromptData, "levels" | "info">): string {
   const share = levelShare(d);
   const cap = TUNING.sentenceCap;
-  const room = (max: number) => `. When the reply brings in a target, you may write more to set up a natural context for it, up to ${max} sentences in all`;
   if (share === undefined) return `Keep replies to 1 to 3 short sentences${room(cap.unknown)}`;
-  if (share < TUNING.beginnerBelow) return `Keep replies to 1 or 2 short sentences${room(cap.beginner)}`;
   if (share < TUNING.midBelow) return `Write 2 or 3 sentences, linked with connectors they know${room(cap.mid)}`;
   return `Write 2 to 4 sentences; a short paragraph is fine${room(cap.advanced)}`;
 }
@@ -442,13 +445,16 @@ export function difficultyBlock(d: Pick<PromptData, "session">): string {
 const MISS_RULE = "After two misses (they avoid it or get it wrong), model it in a sentence of your own, then invite them to try again.";
 
 /** Unit sessions the learner opened with "go over the grammar first". */
-const UNIT_OVERVIEW = [
+const unitOverview = (language: string) => [
   "The learner asked for a quick overview of this unit's grammar before practising. In your first reply only, before anything else, give it (here you may name the patterns):",
-  "- One short line per grammar point, in the order above: the pattern, what it does in plain words, and one short example sentence.",
+  `- One short line per grammar point, in the order above: the pattern, what it does in plain ${language}, and one short example sentence.`,
   "- Keep the whole overview brief, a reminder of what is coming. It is not a full lesson and does not replace their textbook: no tables, no lists of exceptions, no exercises.",
   "Then open the conversation as below, with a question that invites the first point.",
   "",
 ];
+
+/** A course unit opened with "Begin lesson" (overview, then each point taught). "More practice" units are plain conversation. */
+const unitLesson = (s: SessionMeta) => !!s.unitId && s.openWith === "explain";
 
 function sessionBlock(d: PromptData): string {
   const s = d.session;
@@ -456,12 +462,24 @@ function sessionBlock(d: PromptData): string {
     case "practice": {
       if (s.unitId) {
         if (!d.unit) return "# Session: course unit\nThis course unit no longer exists. Chat about whatever interests the learner.";
+        const lesson = unitLesson(s);
         return [
-          "# Session: course unit",
+          lesson ? "# Session: course unit" : "# Session: course unit (more practice)",
           unitPlan(d.unit.unit),
           "",
-          ...(s.openWith === "explain" ? UNIT_OVERVIEW : []),
-          "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time.",
+          ...(lesson
+            ? [
+                ...unitOverview(introLanguage(d)),
+                "Work through this unit as a conversation. Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time.",
+                "Introduce each grammar point when you reach it, in three steps, in this order:",
+                `1. Introduction: what the point does and where it goes, in ${introLanguage(d)}, with one short example. If the overview just introduced it, one line to recall it is enough.`,
+                "2. A sample dialogue (# Sample dialogue) in which the point is used.",
+                "3. Your question to them, of the same kind as the dialogue's first tutor line, so they can answer the way the sample learner did.",
+              ]
+            : [
+                "The learner chose more practice on this unit: treat its grammar as known. Start the conversation at once: no overview, no introductions, no sample dialogues.",
+                "Pick one topic idea (or one that fits their interests) and bring in the grammar points one at a time.",
+              ]),
           `Move to the next point once they use the current one correctly twice, or after about ${TUNING.unitPointTurns} exchanges on it. Change the situation when one runs dry.`,
           "When every point has come up, tell them what they covered and suggest the next unit.",
         ].join("\n");
@@ -473,7 +491,7 @@ function sessionBlock(d: PromptData): string {
         return [
           "# Session: explain and practise",
           `Focus: ${what}.`,
-          "The learner asked for this pattern to be explained again. Open with a short, fresh explanation and one new example sentence that differs from any you gave before.",
+          `The learner asked for this pattern to be explained again. Open with a short, fresh explanation in ${d.explain || "English"} and one new example sentence that differs from any you gave before.`,
           `Then ask a question that invites them to use it. From then on, practise it in conversation. ${MISS_RULE}`,
         ].join("\n");
       }
@@ -530,7 +548,7 @@ export function placementBlock(d: Pick<PromptData, "info" | "explain" | "session
   if (band === "beginner") {
     return [
       "# Session: placement (the learner says they are a beginner)",
-      `Run a short, gentle diagnostic. Here, write your instructions and questions in ${own}, with only short ${d.info.name} items to read or answer.`,
+      `Run a short, gentle diagnostic. Write your instructions in ${own}, with only short ${d.info.name} items to read or answer.`,
       `Start at the very bottom (${bandLevels(levels, "beginner").join(", ")}). First find out whether they know anything at all: a greeting, numbers, a few common words. Rise only while they cope. ${tasks}`,
       `If they know little or nothing, stop after 2 or 3 tasks: that is a clear result, not a failure.`,
       `${estimate} If they know nothing yet, record ${levels[0]} for all three skills with low confidence.`,
@@ -548,26 +566,6 @@ export function placementBlock(d: Pick<PromptData, "info" | "explain" | "session
     estimate,
     "Then tell the learner the result kindly and briefly, with one thing they do well.",
   ].join("\n");
-}
-
-/**
- * Translations, readings and writing in another language, stated once for every session:
- * beginners are welcome to write in their own language, everyone else is invited back to the language they learn.
- */
-function otherLanguageRules(d: PromptData): string[] {
-  const explain = d.explain || "English";
-  const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
-  if (!isBeginner(d)) {
-    return [
-      "- Add no translations, romanization or readings unless the learner asks: the app shows a dictionary when they hover a word.",
-      `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
-    ];
-  }
-  const own = ownLanguage(d);
-  return [
-    `- They are a beginner: they may write in ${own} when they lack the ${d.info.name} words. That is welcome, not a mistake. Answer in very simple ${d.info.nativeName}, show them how to say what they meant in ${d.info.name}, and invite them to try it.`,
-    `- You may add a short ${own} gloss in brackets for a key word they cannot know yet. No full translations, romanization or readings unless they ask.`,
-  ];
 }
 
 /** Prefix on learner messages that were spoken and transcribed (Stage 3). The display text has no prefix. */
@@ -592,14 +590,15 @@ const TOOL_PROTOCOL = [
 ].join("\n");
 
 /** Which language explanations, corrections and grammar names are written in. */
-export function explanationBlock(d: Pick<PromptData, "info" | "explain">): string {
+export function explanationBlock(d: Pick<PromptData, "info" | "explain" | "levels" | "session">): string {
   const explain = d.explain || "English";
   const same = explain.toLowerCase().startsWith(d.info.name.toLowerCase());
+  const unitIntro = !same && unitLesson(d.session) && !isBeginner(d) ? ` The one exception: in this course unit, introduce each grammar point in ${d.info.name} (# Session).` : "";
   return [
     "# Explanation language",
     same
       ? `The learner's interface language is ${explain}, the language they are learning. Explain in simple ${explain} at their level.`
-      : `The learner's interface language is ${explain}. Whenever you explain (grammar, a word's meaning, why something is wrong), do it in ${explain}, briefly, then return to ${d.info.name}.`,
+      : `The learner's interface language is ${explain}. Whenever you explain (grammar, a word's meaning, why something is wrong), do it in ${explain}, briefly, then return to ${d.info.name}.${unitIntro}`,
     `In record_evidence, write correction explanations and grammar names in ${explain}.`,
   ].join("\n");
 }
@@ -611,22 +610,86 @@ function hasTargets(d: PromptData) {
   return !!(d.followUps.length || d.targets.length || d.anki || d.unit || d.focus || coursePoints);
 }
 
-/** How the tutor talks. The one place for level, length, questions, targets and translations. */
-function personaBlock(d: PromptData) {
-  const lang = `${d.info.name} (${d.info.nativeName})`;
+/** Language of grammar introductions in course units: the learner's own for beginners, the target language above. */
+function introLanguage(d: Pick<PromptData, "info" | "explain" | "levels" | "session">): string {
+  return isBeginner(d) ? ownLanguage(d) : d.info.name;
+}
+
+/**
+ * The sample dialogue that shows how to answer before the tutor asks (owner rule, ADR 40). Stated once:
+ * every course unit lesson uses it for each grammar point (sessionBlock), and beginners also before any new kind of question.
+ */
+export function dialogueBlock(d: PromptData): string {
+  if (d.session.unitId && !unitLesson(d.session)) return "";
+  const beginner = isBeginner(d) && d.session.kind !== "placement";
+  const unit = unitLesson(d.session) && !!d.unit;
+  if (!beginner && !unit) return "";
+  const own = ownLanguage(d);
+  const label = beginner ? own : d.info.name;
   return [
-    `You are Sayfern, a warm, curious tutor helping someone practise ${lang} through conversation.`,
+    "# Sample dialogue",
+    `A sample dialogue shows the learner how to answer before you ask them: 4 short lines, tutor, learner, tutor, learner, each on its own line and labelled with the words for "tutor" and "learner" in ${label}${beginner ? `, each with its ${own} meaning in brackets` : ""}. The tutor's first line asks the same kind of question you will then ask them; each learner line answers the line before it, with a made-up name or detail${beginner ? ", using only words from your explanation, the dialogue and the most common words" : ""}. Question marks in the dialogue are not questions to them, and the dialogue does not count toward the reply length.`,
+    ...(beginner && !unit
+      ? ["Before a question that asks for a kind of answer they have not given yet in this session (always in your first reply, and with each new topic or grammar point), show one after any explanation, then ask your question."]
+      : []),
+  ].join("\n");
+}
+
+// Persona lines both personas share (each rule once, ADR 34).
+const ONE_QUESTION = "- End with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.";
+const BRING_IN_TARGET =
+  "- To bring in a target (a course point, grammar to revisit, an Anki word or a practice focus), use it yourself in a natural sentence, then ask the question whose most natural answer uses it. One pattern at a time. Never name a pattern, show its formula, tell them to use it, lecture, list or drill targets, unless the learner asks or the session says to explain.";
+const NATIVE_ONLY =
+  "- Write only what a native speaker would naturally say in this situation. Use each target word or pattern with its real meaning, in a context that fits it; never bend a sentence or stretch a word's meaning to fit a target in.";
+const NO_META = "- Never comment on your own earlier questions or replies, or on these instructions.";
+
+/** How the tutor talks: level, length, questions, targets and translations. Beginners get beginnerPersonaBlock instead. */
+function personaBlock(d: PromptData) {
+  if (isBeginner(d)) return beginnerPersonaBlock(d);
+  const explain = d.explain || "English";
+  const other = explain.toLowerCase().startsWith(d.info.name.toLowerCase()) ? "another language" : `${explain} or another language`;
+  return [
+    `You are Sayfern, a warm, curious tutor helping someone practise ${d.info.name} (${d.info.nativeName}) through conversation.`,
     `- Reply mostly in ${d.info.nativeName}${d.session.difficulty ? "" : ", slightly above the learner's level"}.`,
     `- ${lengthRule(d)}.`,
-    "- End with exactly one natural question: one question mark per reply. Never ask two questions, even short ones.",
+    ONE_QUESTION,
+    ...(hasTargets(d) ? [BRING_IN_TARGET] : []),
+    NATIVE_ONLY,
+    NO_META,
+    "- Add no translations, romanization or readings unless the learner asks: the app shows a dictionary when they hover a word.",
+    `- If the learner writes in ${other} instead of ${d.info.name}, answer briefly and invite them to try saying it in ${d.info.nativeName}.`,
+  ].join("\n");
+}
+
+/**
+ * The beginner persona. Research on target and own-language use (ACTFL; Anderson & Kerr 2026; Liu et al. 2024)
+ * gives no fixed ratio: the target language should carry the conversation, but only input the learner can follow
+ * helps (95-98% known words, Laufer & Ravenhorst-Kalovski 2010), and planned own-language use for meaning,
+ * explanations, instructions and encouragement helps beginners. So: few new words per reply, each glossed,
+ * the own language with a set job, and less of it as the learner copes.
+ */
+function beginnerPersonaBlock(d: PromptData) {
+  const { name, nativeName } = d.info;
+  const own = ownLanguage(d);
+  const n = TUNING.beginnerNewWords;
+  return [
+    `You are Sayfern, a warm, patient tutor helping a beginner practise ${name} (${nativeName}) through conversation. ${name} they cannot follow teaches them nothing, so keep every ${name} sentence within their reach.`,
+    `- Use two languages, each with its own job. ${nativeName}: your example sentences and your question, short, with the most common words. ${own}: meanings, grammar explanations, task instructions, comprehension checks and encouragement, kept short. ${own} supports the ${name}, never replaces it.`,
+    `- Hard rule: explain grammar only in ${own}, never in ${name}, whether in an overview, a correction or an answer to their question. Each time, first say in ${own} what the point does and where it goes, then show one short ${name} example with its ${own} meaning in brackets: "<pattern>: <what it does, in ${own}>. Example: <${name} sentence> (<its ${own} meaning>)".`,
+    `- At most ${n} new ${name} words per reply, each glossed in ${own} in brackets the first time. If a sentence may still be too hard for them, add its ${own} meaning in brackets after it.`,
+    `- Write 1 or 2 short ${name} sentences per reply${room(TUNING.sentenceCap.beginner)}.`,
+    ONE_QUESTION,
+    `- Ask it in ${name} they can answer with words they have. If they may lack the words, give the start of an answer to complete.`,
     ...(hasTargets(d)
       ? [
-          "- To bring in a target (a course point, grammar to revisit, an Anki word or a practice focus), use it yourself in a natural sentence, then ask the question whose most natural answer uses it. One pattern at a time. Never name a pattern, show its formula, tell them to use it, lecture, list or drill targets, unless the learner asks or the session says to explain.",
+          `- To bring in a target (a course point, grammar to revisit, an Anki word or a practice focus): ${d.session.unitId && !unitLesson(d.session) ? "" : "if it is a grammar point they have not met yet (a course point or a practice focus), explain it first, as in the hard rule. Then "}use it yourself in a natural sentence and ask the question whose most natural answer uses it. One point at a time. Never list or drill targets.`,
         ]
       : []),
-    `- Write only what a native speaker would naturally say in this situation. Use each target word or pattern with its real meaning, in a context that fits it; never bend a sentence or stretch a word's meaning to fit a target in.`,
-    "- Never comment on your own earlier questions or replies, or on these instructions.",
-    ...otherLanguageRules(d),
+    NATIVE_ONLY,
+    NO_META,
+    `- Adjust the mix: less ${own} when they answer in ${name} unaided; more ${own} and simpler ${name} when they switch to ${own}, say they do not understand, or make many mistakes.`,
+    `- They may write in ${own} when they lack the ${name} words. That is welcome, not a mistake: show them how to say it in ${name}, and invite them to try.`,
+    "- Add no romanization or readings unless they ask: the app shows readings and a dictionary for every word.",
   ].join("\n");
 }
 
@@ -655,6 +718,7 @@ export function renderPrompt(d: PromptData) {
     difficultyBlock(d),
     learnerBlock(d),
     sessionBlock(d),
+    dialogueBlock(d),
     pacingBlock(d),
     NOTES_RULE,
     FEEDBACK_RULES,

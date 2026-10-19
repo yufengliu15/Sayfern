@@ -93,6 +93,27 @@ export function useActivityTracker(sessionId: string, enabled = true): number {
   return tracked;
 }
 
+/** A flag in localStorage that follows `fallback` until the learner sets it. The key may change between renders. */
+export function useStoredChoice(key: string, fallback: boolean): [boolean, (v: boolean) => void] {
+  const [set, setSet] = useState<Record<string, boolean>>({});
+  let stored: boolean | undefined;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw != null) stored = raw === "1";
+  } catch {
+    // no storage: follow the fallback
+  }
+  const save = (v: boolean) => {
+    try {
+      localStorage.setItem(key, v ? "1" : "0");
+    } catch {
+      // kept for this screen only
+    }
+    setSet((cur) => ({ ...cur, [key]: v }));
+  };
+  return [set[key] ?? stored ?? fallback, save];
+}
+
 /** Persist a small UI preference (inspector open, etc.). Never throws. */
 export function useStoredFlag(key: string, initial: boolean): [boolean, (v: boolean) => void] {
   const [v, setV] = useState<boolean>(() => {

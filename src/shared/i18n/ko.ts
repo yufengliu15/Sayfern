@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "목적과 노력",
   "Proverbs and idioms": "속담과 관용어",
   "Formal speeches and reports": "격식 있는 연설과 보고",
-  "Go over this unit's grammar quickly first?": "먼저 이 단원의 문법을 빠르게 훑어볼까요?",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "튜터가 각 문형을 짧게 정리한 뒤 대화를 시작합니다. 복습용 안내일 뿐, 교재를 대신하지는 않습니다.",
-  "Yes, go over it": "네, 훑어볼게요",
-  "No, start talking": "아니요, 바로 대화할게요",
+  "Begin Course?": "코스를 시작할까요?",
+  "Begin Lesson": "레슨 시작",
+  "More practice": "더 연습하기",
   "The present simple": "단순 현재",
   "Saying no and not": "no와 not으로 부정하기",
   "Noun phrases": "명사구",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "다운로드",
   "Couldn't check for updates. Check your internet connection and try again.": "업데이트를 확인할 수 없습니다. 인터넷 연결을 확인한 뒤 다시 시도하세요.",
   "{level} ({band})": "{level} ({band})",
+  "Count me as a weekly user": "주간 사용자로 집계",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Sayfern은 일주일에 한 번 익명 신호를 보내 개발자가 사용자 수를 알 수 있게 합니다. 무작위 ID, 앱 버전, 운영체제만 보냅니다. 메시지나 기록은 절대 보내지 않습니다.",
 };
 
 export default catalog;

@@ -18,7 +18,8 @@ import { stopStream } from "../lib/chatStream";
 import { cls, fmtUsage, KIND_LABEL, fontOf } from "../lib/format";
 import { STARTERS } from "../lib/samples";
 import { uiLocaleInfo } from "../../../shared/locales";
-import { useActivityTracker, useStoredFlag } from "../lib/hooks";
+import { hasRuby } from "../../../shared/languages";
+import { useActivityTracker, useStoredChoice, useStoredFlag } from "../lib/hooks";
 import { useChat } from "../lib/useChat";
 import { useAutoSpeak } from "../lib/voice";
 import { grammarRoute, readerRoute, sessionRoute, type Navigate } from "../router";
@@ -48,6 +49,8 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
   const composer = useRef<ComposerHandle>(null);
   const tracked = useActivityTracker(id, !!view);
   useAutoSpeak(id, messages, view?.meta.language ?? appLanguage, !!view);
+  // Pinyin or furigana above the tutor's words: on for beginners until the learner turns it off.
+  const [ruby, setRuby] = useStoredChoice(`sayfern.chatRuby.${view?.meta.language ?? appLanguage}`, !!view?.beginner);
 
   useEffect(() => {
     stick.current = true;
@@ -272,6 +275,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           <div className="col">
             <MessageList
               language={L}
+              ruby={hasRuby(L) && ruby}
               messages={messages}
               corrections={corrections}
               targets={targets}
@@ -302,6 +306,7 @@ export function SessionScreen({ id, language: appLanguage, navigate }: SessionSc
           {!meta.endedAt && meta.kind !== "placement" && (
             <SessionTools
               difficulty={meta.difficulty ?? 0}
+              ruby={hasRuby(L) ? { on: ruby, language: L, onChange: setRuby } : undefined}
               onDifficulty={(d) => void setDifficulty(d)}
               onNewTopic={meta.kind === "chat" || meta.kind === "practice" ? newTopic : undefined}
               busy={busy}

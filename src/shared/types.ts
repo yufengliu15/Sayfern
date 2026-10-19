@@ -99,6 +99,12 @@ export interface Settings {
   voice?: Partial<VoicePrefs>;
   /** Local servers by engine. Absent = not connected. */
   localServers?: Partial<Record<LocalEngineId, { baseUrl: string; apiKey?: string }>>;
+  /** Weekly anonymous ping to count weekly users (src/core/ping). Absent = on. */
+  sendWeeklyPing?: boolean;
+  /** Random id the weekly ping sends. Not deviceId, so the ping can't be linked to a ChatGPT sign-in. */
+  pingId?: string;
+  /** When the last weekly ping was sent (ms). */
+  lastPingAt?: number;
   /** v0.1 sessions (<userData>/sessions) were imported into records once. */
   legacyImported?: boolean;
 }

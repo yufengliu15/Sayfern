@@ -21,8 +21,8 @@ export const TUNING = {
   ankiHardest: 5,
   /** Upcoming new Anki words named in the prompt. Not measured. */
   ankiNextNew: 8,
-  /** Position on the level scale (0 bottom, 1 top) below which the learner is a beginner. Not measured. */
-  beginnerBelow: 0.25,
+  /** New target-language words per reply in the beginner persona, each glossed. Not measured: research gives no number. */
+  beginnerNewWords: 2,
   /** Position on the level scale below which replies stay at 2 or 3 sentences. Not measured. */
   midBelow: 0.6,
   /** Hard cap on sentences when a reply brings in a target, by level. Measured: bench run 2026-10-08T05-41-04 (v0.16.1). */

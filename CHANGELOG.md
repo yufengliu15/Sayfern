@@ -4,12 +4,33 @@ Sayfern follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 While the major version is 0, minor versions add features and patch versions fix bugs.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.34.0] - 2026-10-19
 
-## [0.33.0] - 2026-10-18
+### Added
+
+- **Weekly user count.** Once a week, Sayfern sends one anonymous event to PostHog with a random ID, the app version and your operating system, so the developer knows how many people use it. Nothing about your learning is sent. Turn it off on the welcome page or in Settings > Preferences ("Count me as a weekly user"). Only installed copies send it.
+- **New session button.** A "New session" button now sits under the logo, above Course, in the colour of the old language button. It does the same as ⌘N.
+- **Beginner tutor.** Beginners now get their own tutor instructions. The tutor uses your language for meanings, short explanations, instructions and encouragement, and the language you learn for example sentences and the question. It always explains grammar in your language, then gives one short example with its meaning, also before it uses a new grammar point. Before it asks you something new, it shows a short sample dialogue (tutor, learner, tutor, learner, each line with its meaning), so you see how to answer. It brings in at most 2 new words per reply, each with its meaning in brackets, helps you start an answer when you may lack the words, and uses less of your language as you cope. A learner with no level yet starts with this tutor. Based on research on target-language and own-language use (ADR 40). Intermediate and advanced learners keep the same instructions, now without the beginner lines.
+- **Course units show how to answer, at every level.** In a course unit, each grammar point now comes in three steps: a short introduction (in your language at Beginner level, in the language you learn above), a sample dialogue that uses it, then the tutor's question, of the same kind as in the dialogue. "Go over the grammar first" uses the same language as the introductions.
+- **Pinyin and furigana in the chat.** For beginners in Chinese and Japanese, the chat shows pinyin or furigana above the tutor's words. The Pinyin (or Furigana) button above the message box turns it on or off, for each language. Sayfern computes the readings itself, so they are always correct.
 
 ### Changed
 
+- **Begin Course?** Before a course unit (Course screen and Today), Sayfern now asks "Begin Course?" with two buttons. "Begin Lesson" works as "Yes, go over it" did: a short overview of the unit's grammar, then each point with an introduction, a sample dialogue and a question. "More practice" starts the conversation at once, with no overview, introductions or sample dialogues. Updated in all 13 interface languages.
+
+### Fixed
+
+- **Unit overview language.** "Go over the grammar first" in a course unit, and "explain again" for a pattern, now explain in your interface language. Before, the tutor could write the whole overview in the language you learn.
+
+## [0.33.0] - 2026-10-18
+
+### Added
+
+- **Level bands.** Every level now shows its band: "A2 (Beginner)", "N3 (Intermediate)", "HSK 7-9 (Advanced)", in the level pickers, Today, Course and Settings.
+
+### Changed
+
+- **Bands follow each exam.** CEFR A1-A2, B1-B2, C1-C2; JLPT N5-N4, N3-N2, N1; HSK 1-3, 4-6, 7-9 (the official HSK 3.0 bands); TOPIK 1-2, 3-4, 5-6. A placement chat starts in these bands, and every level in the Beginner band gets the beginner tutor (before, only the bottom quarter of the scale did).
 - **Sidebar header.** The Sayfern logo is now the language picker. Click the logo (it shows the current language below the name and a down arrow) to open "Your languages". The separate language button is gone.
 - **Home button.** A home icon beside the logo opens Today (⌘1 still works). Today is no longer a row in the sidebar list.
 - **Recent sessions.** The sidebar heading "Recent" is now "Recent sessions".

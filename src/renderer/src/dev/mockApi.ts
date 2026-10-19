@@ -44,7 +44,7 @@ import { createVoiceMock } from "./mockVoice";
 import { createQuizMock } from "./mockQuiz";
 import { createReviewMock } from "./mockReview";
 import { everyLanguage, type MockSessionRec, type MockWorld } from "./mockWorld";
-import { LANGUAGE_META, languageInfo } from "../../../shared/languages";
+import { LANGUAGE_META, languageInfo, levelBand } from "../../../shared/languages";
 import { matchLocale } from "../../../shared/locales";
 import { LANGUAGES } from "../../../shared/records";
 import { buildCourseView, findUnit } from "../../../shared/course";
@@ -1044,6 +1044,13 @@ export function createMockApi(): SayfernApi {
     };
   };
 
+  // Same rule as isBeginner (src/core/agent/prompt.ts), from the writing estimate.
+  const mockBeginner = (m: SessionMeta) => {
+    if (m.kind === "placement" && m.levelBand) return m.levelBand === "beginner";
+    const level = levels.find((l) => l.language === m.language && l.skill === "writing")?.level;
+    return !level || levelBand(level) === "beginner";
+  };
+
   const view = (id: string): SessionView => {
     const s = sessions.get(id)!;
     const gids = new Set(s.grammarIds);
@@ -1055,6 +1062,7 @@ export function createMockApi(): SayfernApi {
       targets: s.targets,
       grammarInPlay: [...gids].filter((g) => grammar.has(g)).map(summarize),
       doc: s.meta.docId ? docs.find((d) => d.id === s.meta.docId) : undefined,
+      beginner: mockBeginner(s.meta),
     });
   };
 

@@ -1,7 +1,8 @@
-// Above the composer: "New topic" (the tutor drops the current topic and opens a fresh one) and
-// the "Go easier / go harder" slider (SessionMeta.difficulty, read by the tutor's next reply).
+// Above the composer: "New topic" (the tutor drops the current topic and opens a fresh one), the
+// pinyin / furigana switch (Chinese and Japanese) and the "Go easier / go harder" slider
+// (SessionMeta.difficulty, read by the tutor's next reply).
 import { useEffect, useState } from "react";
-import type { Difficulty } from "../../../shared/records";
+import type { Difficulty, Language } from "../../../shared/records";
 import { cls } from "../lib/format";
 import { msg, t } from "../i18n";
 import { Icon } from "./icons";
@@ -21,9 +22,11 @@ export interface SessionToolsProps {
   onNewTopic?: () => void;
   busy: boolean;
   disabled?: boolean;
+  /** Readings above the tutor's words; omit for languages without them. */
+  ruby?: { on: boolean; language: Language; onChange(on: boolean): void };
 }
 
-export function SessionTools({ difficulty, onDifficulty, onNewTopic, busy, disabled }: SessionToolsProps) {
+export function SessionTools({ difficulty, onDifficulty, onNewTopic, busy, disabled, ruby }: SessionToolsProps) {
   // Local value while dragging; saved on release so one drag is one save.
   const [value, setValue] = useState<Difficulty>(difficulty);
   useEffect(() => setValue(difficulty), [difficulty]);
@@ -42,6 +45,16 @@ export function SessionTools({ difficulty, onDifficulty, onNewTopic, busy, disab
         >
           <Icon name="refresh" size={13} />
           <span>{t("New topic")}</span>
+        </button>
+      )}
+      {ruby && (
+        <button
+          className={cls("chip chip-s", ruby.on && "on")}
+          aria-pressed={ruby.on}
+          title={ruby.language === "ja" ? t("Show furigana above words") : t("Show pinyin above words")}
+          onClick={() => ruby.onChange(!ruby.on)}
+        >
+          {ruby.language === "ja" ? t("Furigana") : t("Pinyin")}
         </button>
       )}
       <label className="stools-diff" title={t("Applies from the tutor's next reply")}>

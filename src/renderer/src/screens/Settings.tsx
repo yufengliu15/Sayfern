@@ -914,6 +914,11 @@ function PreferencesTab({ navigate }: { navigate: Navigate }) {
         </Row>
       </Group>
       <UpdatesGroup />
+      <Group>
+        <Row label={t("Count me as a weekly user")} hint={t("Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.")}>
+          <Switch checked={app.settings.sendWeeklyPing !== false} onChange={(v) => void app.updateSettings({ sendWeeklyPing: v })} label={t("Count me as a weekly user")} />
+        </Row>
+      </Group>
       {import.meta.env.DEV && (
         <Group title={t("Debug")}>
           <Row label={t("Welcome page")} hint={t("Only in dev builds. Opens the first-run welcome page again. Finishing it saves its choices like a real first run.")}>

@@ -38,7 +38,7 @@ test("system prompt: persona, level, learner, follow-ups (skipping focus), targe
   const session = (await h.records.getSession(sid))!;
   const p = await buildSystemPrompt(h.deps, session);
 
-  assert.match(p, /warm, curious tutor/);
+  assert.match(p, /warm, patient tutor helping a beginner/, "no level yet: the beginner persona");
   assert.match(p, /simplified characters/); // pack.promptNotes()
   assert.match(p, /Level: unknown\. Start simple/);
   assert.match(p, /Name: Yu/);
@@ -48,7 +48,7 @@ test("system prompt: persona, level, learner, follow-ups (skipping focus), targe
   assert.match(follow, /除了…还…/);
   assert.match(follow, /了 \(completed 了\)/);
   assert.doesNotMatch(follow, /ba construction/, "session focus is not a follow-up");
-  assert.match(p, /Never name a pattern/);
+  assert.match(p, /grammar point they have not met yet .* explain it first/, "beginners: new grammar is explained before it is used");
   // the recent miss leads, with the learner's own words and where it happened
   assert.match(follow, /\n1\. 了 \(completed 了\), .*Last missed in an earlier session \(under an hour ago\): "去了了"/);
   assert.match(follow, /Item 1 is the priority/);
@@ -113,7 +113,7 @@ test("placement: the picked band sets where the diagnostic starts; beginners may
   assert.match(beginner, /Start at the very bottom \(HSK 1, HSK 2, HSK 3\)/);
   assert.match(beginner, /stop after 2 or 3 tasks/);
   assert.match(beginner, /record HSK 1 for all three skills/);
-  assert.match(beginner, /they may write in English when they lack the Chinese words/);
+  assert.match(beginner, /They may write in English when they lack the Chinese words/);
   assert.doesNotMatch(beginner, /invite them to try saying it/);
 
   const intermediate = await prompt("intermediate");
@@ -123,17 +123,64 @@ test("placement: the picked band sets where the diagnostic starts; beginners may
   assert.match(await prompt("advanced"), /says they are advanced\. Start around HSK 7-9/);
 });
 
-test("beginner rule follows the level estimate outside placement", async () => {
+test("beginner persona: every level in the Beginner band, nothing of it in the standard persona", async () => {
   const h = makeHarness();
   const sid = await h.newSession("chat");
   const p = async () => buildSystemPrompt(h.deps, (await h.records.getSession(sid))!);
-  assert.doesNotMatch(await p(), /They are a beginner/, "unknown level: no beginner rule");
+  const at = async (level: string) => {
+    for (const skill of ["reading", "recognition", "writing"] as const)
+      await h.records.recordLevel({ language: "zh", skill, level, confidence: "low", evidence: "", examples: [], at: 1, by: "self" });
+    return p();
+  };
+  assert.match(await p(), /helping a beginner/, "no level yet: beginner persona");
+  for (const level of ["HSK 1", "HSK 3"]) {
+    const beginner = await at(level);
+    assert.match(beginner, /helping a beginner practise Chinese/, level);
+    assert.match(beginner, new RegExp(`At most ${TUNING.beginnerNewWords} new Chinese words per reply`));
+    assert.match(beginner, /glossed in English in brackets/);
+    assert.match(beginner, /Write 1 or 2 short Chinese sentences per reply/);
+    assert.doesNotMatch(beginner, /slightly above|Reply mostly in|Add no translations/);
+  }
+  const unit = await buildSystemPrompt(h.deps, await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk30-1-02", openWith: "explain" } as never));
+  assert.match(unit, /Hard rule: explain grammar only in English, never in Chinese/);
+  assert.match(unit, /if it is a grammar point they have not met yet .* explain it first/);
+  assert.match(unit, /what it does in plain English/, "the unit overview names the explanation language");
+  assert.match(unit, /1\. Introduction: what the point does and where it goes, in English/);
+  assert.match(unit, /4 short lines, tutor, learner, tutor, learner/);
+  assert.match(unit, /each with its English meaning in brackets/);
+  assert.match(unit, /each learner line answers the line before it/);
+  const placement = await buildSystemPrompt(h.deps, (await h.records.getSession(await h.newSession("placement", { levelBand: "beginner" })))!);
+  assert.match(placement, /helping a beginner/);
+  assert.doesNotMatch(placement, /sample dialogue/, "placement shows no model answers: it measures what they know");
+  const standard = await at("HSK 4");
+  assert.match(standard, /Reply mostly in 中文, slightly above the learner's level/);
+  assert.doesNotMatch(standard, /beginner|gloss|in brackets/i, "no beginner rules in the standard persona");
+});
+
+test("course units: introduction, sample dialogue, then the question, at every level", async () => {
+  const h = makeHarness();
   for (const skill of ["reading", "recognition", "writing"] as const)
-    await h.records.recordLevel({ language: "zh", skill, level: "HSK 1", confidence: "low", evidence: "", examples: [], at: 1, by: "self" });
-  const beginner = await p();
-  assert.match(beginner, /They are a beginner/);
-  assert.match(beginner, /short English gloss in brackets/);
-  assert.doesNotMatch(beginner, /Add no translations/);
+    await h.records.recordLevel({ language: "zh", skill, level: "HSK 4", confidence: "medium", evidence: "", examples: [], at: 1, by: "self" });
+  const unit = await buildSystemPrompt(h.deps, await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk30-4-01", openWith: "explain" } as never));
+  assert.match(unit, /what it does in plain Chinese/, "the overview is in the target language above beginner");
+  assert.match(unit, /1\. Introduction: what the point does and where it goes, in Chinese/);
+  assert.match(unit, /2\. A sample dialogue/);
+  assert.match(unit, /3\. Your question to them, of the same kind as the dialogue's first tutor line/);
+  assert.match(unit, /The one exception: in this course unit, introduce each grammar point in Chinese/);
+  assert.match(unit, /labelled with the words for "tutor" and "learner" in Chinese\./, "no glosses above beginner");
+  const chat = await buildSystemPrompt(h.deps, (await h.records.getSession(await h.newSession("chat")))!);
+  assert.doesNotMatch(chat, /Sample dialogue|The one exception/, "outside units, intermediate learners get no dialogue");
+});
+
+test("course units, More practice: straight into conversation, no overview, introductions or dialogue", async () => {
+  const h = makeHarness();
+  for (const skill of ["reading", "recognition", "writing"] as const)
+    await h.records.recordLevel({ language: "zh", skill, level: "HSK 4", confidence: "medium", evidence: "", examples: [], at: 1, by: "self" });
+  const unit = await buildSystemPrompt(h.deps, await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk30-4-01" } as never));
+  assert.match(unit, /# Session: course unit \(more practice\)/);
+  assert.match(unit, /Start the conversation at once: no overview, no introductions, no sample dialogues/);
+  assert.match(unit, /about \d+ exchanges on it/, "the move-on rule still applies");
+  assert.doesNotMatch(unit, /quick overview|1\. Introduction|# Sample dialogue|The one exception/);
 });
 
 test("follow-up verdicts ignore quiz evidence (S2-09)", () => {
@@ -249,13 +296,11 @@ test("reply length grows with the level", () => {
   const info = languageInfo("zh");
   const at = (level?: string) => lengthRule({ info, levels: level ? { writing: { level } as never } : {} });
   assert.match(at(), /1 to 3 short sentences/);
-  assert.match(at("HSK 1"), /1 or 2 short sentences/);
   assert.match(at("HSK 3"), /2 or 3 sentences/);
   assert.match(at("HSK 6"), /2 to 4 sentences/);
   assert.match(lengthRule({ info: languageInfo("es"), levels: { writing: { level: "B2" } as never } }), /2 to 4 sentences/);
   // More room only to set up a target, with a hard cap that also grows with the level.
   assert.match(at(), /up to 5 sentences in all/);
-  assert.match(at("HSK 1"), /up to 4 sentences in all/);
   assert.match(at("HSK 3"), /up to 6 sentences in all/);
   assert.match(at("HSK 6"), /up to 8 sentences in all/);
 });
@@ -268,7 +313,7 @@ test("course block: next unit and its open points in chat; Beta languages say th
   assert.match(p, /# Course \(HSK 3.0 grammar syllabus: all 573 points/);
   assert.match(p, /Up next for them: unit zh-hsk30-3-01 "Verbs" \(HSK 3\)/);
   assert.match(p, /- 敢 \+ V \(dare with 敢, id zh:gan-dare\)/);
-  assert.match(p, /Write 2 or 3 sentences/);
+  assert.match(p, /Write 1 or 2 short Chinese sentences/, "HSK 3 is in the Beginner band");
   const practice = await h.newSession("practice");
   assert.doesNotMatch(await buildSystemPrompt(h.deps, (await h.records.getSession(practice))!), /# Course/);
   const ko = await h.records.createSession({ language: "ko", kind: "chat", feedbackMode: "inline" });
@@ -331,7 +376,7 @@ function situations(h: Harness) {
     bare: base("zh"),
     chatFull: withCourse(
       base("zh", {
-        levels: estimates("HSK 3"),
+        levels: estimates("HSK 4"),
         followUps: [point("zh:le", "了", "completed 了", "with_help"), point("zh:chule-hai", "除了…还…", "besides A, also B", "introduced")],
         lastMisses: new Map([["zh:le", { sessionId: "s0", span: "去了了", at: NOW - 3_600_000 * 30 } as never]]),
         targets: [{ word: "咖啡", reading: "kāfēi", meaning: "coffee", reason: "recent", status: "pending" }],
@@ -341,17 +386,17 @@ function situations(h: Harness) {
       }),
     ),
     unitExplain: {
-      ...base("zh", { levels: estimates("HSK 3"), session: { kind: "practice", unitId: unit.id, openWith: "explain" }, pacing: { turnsOnTopic: 2, cleanStreak: 1, recentLength: 10 } }),
+      ...base("zh", { levels: estimates("HSK 4"), session: { kind: "practice", unitId: unit.id, openWith: "explain" }, pacing: { turnsOnTopic: 2, cleanStreak: 1, recentLength: 10 } }),
       unit: { unit, states: grammarStates([]) },
     },
     targeted: base("zh", {
-      levels: estimates("HSK 3"),
+      levels: estimates("HSK 4"),
       session: { kind: "practice", focusGrammarId: "zh:ba" },
       focus: { id: "zh:ba", language: "zh", pattern: "把", name: "ba construction" } as never,
       pacing: { turnsOnTopic: 2, cleanStreak: 0, recentLength: 10 },
     }),
     reading: base("zh", {
-      levels: estimates("HSK 3"),
+      levels: estimates("HSK 4"),
       session: { kind: "reading", docId: "d1" },
       reading: { doc: { id: "d1", title: "小王子" } as never, current: 1, paragraphs: [{ index: 0, text: "第零段。" }, { index: 1, text: "第一段。" }] as never },
     }),
@@ -366,7 +411,14 @@ function situations(h: Harness) {
 // so a duplicated rule or a new paragraph shows up here.
 // ADR 39 split the prompt into a cached system prompt and per-reply notes: chat prompts now carry the pacing rules
 // from the first turn and the notes rule, so bare grew to 4591 (system 4114, notes 475); the others stayed in budget.
-const BUDGET = { bare: 5050, chatFull: 7800, unitExplain: 6450, targeted: 5200, reading: 4250, placementBeginner: 5500, roleplayGerman: 4870, jaBeginner: 5000, tools: 3490 };
+// The beginner persona (v0.33.0) replaced two beginner lines with its own block (two-language jobs, new-word cap,
+// answer starts, adjusting the mix): placementBeginner grew to 5686, jaBeginner to 5689. The standard prompts did not change.
+// A learner with no level now gets the beginner persona too: bare (no level) grew to 5439.
+// The beginner hard rule (grammar in their language) and the sample dialogue before a new kind of question:
+// bare 6535, jaBeginner 6793, placementBeginner 6033 (placement has no dialogue).
+// Course units introduce each point in three steps (introduction, sample dialogue, question) at every level, with
+// the dialogue format in its own block: unitExplain 7320; the beginner sizes moved little (bare 6636, jaBeginner 6894).
+const BUDGET = { bare: 7200, chatFull: 7800, unitExplain: 8050, targeted: 5200, reading: 4250, placementBeginner: 6650, roleplayGerman: 4870, jaBeginner: 7450, tools: 3490 };
 
 test("prompt snapshot: size budget, no rule written twice, every rule group still present", async () => {
   const h = makeHarness();
@@ -428,6 +480,6 @@ test("prompt snapshot: size budget, no rule written twice, every rule group stil
   assert.doesNotMatch(renderSystemPrompt(all.unitExplain), /Move on when the topic is used up/, "a unit session has one move-on rule");
   assert.doesNotMatch(renderSystemPrompt(all.roleplayGerman), /Move on when the topic is used up/, "a role-play ends with the scene");
   assert.match(renderSystemPrompt(all.targeted), /After two misses/);
-  assert.match(renderSystemPrompt(all.jaBeginner), /No full translations, romanization or readings unless they ask/);
+  assert.match(renderSystemPrompt(all.jaBeginner), /Add no romanization or readings unless they ask/);
   assert.doesNotMatch(renderSystemPrompt(all.reading), /Never name a pattern/, "no targets, no bring-in rule");
 });

@@ -1,5 +1,5 @@
-// Asked before a course unit starts: a quick overview of the unit's grammar first, or straight into
-// the conversation. The answer goes on the session (startUnit's `explain`), so the tutor's opening carries it.
+// Asked before a course unit starts: "Begin Lesson" (an overview of the unit's grammar, then each point taught)
+// or "More practice" (straight into the conversation). The answer goes on the session (startUnit's `explain`).
 import { useEffect, useRef } from "react";
 import type { UnitView } from "../../../shared/course";
 import { cls } from "../lib/format";
@@ -39,14 +39,13 @@ export function UnitStart({ unit, fontClass, busy, onStart, onClose }: UnitStart
           </button>
         </header>
         <p className={cls("cr-ask-pats", fontClass)}>{unit.patterns.join(" · ")}</p>
-        <p className="cr-ask-q">{t("Go over this unit's grammar quickly first?")}</p>
-        <p className="muted cr-ask-n">{t("The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.")}</p>
+        <p className="cr-ask-q">{t("Begin Course?")}</p>
         <div className="cr-ask-a">
           <button className="btn btn-p" disabled={busy} onClick={() => onStart(true)}>
-            {busy ? t("Starting…") : t("Yes, go over it")}
+            {busy ? t("Starting…") : t("Begin Lesson")}
           </button>
           <button className="btn btn-f" disabled={busy} onClick={() => onStart(false)}>
-            {t("No, start talking")}
+            {t("More practice")}
           </button>
         </div>
       </div>

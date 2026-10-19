@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "目的と努力",
   "Proverbs and idioms": "ことわざと慣用句",
   "Formal speeches and reports": "改まったスピーチと報告",
-  "Go over this unit's grammar quickly first?": "先にこのユニットの文法をざっと確認しますか？",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "チューターが各文型を短くまとめてから会話を始めます。おさらい用で、教科書の代わりにはなりません。",
-  "Yes, go over it": "はい、確認する",
-  "No, start talking": "いいえ、すぐ話す",
+  "Begin Course?": "コースを始めますか？",
+  "Begin Lesson": "レッスンを始める",
+  "More practice": "もっと練習する",
   "The present simple": "現在形",
   "Saying no and not": "no と not で否定する",
   "Noun phrases": "名詞句",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "ダウンロード",
   "Couldn't check for updates. Check your internet connection and try again.": "アップデートを確認できませんでした。インターネット接続を確認して、もう一度お試しください。",
   "{level} ({band})": "{level}（{band}）",
+  "Count me as a weekly user": "週ごとの利用者として数える",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Sayfern は週に一度、匿名の信号を送り、利用者の数を開発者に知らせます。送るのはランダムな ID、アプリのバージョン、OS だけです。メッセージや記録は送りません。",
 };
 
 export default catalog;

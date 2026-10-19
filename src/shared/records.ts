@@ -40,7 +40,7 @@ export interface SessionMeta {
   /** practice sessions: the course unit to work through (src/shared/course). */
   unitId?: string;
   /** practice sessions: how the tutor opens. "explain" = a fresh explanation of the focus pattern with a new example first;
-   *  in a course unit session, a short overview of the unit's grammar points first. */
+   *  in a course unit session, "Begin lesson": an overview of the unit's grammar, then each point taught. Absent: "More practice". */
   openWith?: "explain";
   /** reading sessions: the document being read (S1-11). */
   docId?: string;

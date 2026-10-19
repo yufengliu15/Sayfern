@@ -292,6 +292,16 @@ html:lang(vi) { --serif: Georgia, "Times New Roman", serif; --sans: -apple-syste
 .ldd .sep { height: 1px; background: var(--line-3); margin: 4px 6px; }
 .ldd .add { color: var(--fern); font-size: 13.5px; font-weight: 500; height: 40px; padding: 0 10px; }
 
+/* Same paper card as the old language dropdown, so it stands out on the forest sidebar. */
+.new-session {
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 0; border-radius: 14px;
+  background: var(--paper); color: var(--ink); font-size: 14.5px; font-weight: 600; text-align: left;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--shadow-ink) 55%, transparent);
+}
+.new-session:hover { background: var(--white); }
+.new-session svg { color: var(--fern-dark); }
+.new-session .k { margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); }
+
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav button {
   display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 10px; border-radius: 9px; color: color-mix(in srgb, var(--side-ink) 80%, transparent);
@@ -1310,6 +1320,9 @@ mark.pm { color: var(--fern-dark); background: linear-gradient(transparent 60%, 
 .band-lv { font-size: 12px; font-weight: 600; color: var(--fern); }
 .band small { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .wextras { display: flex; flex-wrap: wrap; gap: 8px; }
+.wping { display: flex; align-items: flex-start; gap: 16px; margin-top: 16px; }
+.wping-l { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.wping .wstep-sub { margin-top: 2px; }
 .chip.static { cursor: default; }
 .wfoot { display: flex; align-items: center; gap: 10px; padding: 18px 32px 24px; border-top: 1px solid var(--line-3); }
 .wfoot .muted { margin-right: auto; white-space: nowrap; }

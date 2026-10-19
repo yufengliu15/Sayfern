@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "Mục đích và nỗ lực",
   "Proverbs and idioms": "Tục ngữ và thành ngữ",
   "Formal speeches and reports": "Bài phát biểu và báo cáo trang trọng",
-  "Go over this unit's grammar quickly first?": "Ôn nhanh ngữ pháp của bài này trước nhé?",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "Gia sư sẽ tóm tắt ngắn từng mẫu câu rồi bắt đầu trò chuyện. Đây chỉ là phần nhắc lại, không thay thế giáo trình của bạn.",
-  "Yes, go over it": "Có, ôn nhanh",
-  "No, start talking": "Không, nói chuyện luôn",
+  "Begin Course?": "Bắt đầu khóa học?",
+  "Begin Lesson": "Bắt đầu bài học",
+  "More practice": "Luyện tập thêm",
   "The present simple": "Hiện tại đơn",
   "Saying no and not": "Phủ định với no và not",
   "Noun phrases": "Cụm danh từ",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "Tải về",
   "Couldn't check for updates. Check your internet connection and try again.": "Không thể kiểm tra cập nhật. Hãy kiểm tra kết nối mạng rồi thử lại.",
   "{level} ({band})": "{level} ({band})",
+  "Count me as a weekly user": "Tính tôi là người dùng hằng tuần",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Mỗi tuần một lần, Sayfern gửi một tín hiệu ẩn danh để nhà phát triển biết có bao nhiêu người dùng: một ID ngẫu nhiên, phiên bản ứng dụng và hệ điều hành của bạn. Không bao giờ gửi tin nhắn hay dữ liệu học của bạn.",
 };
 
 export default catalog;

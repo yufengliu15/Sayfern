@@ -45,7 +45,7 @@ export function kickoffText(session: SessionMeta, opts: { topicQuestion?: string
     return "(The learner started a course unit and asked for a quick overview of its grammar first. Give the short overview, then open the conversation. Start.)";
   }
   if (session.kind === "practice" && session.unitId) {
-    return "(The learner started a course unit. Open with a situation from the unit that fits them, and bring in its first grammar point. Start.)";
+    return "(The learner started a course unit for more practice. Open the conversation at once with a situation from the unit that fits them, and bring in its first grammar point. Start.)";
   }
   if (session.kind === "practice" && session.openWith === "explain") {
     return "(The learner opened a practice session and asked you to explain the focus pattern again, with a new example. Start.)";

@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "Propósito y esfuerzo",
   "Proverbs and idioms": "Refranes y modismos",
   "Formal speeches and reports": "Discursos e informes formales",
-  "Go over this unit's grammar quickly first?": "¿Repasamos rápido la gramática de esta unidad primero?",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "El tutor resume brevemente cada estructura y luego empieza la conversación. Es un recordatorio, no sustituye a tu libro de texto.",
-  "Yes, go over it": "Sí, repasarla",
-  "No, start talking": "No, empezar a hablar",
+  "Begin Course?": "¿Empezar el curso?",
+  "Begin Lesson": "Empezar la lección",
+  "More practice": "Más práctica",
   "The present simple": "El presente simple",
   "Saying no and not": "Negar con no y not",
   "Noun phrases": "Sintagmas nominales",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "Descargar",
   "Couldn't check for updates. Check your internet connection and try again.": "No se pudieron buscar actualizaciones. Comprueba tu conexión a Internet y vuelve a intentarlo.",
   "{level} ({band})": "{level} ({band})",
+  "Count me as a weekly user": "Contarme como usuario semanal",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Una vez a la semana, Sayfern envía una señal anónima para que el desarrollador sepa cuántas personas lo usan: un ID aleatorio, la versión de la app y tu sistema operativo. Nunca tus mensajes ni tus registros.",
 };
 
 export default catalog;

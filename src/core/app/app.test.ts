@@ -376,6 +376,16 @@ test("setSelfLevel records all three skills; home no longer asks for placement",
   assert.equal((await app.getHome("ja")).needsPlacement, true);
 });
 
+test("session view: beginner with no level or a Beginner-band level, not above", async () => {
+  const { app } = await makeApp({ withModel: false });
+  const beginner = async () => (await app.getSession((await app.newSession({ language: "zh" })).meta.id))!.beginner;
+  assert.equal(await beginner(), true, "no level yet");
+  await app.setSelfLevel("zh", "HSK 3");
+  assert.equal(await beginner(), true, "HSK 3 is in the Beginner band");
+  await app.setSelfLevel("zh", "HSK 4");
+  assert.equal(await beginner(), false);
+});
+
 test("import + reading spot on Today + bad files fail with a clear message", async () => {
   const { app } = await makeApp();
   const file = join(app.dataDir, "story.md");
@@ -561,4 +571,25 @@ test("setDifficulty clamps to -2..2; newTopic streams a tutor turn and blocks se
   assert.equal(done.message.text, "换个话题吧！你喜欢什么音乐？");
   assert.deepEqual(done.view.messages.map((m) => m.role), ["tutor"]);
   await assert.rejects(app.newTopic("nope", ref), /no longer exists/);
+});
+
+test("the weekly ping sends once when startup and the welcome page ask at the same time", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "sayfern-app-"));
+  writeFileSync(join(dir, "settings.json"), JSON.stringify({ language: "zh", languages: ["zh"], onboarded: true }));
+  const posts: string[] = [];
+  const fetch = (async (input: string | URL) => {
+    posts.push(String(input));
+    return new Response("{}");
+  }) as typeof globalThis.fetch;
+  const app = new SayfernApp({
+    dataDir: dir,
+    models: createModels({ credentials: new FileCredentialStore(join(dir, "credentials.json")) }),
+    credentials: new FileCredentialStore(join(dir, "credentials.json")),
+    fetch,
+    emit: () => undefined,
+    ping: { version: "1.0.0", platform: "darwin" },
+  });
+  await Promise.all([app.pingIfDue(), app.pingIfDue()]);
+  await app.pingIfDue();
+  assert.equal(posts.filter((u) => u.includes("posthog")).length, 1);
 });

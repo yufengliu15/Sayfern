@@ -99,6 +99,14 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
         </button>
       </div>
 
+      <button className="new-session" onClick={() => void app.startSession()} title={t("New session ({shortcut})", { shortcut: `${MOD}N` })}>
+        <Icon name="plus" size={17} stroke={2} />
+        <span>{t("New session")}</span>
+        <span className="k" aria-hidden="true">
+          {MOD}N
+        </span>
+      </button>
+
       <div className="nav">
         {NAV.map((n) => {
           const on = route.name === n.name || (n.name === "library" && route.name === "reader") || (n.name === "review" && route.name === "quiz");

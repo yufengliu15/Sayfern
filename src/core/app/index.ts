@@ -52,7 +52,7 @@ import { buildCourseView, findUnit, type CourseView } from "../../shared/course"
 import { findScenario } from "../../shared/scenarios";
 import type { AuthEventPayload, AuthPromptPayload, LocalEngineId, ModelInfo, ModelRef, ProviderInfo, ProviderUsage, Settings, UiLocale } from "../../shared/types";
 import { SayfernTutor } from "../agent";
-import { lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
+import { isBeginner, lastConversationVerdicts, pickFollowUps } from "../agent/prompt";
 import { TARGET_COUNT } from "../agent/turn";
 import { stripPasted } from "../agent/text";
 import { AnkiConnectService } from "../anki";
@@ -71,6 +71,7 @@ import { VOICE_METHODS, type VoiceApi } from "../../shared/stage3";
 import { DECK_METHODS, QUIZ_METHODS, REVIEW_METHODS, type DeckApi, type QuizApi, type ReviewApi } from "../../shared/stage2";
 import { SettingsStore } from "./settings";
 import { meterModels, UsageLog, UsageService } from "../usage";
+import { pingIfDue } from "../ping";
 
 export { SettingsStore, DEFAULT_SETTINGS } from "./settings";
 
@@ -92,6 +93,8 @@ export interface SayfernAppDeps {
   kuromojiDicPath?: string;
   /** The OS's preferred languages, in order (main: app.getPreferredSystemLanguages). Picks the default interface language. */
   systemLocales?: () => readonly string[];
+  /** Packaged builds only (main): turns on the weekly ping (src/core/ping). Absent in dev and tests. */
+  ping?: { version: string; platform: string };
 }
 
 /** Methods that need Electron (dialogs, shell): main implements these itself. */
@@ -142,6 +145,10 @@ export class SayfernApp implements CoreApi {
   private readonly now: () => number;
   private readonly newId: () => string;
   private readonly openUrl?: (url: string) => void;
+  private readonly ping?: SayfernAppDeps["ping"];
+  private readonly pingFetch: typeof fetch;
+  /** The ping in flight: startup and the end of the welcome page can ask at once, and only one may send. */
+  private pinging: Promise<void> | null = null;
 
   private readonly inflight = new Map<string, AbortController>();
   /** Sessions with an opening turn in flight (never start two). */
@@ -170,6 +177,8 @@ export class SayfernApp implements CoreApi {
     this.emitEvent = deps.emit;
     this.newId = deps.newId ?? randomUUID;
     this.openUrl = deps.openExternal;
+    this.ping = deps.ping;
+    this.pingFetch = deps.fetch ?? globalThis.fetch.bind(globalThis);
     const now = this.now;
 
     this.settings = new SettingsStore(join(this.dataDir, "settings.json"), deps.systemLocales);
@@ -247,6 +256,16 @@ export class SayfernApp implements CoreApi {
     for (const info of this.lang.languages()) this.refreshAnki(info.id);
     this.recountWords(this.lang.languages().map((l) => l.id));
     this.ensureDictionaries();
+    void this.pingIfDue();
+  }
+
+  /** The weekly ping, when main turned it on (packaged builds). Main also calls this once a day. Never throws. */
+  pingIfDue(): Promise<void> {
+    if (!this.ping) return Promise.resolve();
+    this.pinging ??= pingIfDue({ settings: this.settings, fetch: this.pingFetch, now: this.now, ...this.ping }).finally(() => {
+      this.pinging = null;
+    });
+    return this.pinging;
   }
 
   /**
@@ -332,6 +351,8 @@ export class SayfernApp implements CoreApi {
     const next = await this.settings.update(patch);
     // A new language or interface language can need a new dictionary.
     if (patch.languages || patch.language || patch.uiLocale || patch.onboarded) void this.ensureDictionaries();
+    // The first ping waits for the welcome page, where the learner can turn it off.
+    if (patch.onboarded || patch.sendWeeklyPing) void this.pingIfDue();
     return next;
   }
 
@@ -539,11 +560,12 @@ export class SayfernApp implements CoreApi {
     const meta = await records.getSession(id);
     if (!meta) return null;
     const language = meta.language;
-    const [messages, corrections, observations, targets] = await Promise.all([
+    const [messages, corrections, observations, targets, levels] = await Promise.all([
       records.getMessages(id),
       records.listCorrections({ language, sessionId: id }),
       records.listObservations({ language, sessionId: id }),
       records.getTargets(id),
+      records.getLevels(language),
     ]);
     for (const m of messages) this.messageSessions.set(m.id, id);
 
@@ -558,7 +580,7 @@ export class SayfernApp implements CoreApi {
       if (s) grammarInPlay.push(s);
     }
 
-    const view: SessionView = { meta, messages, corrections, targets, grammarInPlay };
+    const view: SessionView = { meta, messages, corrections, targets, grammarInPlay, beginner: isBeginner({ levels: levels.current, session: meta }) };
     if (meta.docId) {
       const doc = await this.library.getDoc(meta.docId);
       if (doc) view.doc = doc;
@@ -1054,6 +1076,8 @@ export class SayfernApp implements CoreApi {
   async exportTo(path: string): Promise<{ path: string }> {
     const settings: Partial<Settings> = await this.settings.get();
     delete settings.deviceId;
+    delete settings.pingId;
+    delete settings.lastPingAt;
     delete settings.legacyImported;
     const library: LibraryDoc[] = [];
     for (const info of this.lang.languages()) library.push(...(await this.library.listDocs(info.id)));

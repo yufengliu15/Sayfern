@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "目的和努力",
   "Proverbs and idioms": "俗語和慣用語",
   "Formal speeches and reports": "正式演講和報告",
-  "Go over this unit's grammar quickly first?": "先快速過一遍這個單元的語法嗎？",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "老師會簡短總結每個句型，然後開始對話。這只是提醒，不能取代你的課本。",
-  "Yes, go over it": "好，過一遍",
-  "No, start talking": "不用，直接開始",
+  "Begin Course?": "開始課程？",
+  "Begin Lesson": "開始上課",
+  "More practice": "多練習",
   "The present simple": "現在簡單式",
   "Saying no and not": "用 no 和 not 表示否定",
   "Noun phrases": "名詞片語",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "下載",
   "Couldn't check for updates. Check your internet connection and try again.": "無法檢查更新項目。請檢查網路連線後再試一次。",
   "{level} ({band})": "{level}（{band}）",
+  "Count me as a weekly user": "把我算作每週使用者",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Sayfern 每週傳送一次匿名訊號，讓開發者知道有多少人在用：一個隨機 ID、App 版本和你的作業系統。絕不包含你的訊息或紀錄。",
 };
 
 export default catalog;

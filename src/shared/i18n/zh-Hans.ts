@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "目的和努力",
   "Proverbs and idioms": "俗语和惯用语",
   "Formal speeches and reports": "正式演讲和报告",
-  "Go over this unit's grammar quickly first?": "先快速过一遍这个单元的语法吗？",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "老师会简短总结每个句型，然后开始对话。这只是提醒，不能代替你的课本。",
-  "Yes, go over it": "好，过一遍",
-  "No, start talking": "不用，直接开始",
+  "Begin Course?": "开始课程？",
+  "Begin Lesson": "开始上课",
+  "More practice": "多练习",
   "The present simple": "一般现在时",
   "Saying no and not": "用 no 和 not 表示否定",
   "Noun phrases": "名词短语",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "下载",
   "Couldn't check for updates. Check your internet connection and try again.": "无法检查更新。请检查网络连接后重试。",
   "{level} ({band})": "{level}（{band}）",
+  "Count me as a weekly user": "把我算作每周用户",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Sayfern 每周发送一次匿名信号，让开发者知道有多少人在用：一个随机 ID、应用版本和你的操作系统。绝不包含你的消息或记录。",
 };
 
 export default catalog;

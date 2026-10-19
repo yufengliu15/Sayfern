@@ -151,16 +151,19 @@ test("course tool: offered for course languages only; overview and unit text", a
   assert.match(missing.content, /No unit zh-nope/);
 });
 
-test("unit session: the tutor opens it and the prompt carries the unit", async () => {
+test("unit session (More practice): the tutor opens it and the prompt carries the unit", async () => {
   const h = makeHarness();
   const s = await h.records.createSession({ language: "zh", kind: "practice", feedbackMode: "inline", unitId: "zh-hsk30-1-08" });
   h.faux.setResponses([fauxAssistantMessage([fauxText("你和你朋友谁高？"), fauxToolCall("record_evidence", {} as never)], { stopReason: "toolUse" })]);
   const reply = await h.tutor.runOpening({ sessionId: s.id, model: h.model, signal: new AbortController().signal, onEvent: () => {} });
   assert.equal(reply.topicStart, true);
   const transcript = await h.records.getTranscript(s.id);
-  assert.match(userBlocks(transcript[0])[0], /started a course unit/);
+  assert.match(userBlocks(transcript[0])[0], /started a course unit for more practice/);
   const prompt = await buildSystemPrompt(h.deps, s);
-  assert.match(prompt, /# Session: course unit\nUnit zh-hsk30-1-08 \(HSK 1\): Special sentence patterns/);
+  assert.match(prompt, /# Session: course unit \(more practice\)\nUnit zh-hsk30-1-08 \(HSK 1\): Special sentence patterns/);
+  assert.doesNotMatch(prompt, /# Sample dialogue/, "no sample dialogue, even for a beginner");
+  assert.match(prompt, /treat its grammar as known/);
+  assert.doesNotMatch(prompt, /explain it first/, "a beginner is not told to explain each point first");
   assert.match(prompt, /zh:bi-comparison \| A 比 B \+ Adj/);
   assert.doesNotMatch(prompt, /# Course \(/, "no course block inside a unit session");
   assert.doesNotMatch(prompt, /quick overview/, "no overview unless the learner asked for it");

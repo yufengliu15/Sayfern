@@ -77,6 +77,8 @@ function buildApp(): SayfernApp {
     openExternal: (url) => void shell.openExternal(url),
     // The default interface language follows macOS's preferred languages (System Settings > Language & Region).
     systemLocales: () => app.getPreferredSystemLanguages(),
+    // Weekly ping (src/core/ping): installed copies only, never `npm run dev` or end-to-end runs.
+    ...(app.isPackaged && !process.env.SAYFERN_E2E_DATA ? { ping: { version: app.getVersion(), platform: process.platform } } : {}),
   });
   if (process.env.SAYFERN_E2E_FAUX === "1") Object.assign(globalThis, { __sayfernE2E: built });
   return built;
@@ -355,6 +357,8 @@ app.whenReady().then(async () => {
   await refreshMenu();
   registerIpc();
   await createWindow();
+  // init sent the startup ping; this catches the week turning over while Sayfern stays open.
+  setInterval(() => void sayfern.pingIfDue(), 24 * 60 * 60 * 1000);
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });

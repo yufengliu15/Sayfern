@@ -356,14 +356,13 @@ function UnitDrawer({ unit, fontClass, busy, onStart, onClose }: { unit: UnitVie
           ))}
         </ol>
         <footer className="cr-dr-f">
-          <p className="cr-ask-q">{t("Go over this unit's grammar quickly first?")}</p>
-          <p className="muted cr-ask-n">{t("The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.")}</p>
+          <p className="cr-ask-q">{t("Begin Course?")}</p>
           <div className="cr-ask-a">
             <button className="btn btn-p" disabled={busy} onClick={() => onStart(true)}>
-              {busy ? t("Starting…") : t("Yes, go over it")}
+              {busy ? t("Starting…") : t("Begin Lesson")}
             </button>
             <button className="btn btn-f" disabled={busy} onClick={() => onStart(false)}>
-              {t("No, start talking")}
+              {t("More practice")}
             </button>
           </div>
         </footer>

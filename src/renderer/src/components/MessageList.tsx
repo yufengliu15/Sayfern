@@ -18,6 +18,8 @@ export interface TranslationState {
 
 export interface MessageListProps {
   language: Language;
+  /** Readings (pinyin, furigana) above the tutor's words. */
+  ruby?: boolean;
   messages: ChatMessage[];
   corrections: Correction[];
   /** Anki target words to underline. */
@@ -60,6 +62,7 @@ export function MessageList(p: MessageListProps) {
               <TutorMessage
                 m={m}
                 language={p.language}
+                ruby={p.ruby}
                 targets={p.targets}
                 translation={p.translations[m.id]}
                 onTranslate={p.onTranslate}
@@ -147,6 +150,7 @@ function ErrorLine({ text, onRetry, quiet }: { text: string; onRetry?: () => voi
 function TutorMessage({
   m,
   language,
+  ruby,
   targets,
   translation,
   onTranslate,
@@ -155,6 +159,7 @@ function TutorMessage({
 }: {
   m: ChatMessage;
   language: Language;
+  ruby?: boolean;
   targets: string[];
   translation?: TranslationState;
   onTranslate?(messageId: string): void;
@@ -170,6 +175,7 @@ function TutorMessage({
           language={language}
           text={m.text}
           targets={targets}
+          ruby={ruby}
           className="msg-text"
           source={{ kind: "session", sessionId: m.sessionId, messageId: m.id }}
         />

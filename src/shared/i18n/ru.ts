@@ -1298,10 +1298,9 @@ const catalog: Catalog = {
   "Purpose and effort": "Цель и усилия",
   "Proverbs and idioms": "Пословицы и идиомы",
   "Formal speeches and reports": "Официальные речи и отчёты",
-  "Go over this unit's grammar quickly first?": "Сначала коротко повторить грамматику этого раздела?",
-  "The tutor gives a short summary of each pattern, then starts the conversation. It is a reminder, not a replacement for your textbook.": "Репетитор кратко объяснит каждую конструкцию, а потом начнёт разговор. Это напоминание, а не замена учебника.",
-  "Yes, go over it": "Да, повторить",
-  "No, start talking": "Нет, сразу к разговору",
+  "Begin Course?": "Начать курс?",
+  "Begin Lesson": "Начать урок",
+  "More practice": "Больше практики",
   "The present simple": "Простое настоящее время",
   "Saying no and not": "Отрицание с no и not",
   "Noun phrases": "Именные группы",
@@ -1489,6 +1488,8 @@ const catalog: Catalog = {
   "Download": "Скачать",
   "Couldn't check for updates. Check your internet connection and try again.": "Не удалось проверить обновления. Проверьте подключение к интернету и попробуйте ещё раз.",
   "{level} ({band})": "{level} ({band})",
+  "Count me as a weekly user": "Учитывать меня как еженедельного пользователя",
+  "Once a week, Sayfern sends one anonymous ping so the developer knows how many people use it: a random ID, the app version and your operating system. Never your messages or records.": "Раз в неделю Sayfern отправляет один анонимный сигнал, чтобы разработчик знал, сколько людей пользуются приложением: случайный ID, версию приложения и вашу операционную систему. Ваши сообщения и записи не отправляются никогда.",
 };
 
 export default catalog;

@@ -47,6 +47,10 @@ Anki needs the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on 
 
 Sayfern asks GitHub for the newest release when it starts, and once a day while it stays open. This request sends only Sayfern's version number, none of your data. When a newer version is out, a notice shows at the bottom of the sidebar: click it to open the download page, or click × to hide it until the next version. Sayfern does not install updates by itself. In the Flatpak build, the notice opens **Settings > Preferences**, which says how to update from your software store. To check now, use **Settings > Preferences > Updates** (or **Sayfern > Check for Updates** on macOS).
 
+## Weekly ping
+
+Once a week, Sayfern sends one anonymous event to PostHog so the developer can count how many people use it each week. It contains a random ID made on your computer, Sayfern's version number and your operating system (macOS, Windows or Linux). It never contains your messages, records, languages, levels or sign-ins. Turn it off on the welcome page or in **Settings > Preferences** ("Count me as a weekly user"). Builds you run from the source code never send it.
+
 ## Your data
 
 Everything stays on your computer as JSON files (on macOS, in `~/Library/Application Support/sayfern/`; on Linux, in `~/.config/sayfern/`; on Windows, in `%APPDATA%\sayfern\`). Export everything as one JSON file from **Settings > Data**. **Start over** (same tab) erases all your data; dictionaries stay, and you can keep your model sign-ins.
