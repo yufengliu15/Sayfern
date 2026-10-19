@@ -46,7 +46,7 @@ Download the installer for your system from the [releases page](https://github.c
 | Linux | `.flatpak` or `.tar.gz` |
 
 > [!NOTE]
-> The installers are not signed with a paid certificate yet. On macOS, right-click the app and click **Open** the first time. On Windows, click **More info**, then **Run anyway**.
+> The installers are not signed with a paid certificate yet. On macOS, try to open the app once, then go to **System Settings > Privacy & Security** and click **Open Anyway**. On Windows, click **More info**, then **Run anyway**.
 
 Sayfern checks GitHub for a new version when it starts and once a day after that. When one is out, a notice shows at the bottom of the sidebar. You can also check in **Settings > Preferences > Updates** (and **Sayfern > Check for Updates** on macOS).
 

@@ -15,7 +15,7 @@ import { deckRoute, sessionRoute, settingsRoute, type Navigate } from "../router
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
 import { LevelBands } from "../components/PlacementStart";
-import { langName, msg, t } from "../i18n";
+import { langName, levelLabel, msg, t, tj } from "../i18n";
 
 export interface OnboardingScreenProps {
   language: Language;
@@ -52,7 +52,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
   const ordered = app.allLanguages.map((l) => l.id).filter((id) => langs.includes(id));
   const langInfo = (id: Language) => app.allLanguages.find((l) => l.id === id);
   const levelsDone = ordered.length > 0 && ordered.every((l) => levels[l] && (levels[l] !== PLACE || bands[l]));
-  const canContinue = step === 0 ? connected.length > 0 : step === 1 ? levelsDone : step === 2 ? ankiPlan !== null : true;
+  const canContinue = step === 0 ? connected.length > 0 : step === 1 ? levelsDone : true;
 
   const finish = async (then?: "settings" | "decks") => {
     setBusy(true);
@@ -81,7 +81,12 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
     }
   };
 
-  const next = () => (step < LAST ? setStep(step + 1) : void finish());
+  const skipAnki = step === 2 && ankiPlan === null;
+  const next = () => {
+    if (skipAnki) setAnkiPlan("later");
+    if (step < LAST) setStep(step + 1);
+    else void finish();
+  };
   const modelSummary = connected.map((p) => p.name).join(", ");
   const langSummary = ordered
     .map((l) => `${langName(l)} · ${levels[l] === PLACE ? t("level to find") : (levels[l] ?? "")}`)
@@ -95,6 +100,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
       <div className="ghost ja" aria-hidden="true" style={{ fontSize: 300, left: 430, top: -40 }}>
         話
       </div>
+      <div className="welcome-drag drag" />
       <div className="welcome-l drag">
         <div className="welcome-brand">
           <Fern size={32} />
@@ -172,7 +178,7 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
                       <option value={PLACE}>{t("Not sure: find my level with a 5-minute chat")}</option>
                       {(info?.levels ?? []).map((lv) => (
                         <option key={lv} value={lv}>
-                          {lv}
+                          {levelLabel(lv)}
                         </option>
                       ))}
                     </select>
@@ -262,7 +268,9 @@ export function OnboardingScreen({ navigate }: OnboardingScreenProps) {
                     : ordered.some((l) => levels[l] === PLACE)
                       ? t("Start level chat")
                       : t("Start practising")
-                  : t("Continue")}
+                  : skipAnki
+                    ? t("Skip")
+                    : t("Continue")}
               <Icon name="arrow" size={17} stroke={2} />
             </button>
           </div>
@@ -335,18 +343,19 @@ function AnkiStep({
       )}
 
       <p className="dk-setup">
-        {t("New to Anki? It's free at apps.ankiweb.net. Add the AnkiConnect add-on (code 2055492159) so Sayfern can see your cards.")}{" "}
+        {t("Anki is a free flashcard app. It shows each card just before you would forget it, so you remember more with less study.")}
+      </p>
+      <p className="dk-setup">
+        {tj("Download it at {link}. Then add the AnkiConnect add-on (code 2055492159) so Sayfern can see your cards.", {
+          link: (
+            <button className="linkb" onClick={() => void api.openExternal("https://apps.ankiweb.net")}>
+              apps.ankiweb.net
+            </button>
+          ),
+        })}{" "}
         <button className="linkb" onClick={onConnect} disabled={busy}>
           {t("Connect Anki now")}
         </button>
-        {plan !== "later" && (
-          <>
-            {" · "}
-            <button className="linkb" onClick={() => onPlan("later")}>
-              {t("Decide later")}
-            </button>
-          </>
-        )}
       </p>
     </>
   );

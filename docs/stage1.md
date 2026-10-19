@@ -60,7 +60,7 @@ Status: **Done** = implemented as scoped. **Partial** = works, with a missing pi
 
 | ID | Feature | Status | Where | Notes |
 |---|---|---|---|---|
-| S1-01 | Language workspaces | Done | `settings.languages` / `settings.language`, sidebar language picker, per-language records | Language type is fixed to `zh` and `ja`. |
+| S1-01 | Language workspaces | Done | `settings.languages` / `settings.language`, sidebar language picker (the logo), per-language records | Language type is fixed to `zh` and `ja`. |
 | S1-02 | Session history, resume | Partial | `records` sessions; Today resume card (`HomeView.resume`); sidebar recent list | Sidebar shows the 12 most recent sessions, Today 5; no full history view. `deleteSession` exists in the API but no UI uses it. |
 | S1-03 | Personal tutor context | Done | `LearnerProfile` (name, about, goals) in Settings > About you and onboarding; `kind: "personal"` library docs → prompt (`personalContext`, 1500 chars) | |
 | S1-04 | Level assessment | Done | Self level (`setSelfLevel`), placement session (`startPlacement`), `record_evidence.level`, `levels.json` history | Onboarding places only the first language set to "find my level". Before placement the learner picks a band (Beginner, Intermediate, Advanced; v0.17.0, ADR 29). |

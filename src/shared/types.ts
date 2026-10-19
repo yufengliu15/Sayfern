@@ -78,7 +78,7 @@ export interface Settings {
   /** Interface language, also the language the tutor explains in. Absent or "system" = follow the system. */
   uiLocale?: UiLocale | "system";
   model?: ModelRef;
-  /** Colour theme (Settings > Appearance, welcome page). Absent = "light". */
+  /** Colour theme (Settings > Preferences, welcome page). Absent = "light". */
   theme?: Theme;
   /** Stable per-install UUID; Sign in with ChatGPT registers it as the agent host. */
   deviceId?: string;

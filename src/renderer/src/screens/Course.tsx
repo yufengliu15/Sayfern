@@ -12,7 +12,7 @@ import { Icon } from "../components/icons";
 import { useApp } from "../context";
 import { cjkClass, cls } from "../lib/format";
 import { sessionRoute, type Navigate } from "../router";
-import { langName, t, tc } from "../i18n";
+import { langName, levelLabel, t, tc } from "../i18n";
 
 export interface CourseScreenProps {
   language: Language;
@@ -129,7 +129,7 @@ export function CourseScreen({ language, navigate }: CourseScreenProps) {
             <h1 className="display">{t("Your path.")}</h1>
             <p className="page-sub">
               {t(course.basis)}
-              {course.learnerLevel && <> · {t("Your level: {level}", { level: course.learnerLevel })}</>}
+              {course.learnerLevel && <> · {t("Your level: {level}", { level: levelLabel(course.learnerLevel) })}</>}
             </p>
           </div>
           <div className="cr-stats">
@@ -153,7 +153,7 @@ export function CourseScreen({ language, navigate }: CourseScreenProps) {
 
         <section className="cr-level" aria-label={level.level}>
           <header className="cr-lh">
-            <h2>{level.level}</h2>
+            <h2>{levelLabel(level.level)}</h2>
             <span className="muted">
               {t("{done} of {total} units done", { done: level.units.filter((u) => u.status === "done").length, total: level.units.length })}
               {" · "}

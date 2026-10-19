@@ -93,12 +93,14 @@ test("system prompt: placement lists the level scale", async () => {
   assert.match(chat, /To bring in a target/, "course points are targets in chat");
 });
 
-test("level bands split the scale in thirds", () => {
+test("level bands follow each exam's own beginner, intermediate and advanced split", () => {
   assert.deepEqual(bandLevels(languageInfo("es").levels, "beginner"), ["A1", "A2"]);
   assert.deepEqual(bandLevels(languageInfo("es").levels, "advanced"), ["C1", "C2"]);
-  assert.deepEqual(bandLevels(languageInfo("ja").levels, "intermediate"), ["N3"]);
-  assert.deepEqual(bandLevels(languageInfo("zh").levels, "beginner"), ["HSK 1", "HSK 2"]);
-  assert.deepEqual(bandLevels(languageInfo("zh").levels, "advanced"), ["HSK 6", "HSK 7-9"]);
+  assert.deepEqual(bandLevels(languageInfo("ja").levels, "intermediate"), ["N3", "N2"]);
+  assert.deepEqual(bandLevels(languageInfo("ja").levels, "advanced"), ["N1"]);
+  assert.deepEqual(bandLevels(languageInfo("zh").levels, "beginner"), ["HSK 1", "HSK 2", "HSK 3"]);
+  assert.deepEqual(bandLevels(languageInfo("zh").levels, "advanced"), ["HSK 7-9"]);
+  assert.deepEqual(bandLevels(languageInfo("ko").levels, "beginner"), ["TOPIK 1", "TOPIK 2"]);
 });
 
 test("placement: the picked band sets where the diagnostic starts; beginners may use their own language", async () => {
@@ -108,17 +110,17 @@ test("placement: the picked band sets where the diagnostic starts; beginners may
 
   const beginner = await prompt("beginner");
   assert.match(beginner, /# Session: placement \(the learner says they are a beginner\)/);
-  assert.match(beginner, /Start at the very bottom \(HSK 1, HSK 2\)/);
+  assert.match(beginner, /Start at the very bottom \(HSK 1, HSK 2, HSK 3\)/);
   assert.match(beginner, /stop after 2 or 3 tasks/);
   assert.match(beginner, /record HSK 1 for all three skills/);
   assert.match(beginner, /they may write in English when they lack the Chinese words/);
   assert.doesNotMatch(beginner, /invite them to try saying it/);
 
   const intermediate = await prompt("intermediate");
-  assert.match(intermediate, /says they are intermediate\. Start around HSK 3, HSK 4, HSK 5/);
+  assert.match(intermediate, /says they are intermediate\. Start around HSK 4, HSK 5, HSK 6/);
   assert.match(intermediate, /invite them to try saying it/, "only beginners are told writing in English is welcome");
 
-  assert.match(await prompt("advanced"), /says they are advanced\. Start around HSK 6, HSK 7-9/);
+  assert.match(await prompt("advanced"), /says they are advanced\. Start around HSK 7-9/);
 });
 
 test("beginner rule follows the level estimate outside placement", async () => {

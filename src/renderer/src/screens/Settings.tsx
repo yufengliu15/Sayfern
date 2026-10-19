@@ -20,7 +20,7 @@ import { GOAL_PLACEHOLDER } from "../lib/samples";
 import { isBeta } from "../../../shared/course";
 import { BetaChip } from "../components/BetaChip";
 import { PlacementStart } from "../components/PlacementStart";
-import { langName, msg, t, tj } from "../i18n";
+import { langName, levelLabel, msg, t, tj } from "../i18n";
 import { SpeakButtons } from "../components/Speak";
 import { loadVoiceStatus, setVoiceStatus, useVoiceStatus, VOICE_SAMPLES } from "../lib/voice";
 import { setUpdateStatus, useUpdateStatus } from "../lib/updates";
@@ -32,15 +32,14 @@ export interface SettingsScreenProps {
   tab?: string;
 }
 
-type Tab = "models" | "languages" | "about" | "anki" | "voice" | "dictionaries" | "appearance" | "preferences" | "data";
+type Tab = "about" | "languages" | "models" | "voice" | "anki" | "dictionaries" | "preferences" | "data";
 const TABS: { id: Tab; label: string; icon: IconName; title: string; sub: string }[] = [
-  { id: "models", label: msg("Models"), icon: "spark", title: msg("Models"), sub: msg("Connect the model you already pay for. Your provider bills you directly.") },
-  { id: "languages", label: msg("Language & level"), icon: "globe", title: msg("Language & level"), sub: msg("What you're learning and where you are. The tutor pitches everything to these.") },
   { id: "about", label: msg("About you"), icon: "user", title: msg("About you"), sub: msg("A few lines the tutor keeps in mind, so conversations are about your life.") },
-  { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
+  { id: "languages", label: msg("Language & level"), icon: "globe", title: msg("Language & level"), sub: msg("What you're learning and where you are. The tutor pitches everything to these.") },
+  { id: "models", label: msg("Models"), icon: "spark", title: msg("Models"), sub: msg("Connect the model you already pay for. Your provider bills you directly.") },
   { id: "voice", label: msg("Voice"), icon: "speaker", title: msg("Voice"), sub: msg("Listen to the tutor and to words, and talk instead of typing.") },
+  { id: "anki", label: msg("Anki"), icon: "cards", title: msg("Anki"), sub: msg("The tutor sees what you know, what's hard and what's next in Anki, so recognised words become words you use.") },
   { id: "dictionaries", label: msg("Dictionaries"), icon: "library", title: msg("Dictionaries"), sub: msg("Free dictionaries stored on this computer, for lookups and for counting your words. Sayfern downloads one for each language you learn.") },
-  { id: "appearance", label: msg("Appearance"), icon: "image", title: msg("Appearance"), sub: msg("Choose how Sayfern looks. The change applies at once.") },
   { id: "preferences", label: msg("Preferences"), icon: "settings", title: msg("Preferences"), sub: msg("Defaults for new sessions. You can change them in any session.") },
   { id: "data", label: msg("Data"), icon: "database", title: msg("Your data"), sub: msg("Everything Sayfern records is stored on this computer, in plain files you can export.") },
 ];
@@ -48,7 +47,7 @@ const SKILL_LABEL: Record<Skill, string> = { reading: msg("Reading"), recognitio
 const BY_LABEL: Record<LevelEstimate["by"], string> = { self: msg("Set by you"), placement: msg("Placement chat"), observed: msg("Seen in your writing") };
 
 export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps) {
-  const tab: Tab = (TABS.find((x) => x.id === routeTab)?.id ?? "models") as Tab;
+  const tab: Tab = (TABS.find((x) => x.id === routeTab)?.id ?? "about") as Tab;
   const info = TABS.find((x) => x.id === tab)!;
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -93,13 +92,12 @@ export function SettingsScreen({ navigate, tab: routeTab }: SettingsScreenProps)
         <div className="set-in" key={tab}>
           <h2 className="set-h">{t(info.title)}</h2>
           <p className="set-sub">{t(info.sub)}</p>
-          {tab === "models" && <ModelsTab />}
-          {tab === "languages" && <LanguagesTab navigate={navigate} />}
           {tab === "about" && <AboutTab navigate={navigate} />}
-          {tab === "anki" && <AnkiTab navigate={navigate} />}
+          {tab === "languages" && <LanguagesTab navigate={navigate} />}
+          {tab === "models" && <ModelsTab />}
           {tab === "voice" && <VoiceTab />}
+          {tab === "anki" && <AnkiTab navigate={navigate} />}
           {tab === "dictionaries" && <DictionariesTab />}
-          {tab === "appearance" && <AppearanceTab />}
           {tab === "preferences" && <PreferencesTab navigate={navigate} />}
           {tab === "data" && <DataTab />}
         </div>
@@ -305,7 +303,7 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
             <li key={i}>
               <span className="mono">{fmtShortDate(h.at)}</span>
               <span>{t(SKILL_LABEL[h.skill])}</span>
-              <b>{h.level}</b>
+              <b>{levelLabel(h.level)}</b>
               <span className="muted">{t(BY_LABEL[h.by])}</span>
             </li>
           ))}
@@ -319,7 +317,7 @@ function LevelCard({ info, navigate }: { info: LanguageInfo; navigate: Navigate 
           <option value="">{t("Choose a level")}</option>
           {info.levels.map((lv) => (
             <option key={lv} value={lv}>
-              {lv}
+              {levelLabel(lv)}
             </option>
           ))}
         </select>
@@ -886,19 +884,6 @@ function DictionariesTab() {
   );
 }
 
-// ---------------------------------------------------------------- appearance
-
-function AppearanceTab() {
-  return (
-    <Group>
-      <Row label={t("Theme")} hint={t("Light, or one of two dark themes.")} />
-      <div className="srow">
-        <ThemePicker />
-      </div>
-    </Group>
-  );
-}
-
 // ---------------------------------------------------------------- preferences
 
 function PreferencesTab({ navigate }: { navigate: Navigate }) {
@@ -913,6 +898,12 @@ function PreferencesTab({ navigate }: { navigate: Navigate }) {
         >
           <LocalePicker id="pref-locale" withLabel={false} />
         </Row>
+      </Group>
+      <Group title={t("Appearance")}>
+        <Row label={t("Theme")} hint={t("Light, or one of two dark themes.")} />
+        <div className="srow">
+          <ThemePicker />
+        </div>
       </Group>
       <Group>
         <Row

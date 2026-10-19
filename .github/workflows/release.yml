@@ -143,9 +143,18 @@ jobs:
       - if: steps.new.outputs.new == 'true'
         name: Publish the release
         run: |
-          # The CHANGELOG.md section for this version, without its heading.
-          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md > notes.md
+          # The latest release before this one; it loses the install note below.
+          previous=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          # The install note (.github/release-note.md), then the CHANGELOG.md section for this
+          # version without its heading.
+          { cat .github/release-note.md; awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md; } > notes.md
           gh release create "v$VERSION" artifacts/* \
             --target "$GITHUB_SHA" \
             --title "Sayfern $VERSION" \
             --notes-file notes.md
+          # Only the newest release, at the top of the releases page, shows the install note.
+          if [ -n "$previous" ]; then
+            gh release view "$previous" --json body -q .body | sed '/^<!-- release-note/,/^<!-- \/release-note -->/d' > previous.md
+            gh release edit "$previous" --notes-file previous.md \
+              || echo "::warning::Could not remove the install note from $previous. Remove it by hand."
+          fi

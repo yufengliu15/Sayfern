@@ -16,7 +16,7 @@ The workflow is [`.github/workflows/release.yml`](../.github/workflows/release.y
 | `flatpak` | ubuntu-latest, Flatpak container | `Sayfern-<version>-linux-x86_64.flatpak` |
 | `release` | ubuntu-latest | A GitHub release `v<version>`, only if that release does not exist yet |
 
-Every run keeps its files as workflow artifacts. A release needs a new version in `package.json` (AGENTS.md rule 10) and a `## [<version>] - <date>` section in `CHANGELOG.md`. The release notes are that section.
+Every run keeps its files as workflow artifacts. A release needs a new version in `package.json` (AGENTS.md rule 10) and a `## [<version>] - <date>` section in `CHANGELOG.md`. The release notes are that section, after the install note in [`.github/release-note.md`](../.github/release-note.md). Only the newest release shows the install note: the workflow removes it from the release before (everything between the two `release-note` comments). The note is at the top of the releases page, so people who download see it once.
 
 Each OS and CPU builds on its own machine, because `pdfjs-dist` needs the native `@napi-rs/canvas` package for that OS and CPU.
 
@@ -39,9 +39,9 @@ Things to know:
 
 ## Signing
 
-The builds are not signed with a paid certificate yet.
+The builds are not signed with a paid certificate yet. The install note on the newest release (`.github/release-note.md`), the README and the website download box (`get.platforms` in `site/`) tell people what to do.
 
-- **macOS:** the app has an ad-hoc signature (`mac.identity: "-"`). Without a signature, Apple silicon says that the app is "damaged". With an ad-hoc signature, macOS says that it cannot check the developer. The learner must right-click the app, then click Open (or use System Settings > Privacy & Security > Open Anyway).
+- **macOS:** the app has an ad-hoc signature (`mac.identity: "-"`). Without a signature, Apple silicon says that the app is "damaged". With an ad-hoc signature, macOS says that it cannot check the developer. The learner must try to open the app once, then go to System Settings > Privacy & Security and click Open Anyway. Right-click > Open no longer works for apps without notarization since macOS 15.
 - **Windows:** SmartScreen shows "Windows protected your PC". The learner must click More info, then Run anyway.
 
 To sign and notarize the macOS app with an Apple Developer ID:

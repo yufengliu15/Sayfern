@@ -9,11 +9,18 @@
 //   msg("Models")                              → marks a module-level constant for the catalogs;
 //                                                 translate it where it renders: t(TAB.label)
 import { createElement, Fragment, type ReactNode } from "react";
-import { dateLocale, learningLanguageName, translate, translateContext, translatePlural, type Vars } from "../../shared/i18n";
+import { dateLocale, learningLanguageName, msg, translate, translateContext, translatePlural, type Vars } from "../../shared/i18n";
+import { levelBand } from "../../shared/languages";
 import { DEFAULT_UI_LOCALE, type UiLocale } from "../../shared/locales";
-import type { Language } from "../../shared/records";
+import type { Language, LevelBand } from "../../shared/records";
 
 export { msg } from "../../shared/i18n";
+
+export const BAND_LABEL: Record<LevelBand, string> = {
+  beginner: msg("Beginner"),
+  intermediate: msg("Intermediate"),
+  advanced: msg("Advanced"),
+};
 
 let current: UiLocale = DEFAULT_UI_LOCALE;
 
@@ -44,6 +51,12 @@ export function tn(count: number, one: string, other: string, vars?: Vars): stri
 /** A learning language's name in the interface language ("Spanisch"). */
 export function langName(id: Language): string {
   return learningLanguageName(current, id);
+}
+
+/** A level with its band, for display: "A2 (Beginner)", "N3 (Intermediate)". Unknown levels pass through. */
+export function levelLabel(level: string): string {
+  const band = levelBand(level);
+  return band ? t("{level} ({band})", { level, band: t(BAND_LABEL[band]) }) : level;
 }
 
 /** Locale tag for Intl formatting of dates and numbers. */

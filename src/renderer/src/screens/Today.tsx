@@ -11,7 +11,7 @@ import { UnitStart } from "../components/UnitStart";
 import { useApp } from "../context";
 import { cls, fmtDuration, fmtNumber, fmtShortDate, KIND_LABEL } from "../lib/format";
 import { grammarRoute, sessionRoute, settingsRoute, type Navigate } from "../router";
-import { intlLocale, msg, t, tj, tn } from "../i18n";
+import { intlLocale, levelLabel, msg, t, tj, tn } from "../i18n";
 
 export interface TodayScreenProps {
   language: Language;
@@ -309,7 +309,7 @@ export function TodayScreen({ language, navigate }: TodayScreenProps) {
             <div className="levels">
               {levels.map(([skill, est]) => (
                 <span key={skill} className="lvl" title={est.evidence}>
-                  <span className="muted">{t(SKILL_LABEL[skill])}</span> <b>{est.level}</b>
+                  <span className="muted">{t(SKILL_LABEL[skill])}</span> <b>{levelLabel(est.level)}</b>
                 </span>
               ))}
             </div>

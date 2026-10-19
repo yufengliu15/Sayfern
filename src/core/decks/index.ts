@@ -709,7 +709,7 @@ export class DeckService implements DeckApi {
     const key = sha(`edge|${voice}|${text}`);
     if (await this.store.readAudio(key)) return { key, by: "edge" };
     try {
-      await this.store.writeAudio(key, await edgeTts(text, voice, { ws: this.ws, signal }));
+      await this.store.writeAudio(key, await edgeTts(text, voice, { ws: this.ws, fetch: this.fetch, signal }));
       return { key, by: "edge" };
     } catch (err) {
       return { error: errText(err) };

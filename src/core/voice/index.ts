@@ -223,7 +223,7 @@ export class VoiceService implements VoiceApi {
     const hit = await this.cached(key);
     const out = (audio: Buffer, cached: boolean): SpeakResult => ({ audio, mime: "audio/mpeg", by: "edge", cached, ...(fellBack ? { fellBack } : {}) });
     if (hit) return out(hit, true);
-    const audio = await edgeTts(text, voice, { ws: this.ws });
+    const audio = await edgeTts(text, voice, { ws: this.ws, fetch: this.fetch });
     await this.keep(key, audio);
     return out(audio, false);
   }

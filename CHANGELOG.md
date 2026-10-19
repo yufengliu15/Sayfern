@@ -6,6 +6,35 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-18
+
+### Changed
+
+- **Sidebar header.** The Sayfern logo is now the language picker. Click the logo (it shows the current language below the name and a down arrow) to open "Your languages". The separate language button is gone.
+- **Home button.** A home icon beside the logo opens Today (⌘1 still works). Today is no longer a row in the sidebar list.
+- **Recent sessions.** The sidebar heading "Recent" is now "Recent sessions".
+- **Welcome page, Anki step.** With no option picked, the main button reads "Skip" and moves on (the "Decide later" link is gone). The "New to Anki?" line is now a short intro to Anki, and apps.ankiweb.net opens in the browser. Updated in all 13 interface languages.
+- **Welcome page card.** The card keeps the same height on every step, so Back and Continue stay in place. A taller step scrolls inside the card.
+- **Settings order.** The Settings sections now go: About you, Language & level, Models, Voice, Anki, Dictionaries, Preferences, Data. Settings opens on About you.
+- **Appearance is in Preferences.** The theme picker moved from its own Appearance section into Preferences, under an Appearance heading.
+- **Install note on the releases page.** The newest GitHub release starts with a note on how to open the unsigned installers (macOS: System Settings > Privacy & Security > Open Anyway; Windows: More info, Run anyway). The release workflow takes it from `.github/release-note.md` and removes it from the release before, so the note shows once, at the top of the page.
+- **Website download box.** Under Download Sayfern, the line "For macOS, Windows 11 and Linux, from GitHub Releases" is now the same install note, in all 12 site languages.
+- **macOS install steps.** The README, the release note and the website now say System Settings > Privacy & Security > Open Anyway. Right-click > Open no longer opens apps without notarization since macOS 15.
+
+### Fixed
+
+- **Window drag on macOS.** The top right of the welcome page and of a session with the inspector open now drags the window.
+
+## [0.32.1] - 2026-10-18
+
+### Fixed
+
+- **Free Microsoft voices.** Microsoft started to refuse the old Sec-MS-GEC token, so every free voice failed with "Couldn't reach the free voices". Sayfern now sends the v2 token from edge-tts 7.3.1 (`src/core/decks/edge-drm.ts`). This fixes listening in chat and audio on generated deck cards.
+- **Free voice errors say why.** When Microsoft refuses the connection, Sayfern asks the same server for its time (`edgeHandshakeError` in `src/core/decks/tts.ts`). The error now says one of three things, in every interface language:
+  - Your computer's clock is wrong (more than 5 minutes off): set the date and time automatically, then try again.
+  - There is no internet connection.
+  - Microsoft refused the request, and Sayfern may need an update.
+
 ## [0.32.0] - 2026-10-18
 
 ### Added

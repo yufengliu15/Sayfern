@@ -26,9 +26,10 @@ export function Inspector({ view, language, activeMs, onOpenGrammar, onOpenSourc
 
   return (
     <aside className="insp" aria-label={t("Session context")}>
+      <div className="insp-drag drag" />
       <div className="insp-top">
         <div className="eyebrow">{t("In this session")}</div>
-        <button className="iconb sm" onClick={onClose} aria-label={t("Hide inspector")} title={t("Hide inspector ({shortcut})", { shortcut: `${MOD}I` })}>
+        <button className="iconb sm no-drag" onClick={onClose} aria-label={t("Hide inspector")} title={t("Hide inspector ({shortcut})", { shortcut: `${MOD}I` })}>
           <Icon name="panel" size={16} />
         </button>
       </div>

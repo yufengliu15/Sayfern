@@ -1,4 +1,4 @@
-// Colour theme pickers: ThemePicker (Settings > Appearance) and ThemeBlocks (welcome page, step 4, styled
+// Colour theme pickers: ThemePicker (Settings > Preferences) and ThemeBlocks (welcome page, step 4, styled
 // like the language blocks). Each option previews its theme with that theme's real colours. Choosing
 // applies at once (AppProvider sets <html data-theme>) and saves Settings.theme.
 import { useRef, type KeyboardEvent } from "react";

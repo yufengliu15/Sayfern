@@ -9,8 +9,8 @@ import { langName, msg, t } from "../i18n";
 import { navigate, sessionRoute, settingsRoute, type ParsedRoute, type Route } from "../router";
 import { Fern, Icon, type IconName } from "./icons";
 
+// Today has no row here: the home button beside the logo opens it (⌘1).
 const NAV: { route: Route; name: ParsedRoute["name"]; label: string; icon: IconName; key: string }[] = [
-  { route: "today", name: "today", label: msg("Today"), icon: "today", key: "1" },
   { route: "course", name: "course", label: msg("Course"), icon: "course", key: "2" },
   { route: "library", name: "library", label: msg("Library"), icon: "library", key: "3" },
   { route: "grammar", name: "grammar", label: msg("Grammar"), icon: "grammar", key: "4" },
@@ -31,65 +31,72 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
   return (
     <nav className="side" aria-label="Sayfern">
       <div className="side-drag drag" />
-      <div className="brand">
-        <Fern color="var(--side-accent)" />
-        <b>Sayfern</b>
-      </div>
-
-      <div className="ldd" ref={menuRef}>
-        <button
-          className="ldd-btn"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label={t("Language workspace: {language}", { language: langName(app.language) })}
-          onClick={() => setOpen(!open)}
-        >
-          <span className={`g ${app.lang.fontClass}`}>{app.lang.glyph}</span>
-          <span className="t">
-            <b>{langName(app.language)}</b>
-            <small>{practisedLabel(lastAt(app.language))}</small>
-          </span>
-          <Icon name="chev" size={16} stroke={2} />
-        </button>
-        {open && (
-          <div className="menu" role="menu" aria-label={t("Your languages")}>
-            <div className="mh">{t("Your languages")}</div>
-            {app.languages.map((l) => (
+      <div className="brand-row">
+        <div className="ldd" ref={menuRef}>
+          <button
+            className="brand"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={t("Language workspace: {language}", { language: langName(app.language) })}
+            title={practisedLabel(lastAt(app.language))}
+            onClick={() => setOpen(!open)}
+          >
+            <Fern color="var(--side-accent)" />
+            <span className="bt">
+              <b>Sayfern</b>
+              <small>{langName(app.language)}</small>
+            </span>
+            <Icon name="chev" size={16} stroke={2} />
+          </button>
+          {open && (
+            <div className="menu" role="menu" aria-label={t("Your languages")}>
+              <div className="mh">{t("Your languages")}</div>
+              {app.languages.map((l) => (
+                <button
+                  key={l.id}
+                  role="menuitemradio"
+                  aria-checked={l.id === app.language}
+                  className={`mi${l.id === app.language ? " on" : ""}`}
+                  onClick={() => {
+                    setOpen(false);
+                    app.setLanguage(l.id);
+                  }}
+                >
+                  <span className={`g ${l.fontClass}`}>{l.glyph}</span>
+                  <span className="t">
+                    <b>{langName(l.id)}</b>
+                    <small>{practisedLabel(lastAt(l.id))}</small>
+                  </span>
+                  {l.id === app.language && (
+                    <span className="mck">
+                      <Icon name="check" size={16} stroke={2.2} />
+                    </span>
+                  )}
+                </button>
+              ))}
+              <div className="sep" />
               <button
-                key={l.id}
-                role="menuitemradio"
-                aria-checked={l.id === app.language}
-                className={`mi${l.id === app.language ? " on" : ""}`}
+                className="mi add"
                 onClick={() => {
                   setOpen(false);
-                  app.setLanguage(l.id);
+                  navigate(settingsRoute("languages"));
                 }}
               >
-                <span className={`g ${l.fontClass}`}>{l.glyph}</span>
-                <span className="t">
-                  <b>{langName(l.id)}</b>
-                  <small>{practisedLabel(lastAt(l.id))}</small>
-                </span>
-                {l.id === app.language && (
-                  <span className="mck">
-                    <Icon name="check" size={16} stroke={2.2} />
-                  </span>
-                )}
+                <Icon name="plus" size={16} stroke={2} />
+                {t("Add a language")}
               </button>
-            ))}
-            <div className="sep" />
-            <button
-              className="mi add"
-              onClick={() => {
-                setOpen(false);
-                navigate(settingsRoute("languages"));
-              }}
-            >
-              <Icon name="plus" size={16} stroke={2} />
-              {t("Add a language")}
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+        <button
+          className={`home${route.name === "today" ? " on" : ""}`}
+          aria-current={route.name === "today" ? "page" : undefined}
+          aria-label={t("Today")}
+          title={`${t("Today")} (${MOD}1)`}
+          onClick={() => navigate("today")}
+        >
+          <Icon name="home" size={19} />
+        </button>
       </div>
 
       <div className="nav">
@@ -110,7 +117,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
 
       <div className="recent">
         <div className="sect">
-          <span>{t("Recent")}</span>
+          <span>{t("Recent sessions")}</span>
           <button onClick={() => void app.startSession()} aria-label={t("New session")} title={t("New session ({shortcut})", { shortcut: `${MOD}N` })}>
             <Icon name="plus" size={15} stroke={2} />
           </button>
@@ -142,7 +149,7 @@ export function Sidebar({ route }: { route: ParsedRoute }) {
         </div>
         <div className="hair" />
         {connected.length === 0 ? (
-          <button className="status" onClick={() => navigate("settings")}>
+          <button className="status" onClick={() => navigate(settingsRoute("models"))}>
             <i className="off" />
             <span>{t("No model connected")}</span>
           </button>

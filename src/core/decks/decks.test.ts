@@ -335,7 +335,10 @@ describe("deck cards", () => {
 
 describe("text to speech", () => {
   it("computes Sec-MS-GEC like edge-tts", () => {
-    assert.equal(secMsGec(1_790_000_000_000), "CA99F0B37F2EAC6F5D719AE4BA7C98978842B3F335D9F42979070A8DB149F0A5");
+    // Values from edge-tts 7.3.1 generate_sec_ms_gec_v2.
+    assert.equal(secMsGec(0), "52BC7A17B50DFEC9-28C4394775C8751CD2F6859C030C06DB1489ACAB3B3A7651831FC26895177ED6");
+    assert.equal(secMsGec(1_760_000_123_500), "BAF4076F572BFE4E-2D6FBE5C0E24F56622EB94F37395F2D153C6C0C451DAAE2249A459BB3AFAD62C");
+    assert.equal(secMsGec(1_790_000_000_000), "D4216A7D3DE0C94F-91D741832FD084A110FDAD52BE2FFA569C6EA5F7D06A9429380A398738F4559A");
   });
 
   it("speaks through Edge's read-aloud socket", async () => {
@@ -343,10 +346,35 @@ describe("text to speech", () => {
     const mp3 = await edgeTts("我<你>", "zh-CN-XiaoxiaoNeural", { ws: edge.factory });
     assert.equal(mp3.toString(), "MP3:我&lt;你&gt;");
     const req = edge.requests[0];
-    assert.match(req.url, /TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=\w{32}&Sec-MS-GEC=[0-9A-F]{64}&Sec-MS-GEC-Version=1-/);
+    assert.match(req.url, /TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=\w{32}&Sec-MS-GEC=[0-9A-F]{16}-[0-9A-F]{64}&Sec-MS-GEC-Version=2-/);
     assert.equal(req.headers.Origin, "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold");
     assert.match(req.sent[0], /Path:speech.config/);
     assert.match(req.sent[1], /<voice name='zh-CN-XiaoxiaoNeural'>/);
+  });
+
+  it("says why Edge refused the handshake: a wrong clock, no connection, or a refused token", async () => {
+    const now = 1_790_000_000_000;
+    // Like undici on a 403: an error event without a status, then close 1006, before any open.
+    const refused: WsFactory = () => {
+      const ws: WsLike = { binaryType: "blob", onopen: null, onmessage: null, onerror: null, onclose: null, send() {}, close() {} };
+      setTimeout(() => {
+        ws.onerror?.({});
+        ws.onclose?.({ code: 1006 });
+      }, 1);
+      return ws;
+    };
+    const serverAt = (ms: number) => (async () => new Response(null, { status: 404, headers: { Date: new Date(ms).toUTCString() } })) as unknown as typeof fetch;
+    const offline = (async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch;
+    const speak = (f: typeof fetch) => edgeTts("你好", "zh-CN-XiaoxiaoNeural", { ws: refused, fetch: f, now: () => now });
+    await assert.rejects(speak(serverAt(now + 20 * 60_000)), (e: unknown) => e instanceof TtsError && e.kind === "clock" && /clock is wrong/.test(e.message));
+    await assert.rejects(speak(offline), (e: unknown) => e instanceof TtsError && e.kind === "network" && /internet connection/.test(e.message));
+    const expiredCert = (async () => {
+      throw Object.assign(new TypeError("fetch failed"), { cause: { code: "CERT_HAS_EXPIRED" } });
+    }) as unknown as typeof fetch;
+    await assert.rejects(speak(expiredCert), (e: unknown) => e instanceof TtsError && e.kind === "clock");
+    await assert.rejects(speak(serverAt(now + 60_000)), (e: unknown) => e instanceof TtsError && e.kind === "other" && /may need an update/.test(e.message));
   });
 
   it("turns ElevenLabs quota errors into a quota TtsError", async () => {

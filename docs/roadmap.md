@@ -63,7 +63,7 @@ Quizzes:
 Anki decks (v0.6.0):
 - **Try it for real on the Mac**: a real model, Anki with AnkiConnect, both voice services. Only unit tests, a live Edge clip from the container and the mock UI were run.
 - No official HSK/JLPT word lists: the model chooses words (with the level's descriptor and word count). A bundled or downloadable list would make big decks more reliable.
-- Edge voice constants (`CHROMIUM_FULL_VERSION`, token) come from edge-tts 7.2.8 and may need bumping; there's no clock-skew retry yet.
+- Edge voice constants (`CHROMIUM_FULL_VERSION`, token) come from edge-tts 7.3.1 and may need bumping (Microsoft changed the token format in 2026). A wrong computer clock (more than about 5 minutes off) is not corrected: `edgeHandshakeError` tells the learner to fix the clock.
 - Images on cards (an /ankigen option) are not built.
 - The sample preview plays audio from data: URLs; batches don't show audio in the app.
 - A generated deck is followed automatically; nothing syncs it right away (the next sync or session start does).

@@ -1,18 +1,25 @@
 // Text to speech for deck cards (S2-16): ElevenLabs (the learner's own account, optional) and
 // Microsoft Edge's free online voices, the same service /ankigen uses through edge-tts.
 // Plain Node: fetch and the global WebSocket (both injectable for tests).
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Language } from "../../shared/records";
 import type { ElevenLabsVoice } from "../../shared/stage2";
+import { msg } from "../../shared/i18n";
+import { gecV2 } from "./edge-drm";
 
 // ---------------------------------------------------------------- Edge (free)
 
-/** Constants from edge-tts 7.2.8 (rany2/edge-tts). Bump CHROMIUM_FULL_VERSION when edge-tts does. */
+/** Constants from edge-tts 7.3.1 (rany2/edge-tts). Bump CHROMIUM_FULL_VERSION when edge-tts does. */
 const EDGE_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 const CHROMIUM_FULL_VERSION = "143.0.3650.75";
 const CHROMIUM_MAJOR = CHROMIUM_FULL_VERSION.split(".")[0];
+const SEC_MS_GEC_VERSION = `2-${CHROMIUM_FULL_VERSION}`;
 const EDGE_URL = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${EDGE_TOKEN}`;
 const WIN_EPOCH = 11644473600;
+/** The service accepts a token made with a clock up to about 5 minutes off (measured 2026-10). */
+const CLOCK_TOLERANCE_MS = 5 * 60_000;
+/** Any reply from the service's host carries its clock in the Date header (this one is a 404). */
+const EDGE_PROBE_URL = `https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/voices/list?trustedclienttoken=${EDGE_TOKEN}`;
 
 /** Word and sentence voices per language (different speakers on purpose, as in /ankigen). */
 export const EDGE_VOICES: Record<Language, { word: string; sentence: string }> = {
@@ -29,14 +36,11 @@ export const EDGE_VOICES: Record<Language, { word: string; sentence: string }> =
   vi: { word: "vi-VN-HoaiMyNeural", sentence: "vi-VN-NamMinhNeural" },
 };
 
-/** Sec-MS-GEC: SHA-256 of Windows file time (rounded down to 5 minutes) + the client token. */
+/** Sec-MS-GEC v2 of the Windows file time (rounded down to 5 minutes) + the client token (edge-drm.ts). */
 export function secMsGec(nowMs: number): string {
   let ticks = Math.floor(nowMs / 1000) + WIN_EPOCH;
   ticks -= ticks % 300;
-  return createHash("sha256")
-    .update(`${BigInt(ticks) * 10_000_000n}${EDGE_TOKEN}`)
-    .digest("hex")
-    .toUpperCase();
+  return gecV2(`${BigInt(ticks) * 10_000_000n}${EDGE_TOKEN}`);
 }
 
 const noDash = () => randomUUID().replaceAll("-", "");
@@ -78,8 +82,8 @@ async function bytesOf(data: unknown): Promise<Buffer | null> {
 export class TtsError extends Error {
   constructor(
     message: string,
-    /** ElevenLabs: out of credits / rate limited / bad key. Edge: unreachable. */
-    readonly kind: "quota" | "auth" | "network" | "other" = "other",
+    /** ElevenLabs: out of credits / rate limited / bad key. Edge: unreachable, or refused because the computer's clock is wrong. */
+    readonly kind: "quota" | "auth" | "network" | "clock" | "other" = "other",
     /** HTTP status from ElevenLabs, when there was a response (429 = rate limited, not out of credits). */
     readonly status?: number,
   ) {
@@ -87,14 +91,37 @@ export class TtsError extends Error {
   }
 }
 
+/**
+ * Why the websocket handshake failed. The WebSocket error hides the HTTP status (a refused token is a 403),
+ * so ask the same host for its clock: no answer means no connection, a clock far from ours means the token was stale.
+ */
+export async function edgeHandshakeError(fetchImpl: typeof fetch, now: () => number): Promise<TtsError> {
+  const clock = () =>
+    new TtsError(
+      msg("The free voices refused the request because your computer's clock is wrong. Set the date and time automatically in your system settings, then try again."),
+      "clock",
+    );
+  let date: string | null;
+  try {
+    date = (await fetchImpl(EDGE_PROBE_URL, { method: "HEAD", signal: AbortSignal.timeout(5_000) })).headers.get("date");
+  } catch (err) {
+    // A clock months or years off fails the certificate check before any Date header arrives.
+    const code = (err as { cause?: { code?: string } })?.cause?.code;
+    if (code === "CERT_NOT_YET_VALID" || code === "CERT_HAS_EXPIRED") return clock();
+    return new TtsError(msg("Couldn't reach the free voices. Check your internet connection."), "network");
+  }
+  if (date && Math.abs(Date.parse(date) - now()) > CLOCK_TOLERANCE_MS) return clock();
+  return new TtsError(msg("Microsoft refused the free voices. Sayfern may need an update."), "other");
+}
+
 /** One MP3 clip from Edge's read-aloud service. */
 export function edgeTts(
   text: string,
   voice: string,
-  opts: { ws?: WsFactory; now?: () => number; timeoutMs?: number; signal?: AbortSignal } = {},
+  opts: { ws?: WsFactory; fetch?: typeof fetch; now?: () => number; timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<Buffer> {
   const now = opts.now ?? Date.now;
-  const url = `${EDGE_URL}&ConnectionId=${noDash()}&Sec-MS-GEC=${secMsGec(now())}&Sec-MS-GEC-Version=1-${CHROMIUM_FULL_VERSION}`;
+  const url = `${EDGE_URL}&ConnectionId=${noDash()}&Sec-MS-GEC=${secMsGec(now())}&Sec-MS-GEC-Version=${SEC_MS_GEC_VERSION}`;
   const headers = {
     Pragma: "no-cache",
     "Cache-Control": "no-cache",
@@ -113,6 +140,8 @@ export function edgeTts(
     }
     const chunks: Buffer[] = [];
     let settled = false;
+    let opened = false;
+    let diagnosing = false;
     const finish = (err: Error | null) => {
       if (settled) return;
       settled = true;
@@ -127,11 +156,19 @@ export function edgeTts(
       else if (!chunks.length) reject(new TtsError("The free voices sent no audio.", "other"));
       else resolve(Buffer.concat(chunks));
     };
+    /** Before the socket opens, find out why it failed; after, report `err`. */
+    const fail = (err: TtsError) => {
+      if (settled || diagnosing) return;
+      if (opened) return finish(err);
+      diagnosing = true;
+      void edgeHandshakeError(opts.fetch ?? fetch, now).then(finish);
+    };
     const onAbort = () => finish(new TtsError("Stopped.", "other"));
     opts.signal?.addEventListener("abort", onAbort);
     const timer = setTimeout(() => finish(new TtsError("The free voices didn't answer in time.", "network")), opts.timeoutMs ?? 20_000);
     ws.binaryType = "arraybuffer";
     ws.onopen = () => {
+      opened = true;
       ws.send(
         `X-Timestamp:${jsDate(now())}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n` +
           `{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n`,
@@ -163,12 +200,13 @@ export function edgeTts(
       });
     };
     ws.onerror = (ev) => {
-      const msg = (ev as { message?: string; error?: Error })?.error?.message ?? (ev as { message?: string })?.message ?? "connection failed";
-      finish(new TtsError(`Couldn't reach the free voices: ${msg}`, "network"));
+      const detail = (ev as { message?: string; error?: Error })?.error?.message ?? (ev as { message?: string })?.message ?? "connection failed";
+      fail(new TtsError(`Couldn't reach the free voices: ${detail}`, "network"));
     };
     ws.onclose = (ev) => {
       void queue.then(() => {
-        if (!settled) finish(chunks.length ? null : new TtsError(`The free voices closed the connection${ev?.code ? ` (${ev.code})` : ""}.`, "network"));
+        if (chunks.length) finish(null);
+        else fail(new TtsError(`The free voices closed the connection${ev?.code ? ` (${ev.code})` : ""}.`, "network"));
       });
     };
   });

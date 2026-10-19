@@ -33,7 +33,7 @@ import { deckRoute, navigate as go, settingsRoute, type Navigate } from "../rout
 import { loadVoiceStatus } from "../lib/voice";
 import { DECK_REQUEST_EXAMPLES, DECK_REQUEST_PLACEHOLDER } from "../lib/samples";
 import { hasRuby } from "../../../shared/languages";
-import { langName, msg, t, tc, tj, tn } from "../i18n";
+import { langName, levelLabel, msg, t, tc, tj, tn } from "../i18n";
 
 export interface DecksScreenProps {
   id?: string;
@@ -258,7 +258,7 @@ function NewDeck({ language, navigate }: { language: Language; navigate: Navigat
               <option value={DECK_BEGINNER}>{t("Starting from zero")}</option>
               {o.levels.map((lv) => (
                 <option key={lv} value={lv}>
-                  {lv}
+                  {levelLabel(lv)}
                   {lv === o.currentLevel ? ` ${t("(your level)")}` : ""}
                 </option>
               ))}

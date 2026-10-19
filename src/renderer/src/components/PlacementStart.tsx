@@ -6,13 +6,7 @@ import { LEVEL_BANDS } from "../../../shared/records";
 import { bandLevels } from "../../../shared/languages";
 import { cls } from "../lib/format";
 import { Icon } from "./icons";
-import { langName, msg, t } from "../i18n";
-
-const BAND_LABEL: Record<LevelBand, string> = {
-  beginner: msg("Beginner"),
-  intermediate: msg("Intermediate"),
-  advanced: msg("Advanced"),
-};
+import { BAND_LABEL, langName, msg, t } from "../i18n";
 
 const BAND_NOTE: Record<LevelBand, string> = {
   beginner: msg("I know a few words, or none yet."),

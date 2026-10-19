@@ -5,7 +5,7 @@ import { useApp } from "../context";
 import { cls } from "../lib/format";
 import { useDismiss } from "../lib/hooks";
 import { t } from "../i18n";
-import { navigate } from "../router";
+import { navigate, settingsRoute } from "../router";
 import { Icon } from "./icons";
 
 const same = (a?: ModelRef, b?: ModelRef) => !!a && !!b && a.provider === b.provider && a.id === b.id;
@@ -23,7 +23,7 @@ export function ModelPicker({ placement = "up" }: { placement?: "up" | "down" })
 
   if (models.length === 0) {
     return (
-      <button className="mp-btn connect" onClick={() => navigate("settings")}>
+      <button className="mp-btn connect" onClick={() => navigate(settingsRoute("models"))}>
         <Icon name="key" size={14} />
         {t("Connect a model")}
       </button>

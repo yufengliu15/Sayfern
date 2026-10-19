@@ -253,24 +253,32 @@ html:lang(vi) { --serif: Georgia, "Times New Roman", serif; --sans: -apple-syste
   padding: 50px 14px 16px; display: flex; flex-direction: column; gap: 20px; position: relative;
 }
 .side-drag { position: absolute; inset: 0 0 auto 0; height: 44px; }
-.brand { display: flex; align-items: center; gap: 9px; padding: 0 6px; }
-.brand b { font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: -0.01em; color: var(--side-ink); }
-
-.ldd { position: relative; }
-.ldd-btn {
-  width: 100%; display: flex; align-items: center; gap: 11px; height: 56px; padding: 0 12px 0 10px; border: 0;
-  border-radius: 14px; background: var(--paper); color: var(--ink); box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--shadow-ink) 55%, transparent);
+/* The logo is the language picker; the home button beside it opens Today. */
+.brand-row { position: relative; display: flex; align-items: center; gap: 6px; }
+.brand-row .ldd { min-width: 0; }
+.brand {
+  max-width: 100%; display: flex; align-items: center; gap: 9px; height: 48px; padding: 0 10px 0 6px; border: 0;
+  border-radius: 9px; background: transparent; color: var(--side-ink); text-align: left;
 }
-.ldd-btn:hover { background: var(--white); }
-.ldd-btn svg { transition: transform 0.18s; opacity: 0.8; }
-.ldd-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.brand:hover, .brand[aria-expanded="true"] { background: color-mix(in srgb, var(--side-ink) 7%, transparent); }
+.brand .bt { display: flex; flex-direction: column; min-width: 0; line-height: 1; }
+.brand .bt b { font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: -0.01em; }
+.brand .bt small { font-size: 11.5px; font-weight: 500; margin-top: 3px; color: color-mix(in srgb, var(--side-ink) 62%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand > svg:last-child { flex-shrink: 0; opacity: 0.7; transition: transform 0.18s; }
+.brand[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+.home {
+  flex-shrink: 0; margin-left: auto; width: 48px; height: 48px; border-radius: 9px; border: 1px solid transparent; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: color-mix(in srgb, var(--side-ink) 80%, transparent);
+}
+.home:hover { background: color-mix(in srgb, var(--side-ink) 7%, transparent); color: var(--side-ink); }
+.home.on { background: color-mix(in srgb, var(--side-ink) 12%, transparent); border-color: color-mix(in srgb, var(--side-ink) 14%, transparent); color: var(--side-accent); }
+
 .ldd .g { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 21px; flex-shrink: 0; }
-.ldd-btn .g { background: var(--fern-soft); color: var(--fern-dark); }
 .ldd .t { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.2; text-align: left; }
 .ldd .t b { font-weight: 600; font-size: 14.5px; }
-.ldd .t small { font-size: 11.5px; opacity: 0.72; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ldd .t small { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ldd .menu {
-  position: absolute; top: 62px; left: 0; right: 0; z-index: 50; background: var(--white); border: 1px solid var(--line-2); color: var(--ink);
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50; background: var(--white); border: 1px solid var(--line-2); color: var(--ink);
   border-radius: 14px; padding: 6px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 2px;
   animation: pop-in 0.14s ease-out;
 }
@@ -568,7 +576,9 @@ button.chip:hover { border-color: var(--line-hover); color: var(--ink); backgrou
 
 /* ================================================================ inspector */
 .insp { width: 336px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--paper-3); padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 26px; overflow-y: auto; }
-.insp-top { display: flex; align-items: center; justify-content: space-between; margin: 0 -8px -12px 0; min-height: 30px; }
+/* Sticky so the top right of the window stays draggable while the inspector scrolls; margins cancel padding and gap. */
+.insp-drag { position: sticky; top: -20px; flex-shrink: 0; height: 44px; margin: -20px -22px -50px; }
+.insp-top { position: relative; display: flex; align-items: center; justify-content: space-between; margin: 0 -8px -12px 0; min-height: 30px; }
 .insp section { display: flex; flex-direction: column; }
 .insp-h { font-size: 11.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-bottom: 10px; }
 .insp-sub { font-size: 13px; color: var(--muted); margin: -6px 0 4px; }
@@ -1253,6 +1263,7 @@ mark.pm { color: var(--fern-dark); background: linear-gradient(transparent 60%, 
 /* ================================================================ onboarding */
 .welcome { flex: 1; display: flex; position: relative; overflow: hidden; }
 .welcome .ghost { position: absolute; color: color-mix(in srgb, var(--fern) 7%, transparent); line-height: 1; pointer-events: none; }
+.welcome-drag { position: absolute; inset: 0 0 auto 0; height: 44px; }
 .welcome-l { width: 47%; min-width: 440px; padding: 64px 40px 48px 72px; display: flex; flex-direction: column; position: relative; }
 .welcome-brand { display: flex; align-items: center; gap: 10px; }
 .welcome-brand .serif { font-size: 34px; }
@@ -1262,8 +1273,8 @@ mark.pm { color: var(--fern-dark); background: linear-gradient(transparent 60%, 
 .welcome-foot { display: flex; gap: 26px; margin-top: 36px; font-size: 13.5px; color: var(--ink-3); }
 .welcome-foot span { display: inline-flex; align-items: center; gap: 8px; }
 .welcome-r { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 64px 40px 20px; min-width: 0; }
-.wcard { width: 100%; max-width: 600px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; border-radius: 24px; background: var(--card); position: relative; z-index: 1; }
-.wsteps { overflow-y: auto; padding: 14px 32px 4px; min-height: 0; }
+.wcard { width: 100%; max-width: 600px; height: min(760px, calc(100vh - 80px)); display: flex; flex-direction: column; border-radius: 24px; background: var(--card); position: relative; z-index: 1; }
+.wsteps { flex: 1; overflow-y: auto; padding: 14px 32px 4px; min-height: 0; }
 .wstep { display: flex; gap: 16px; padding: 20px 0; }
 .wstep + .wstep { border-top: 1px solid var(--line-3); }
 .wnum { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; border: 1.5px solid var(--line-strong); color: var(--muted); }

@@ -15,13 +15,29 @@ export const TOPIK_LEVELS = ["TOPIK 1", "TOPIK 2", "TOPIK 3", "TOPIK 4", "TOPIK 
 export const HSK_LEVELS = ["HSK 1", "HSK 2", "HSK 3", "HSK 4", "HSK 5", "HSK 6", "HSK 7-9"] as const;
 export const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 
-/** The levels of one band: the scale split in thirds (CEFR: A1-A2, B1-B2, C1-C2; JLPT: N5-N4, N3, N2-N1). */
+/** Band per level: the first `beginner` levels, then `intermediate` levels, the rest advanced. */
+function bands(levels: readonly string[], beginner: number, intermediate: number) {
+  return Object.fromEntries(
+    levels.map((l, i): [string, LevelBand] => [l, i < beginner ? "beginner" : i < beginner + intermediate ? "intermediate" : "advanced"]),
+  );
+}
+
+// Level names are unique across the scales, so one table serves every language.
+const BAND_OF: Record<string, LevelBand> = {
+  ...bands(CEFR_LEVELS, 2, 2), // A1-A2, B1-B2, C1-C2
+  ...bands(JLPT_LEVELS, 2, 2), // N5-N4, N3-N2, N1
+  ...bands(HSK_LEVELS, 3, 3), // HSK 3.0 bands: 1-3, 4-6, 7-9
+  ...bands(TOPIK_LEVELS, 2, 2), // TOPIK I (1-2), TOPIK II split in 3-4 and 5-6
+};
+
+/** Beginner, intermediate or advanced for a level of any scale ("N3" → intermediate). */
+export function levelBand(level: string): LevelBand | undefined {
+  return BAND_OF[level];
+}
+
+/** The levels of one band, in scale order (CEFR: A1-A2, B1-B2, C1-C2; JLPT: N5-N4, N3-N2, N1). */
 export function bandLevels(levels: readonly string[], band: LevelBand): string[] {
-  const a = Math.round(levels.length / 3);
-  const b = Math.round((2 * levels.length) / 3);
-  if (band === "beginner") return levels.slice(0, a);
-  if (band === "intermediate") return levels.slice(a, b);
-  return levels.slice(b);
+  return levels.filter((l) => BAND_OF[l] === band);
 }
 
 export interface LanguageMeta {
